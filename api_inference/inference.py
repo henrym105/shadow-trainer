@@ -1,8 +1,6 @@
 import sys
 import argparse
 import cv2
-from src.preprocess import h36m_coco_format, revise_kpts
-from src.hrnet.gen_kpts import gen_video_kpts as hrnet_pose
 import os 
 import numpy as np
 import torch
@@ -12,9 +10,10 @@ from tqdm import tqdm
 import copy
 from pprint import pprint
 
-sys.path.append(os.getcwd())
+from src.preprocess import h36m_coco_format, revise_kpts
+from src.hrnet.gen_kpts import gen_video_kpts as hrnet_pose
 from src.utils import normalize_screen_coordinates, camera_to_world
-from model.MotionAGFormer import MotionAGFormer
+from src.model.MotionAGFormer import MotionAGFormer
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -229,7 +228,8 @@ def img2video(video_path: str, output_dir: str) -> str:
         raise ValueError(f"Failed to read first pose image: {names[0]}")
     size = (img.shape[1], img.shape[0])
 
-    output_path = os.path.join(output_dir, video_name + '.mp4')
+    output_video_name = video_name.replace("input", "output")
+    output_path = os.path.join(output_dir, output_video_name + '.mp4')
     logger.info(f"Writing output video to: {output_path}")
     videoWrite = cv2.VideoWriter(output_path, fourcc, fps, size)
 
@@ -362,8 +362,10 @@ def get_pose3D(video_path, output_dir, device, model_size='*', yaml_path=None):
     model = nn.DataParallel(MotionAGFormer(**args)).to(device)
     print(f"{type(model) = }")
 
-    # Put the pretrained model of MotionAGFormer in 'checkpoint/'
-    model_path = sorted(glob.glob(os.path.join('checkpoint', f'motionagformer-{model_size}*.pth.tr')))[0]
+    # Dynamically generate the absolute path to the checkpoint file based on the root directory of this script
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path_pattern = os.path.join(root_dir, "checkpoint", f"motionagformer-{model_size}*.pth.tr")
+    model_path = sorted(glob.glob(model_path_pattern))[0]
     print(f"{model_path = }")
 
     pre_dict = torch.load(model_path, map_location=device)

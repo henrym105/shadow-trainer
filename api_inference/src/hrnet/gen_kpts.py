@@ -30,11 +30,15 @@ from src.sort.sort import Sort
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
     # general
-    parser.add_argument('--cfg', type=str, default='src/hrnet/experiments/w48_384x288_adam_lr1e-3.yaml',
+    parser.add_argument('--cfg', type=str, 
+                        # default='src/hrnet/experiments/w48_384x288_adam_lr1e-3.yaml',
+                        default='/app/api_inference/src/hrnet/experiments/w48_384x288_adam_lr1e-3.yaml',
                         help='experiment configure file name')
     parser.add_argument('opts', nargs=argparse.REMAINDER, default=None,
                         help="Modify config options using the command-line")
-    parser.add_argument('--modelDir', type=str, default='src/checkpoint/pose_hrnet_w48_384x288.pth',
+    parser.add_argument('--modelDir', type=str, 
+                        # default='src/checkpoint/pose_hrnet_w48_384x288.pth',
+                        default='/app/api_inference/src/checkpoint/pose_hrnet_w48_384x288.pth',
                         help='The model directory')
     parser.add_argument('--det-dim', type=int, default=416,
                         help='The input dimension of the detected image')

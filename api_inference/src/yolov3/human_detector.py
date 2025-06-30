@@ -53,23 +53,24 @@ def write(x, img, colors):
 
 
 def arg_parse():
-    """"
-    Parse arguements to the detect module
+    """"Parse arguements to the detect module""" 
+    # Dynamically assign absolute paths using os.path
+    default_weight_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '../checkpoint/yolov3.weights'))
+    default_cfg_file = os.path.abspath(os.path.join(os.path.dirname(__file__), 'cfg/yolov3.cfg'))
+    default_image = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data/dog-cycle-car.png'))
 
-    """
+
     parser = argparse.ArgumentParser(description='YOLO v3 Cam Demo')
     parser.add_argument('--confidence', dest='confidence', type=float, default=0.70,
                         help='Object Confidence to filter predictions')
     parser.add_argument('--nms-thresh', dest='nms_thresh', type=float, default=0.4, help='NMS Threshold')
     parser.add_argument('--reso', dest='reso', default=416, type=int, help='Input resolution of the network. '
                         'Increase to increase accuracy. Decrease to increase speed. (160, 416)')
-    parser.add_argument('-wf', '--weight-file', type=str, default= 'src/checkpoint/yolov3.weights', help='The path'
-                        'of model weight file')
-    parser.add_argument('-cf', '--cfg-file', type=str, default=cur_dir + '/cfg/yolov3.cfg', help='weight file')
+    parser.add_argument('-wf', '--weight-file', type=str, default=default_weight_file, help='The path of model weight file')
+    parser.add_argument('-cf', '--cfg-file', type=str, default=default_cfg_file, help='weight file')
     parser.add_argument('-a', '--animation', action='store_true', help='output animation')
     parser.add_argument('-v', '--video', type=str, default='camera', help='The input video path')
-    parser.add_argument('-i', '--image', type=str, default=cur_dir + '/data/dog-cycle-car.png',
-                        help='The input video path')
+    parser.add_argument('-i', '--image', type=str, default=default_image, help='The input image path')
     parser.add_argument('-np', '--num-person', type=int, default=1, help='number of estimated human poses. [1, 2]')
     parser.add_argument('--gpu', type=str, default='0', help='input video')
     
