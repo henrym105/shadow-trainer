@@ -1,97 +1,184 @@
 
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
-import shutil
+
+# --- Imports and Setup ---
+from fastapi import FastAPI, Query
+from fastapi.responses import JSONResponse
 import os
 import logging
 import json
+import boto3
+import shutil
 from inference import get_pose2D, get_pose3D, img2video, get_pytorch_device
-import time
 
-# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+s3_client = boto3.client('s3')
 
-@app.post("/process_video/")
-def process_video(file: UploadFile = File(...), model_size: str = "xs"):
-    
-    TMP_DIR = os.path.join(os.getcwd(), "tmp_api")
-    os.makedirs(TMP_DIR, exist_ok=True)
-    logger.info(f"Temporary directory for API: {TMP_DIR}")
 
-    logger.info(f"Received file: {file.filename}, model_size: {model_size}")
-    # Save uploaded file
-    file_ext = os.path.splitext(file.filename)[-1]
-    if file_ext.lower() not in [".mp4", ".mov"]:
-        logger.warning(f"Unsupported file extension: {file_ext}")
-        return JSONResponse(status_code=400, content={"error": "Only .mp4 and .mov files are supported."})
-    timestamp = int(time.time() * 1000)
-    input_path = os.path.join(TMP_DIR, f"input_{timestamp}{file_ext}") 
-    
+# --- Utility Functions ---
+def is_s3_path(path: str) -> bool:
+    return path.startswith("s3://")
+
+def validate_video_extension(file_ext: str) -> bool:
+    return file_ext.lower() in [".mp4", ".mov"]
+
+def download_from_s3(s3_path: str, local_path: str) -> tuple:
+    s3_path_no_prefix = s3_path[5:]
+    bucket, key = s3_path_no_prefix.split('/', 1)
     try:
-        with open(input_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        logger.info(f"Saved input file to: {input_path}")
+        logger.info(f"Downloading {s3_path} to {local_path}")
+        s3_client.download_file(bucket, key, local_path)
+        return bucket, key, None
     except Exception as e:
-        logger.error(f"Failed to save input file: {e}")
-        return JSONResponse(status_code=500, content={"error": "Failed to save input file."})
+        logger.error(f"Failed to download from S3: {e}")
+        return None, None, str(e)
 
-    video_name = os.path.splitext(os.path.basename(input_path))[0]
-    output_dir = os.path.join(TMP_DIR, video_name) # Ensure output_dir ends with a slash
-    os.makedirs(output_dir, exist_ok=True)
-    logger.info(f"Video name extracted: {video_name}")
-    logger.info(f"Output directory: {output_dir}")
-
-    # Model config (now loaded from JSON file)
-    config_path = os.path.join(os.path.dirname(__file__), "model_config_map.json")
+def upload_to_s3(local_path: str, bucket: str, video_name: str) -> tuple:
+    output_video_s3_key = f"tmp/{video_name}/{os.path.basename(local_path)}"
     try:
-        with open(config_path, "r") as f:
+        logger.info(f"Uploading output video {local_path} to s3://{bucket}/{output_video_s3_key}")
+        s3_client.upload_file(local_path, bucket, output_video_s3_key)
+        logger.info(f"Uploaded {local_path} to s3://{bucket}/{output_video_s3_key}")
+        output_video_s3_url = f"s3://{bucket}/{output_video_s3_key}"
+        return output_video_s3_url, None
+    except Exception as e:
+        logger.error(f"Failed to upload output video to S3: {e}")
+        return None, str(e)
+
+def load_model_config(model_size: str, config_path: str) -> tuple:
+    try:
+        # Ensure config_path is absolute
+        config_path_abs = config_path
+        if not os.path.isabs(config_path):
+            config_path_abs = os.path.abspath(os.path.join(os.path.dirname(__file__), config_path))
+        with open(config_path_abs, "r") as f:
             model_config_map = json.load(f)
         logger.info(f"Loaded model_config_map: {model_config_map}")
         model_config = model_config_map.get(model_size, model_config_map["b"])
         logger.info(f"Using model config: {model_config}")
+        # If model_config is a relative path, make it absolute
+        if not os.path.isabs(model_config):
+            model_config = os.path.abspath(os.path.join(os.path.dirname(config_path_abs), model_config))
+        return model_config, None
     except Exception as e:
         logger.error(f"Failed to load or parse model_config_map.json: {e}")
-        return JSONResponse(status_code=500, content={"error": f"Failed to load model config: {e}"})
+        return None, str(e)
+
+def run_pipeline(input_path, output_dir, device, model_size, model_config):
+    try:
+        logger.info("Running get_pose2D...")
+        logger.info(f"Input path: {input_path}, Output directory: {output_dir}, Device: {device}")
+        get_pose2D(input_path, output_dir, device)
+        logger.info("Running get_pose3D...")
+        get_pose3D(input_path, output_dir, device, model_size, model_config)
+        logger.info("Running img2video...")
+        output_video_path = img2video(input_path, output_dir)
+        return output_video_path, None
+    except Exception as e:
+        logger.error(f"Pipeline failed: {e}")
+        return None, str(e)
+
+# --- Cleanup Utility ---
+def clear_tmp_dir(dir_path):
+    """Delete all files and folders in the given directory."""
+    if os.path.exists(dir_path):
+        for filename in os.listdir(dir_path):
+            file_path = os.path.join(dir_path, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                logger.error(f'Failed to delete {file_path}. Reason: {e}')
+
+
+
+# --- Main Endpoint ---
+@app.post("/process_video/")
+def process_video(
+    file: str = Query(..., description="S3 path or local path to input video"),
+    model_size: str = Query("xs", description="Model size: xs, s, b, l")
+):
+    """Process a video from an S3 path or local path using the specified model size.
+    
+    Args:
+        file (str): S3 path or local path to the input video.
+        model_size (str): Model size to use for processing (xs, s, b, l).
+
+    Returns:
+        JSONResponse: Contains the output video URL or local path.
+    """
+    TMP_DIR = os.path.join(os.getcwd(), "tmp_api")
+    os.makedirs(TMP_DIR, exist_ok=True)
+    logger.info(f"Temporary directory for API: {TMP_DIR}")
+
+    # --- Input Handling ---
+    if is_s3_path(file):
+        file_ext = os.path.splitext(file)[-1]
+        if not validate_video_extension(file_ext):
+            logger.warning(f"Unsupported file extension: {file_ext}")
+            return JSONResponse(status_code=400, content={"error": "Only .mp4 and .mov files are supported."})
+
+        input_path = os.path.join(TMP_DIR, os.path.basename(file))  
+        bucket, key, err = download_from_s3(file, input_path)
+        if err:
+            return JSONResponse(status_code=500, content={"error": f"Failed to download from S3: {err}"})
+
+        video_name = os.path.splitext(os.path.basename(input_path))[0]
+    else:
+        if not os.path.isfile(file):
+            logger.error(f"Local file does not exist: {file}")
+            return JSONResponse(status_code=400, content={"error": f"Local file does not exist: {file}"})
+
+        input_path = file
+        file_ext = os.path.splitext(input_path)[-1]
+        if not validate_video_extension(file_ext):
+            logger.warning(f"Unsupported file extension: {file_ext}")
+            return JSONResponse(status_code=400, content={"error": "Only .mp4 and .mov files are supported."})
+
+        video_name = os.path.splitext(os.path.basename(input_path))[0]
+        bucket = "shadow-trainer-prod"  # Change as needed or make configurable
+
+    output_dir = os.path.join(TMP_DIR, f"{video_name}_output")
+    os.makedirs(output_dir, exist_ok=True)
+    logger.info(f"Video name extracted: {video_name}")
+    logger.info(f"Output directory: {output_dir}")
+
+    # --- Model Config ---
+    config_path = os.path.join(os.path.dirname(__file__), "model_config_map.json")
+    model_config, err = load_model_config(model_size, config_path)
+    if err:
+        return JSONResponse(status_code=500, content={"error": f"Failed to load model config: {err}"})
+    
     device = get_pytorch_device()
     logger.info(f"Using device: {device}")
 
-    # Run pipeline
+    # --- Run Pipeline ---
     logger.info(f"\nInput path: {input_path}\nOutput directory: {output_dir}, \nDevice: {device}")
-    try:
-        logger.info("Running get_pose2D...")
-        get_pose2D(input_path, output_dir, device)
-    except Exception as e:
-        logger.error(f"Pipeline failed: {e}")
-        return JSONResponse(status_code=500, content={"error": f"Pipeline failed: {e}"})
+    output_video_path, err = run_pipeline(input_path, output_dir, device, model_size, model_config)
+    if err:
+        return JSONResponse(status_code=500, content={"error": f"Pipeline failed: {err}"})
 
-    try:
-        logger.info("Running get_pose3D...")
-        get_pose3D(input_path, output_dir, device, model_size, model_config)
-    except Exception as e:
-        logger.error(f"Pipeline failed: {e}")
-        return JSONResponse(status_code=500, content={"error": f"Pipeline failed: {e}"})
-
-    try:
-        logger.info("Running img2video...")
-        output_video_path = img2video(input_path, output_dir)
-    except Exception as e:
-        logger.error(f"Pipeline failed: {e}")
-        return JSONResponse(status_code=500, content={"error": f"Pipeline failed: {e}"})
-
-
-    # Find output video
-    # output_video = os.path.join(output_dir, f"output_{file.filename}.mp4")
-    logger.info(f"Looking for output video at: {output_video_path}")
-    if not os.path.exists(output_video_path):
-        logger.error("Output video not found.")
-        return JSONResponse(status_code=500, content={"error": "Output video not found."})
+    # --- Output Handling ---
+    output_video_s3_url = None
+    if bucket:
+        output_video_s3_url, err = upload_to_s3(output_video_path, bucket, video_name)
+        if err:
+            return JSONResponse(status_code=500, content={"error": f"Failed to upload output video to S3: {err}"})
 
     logger.info(f"Returning processed video: {output_video_path}")
-    return FileResponse(output_video_path, media_type="video/mp4", filename=f"processed_{file.filename}")
+    if output_video_s3_url:
+        clear_tmp_dir(TMP_DIR)
+        return {"output_video_s3_url": output_video_s3_url}
+    else:
+        return {"output_video_local_path": output_video_path}
 
+
+# --- Health Check Endpoint ---
 @app.get("/")
 def root():
     return {"message": "MotionAGFormer API is running."}
+
