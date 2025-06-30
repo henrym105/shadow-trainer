@@ -1,4 +1,16 @@
 **.DS_Store
+**.mp4
+**.mov
+**.pth*
+**.weights
+**.png
+**.jpg
+**.jpeg
+**.gif
+**.npz
+
+# Temp folder with output of the api inference
+api_inference/tmp_api
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

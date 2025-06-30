@@ -1,0 +1,6 @@
+{
+    "xs": "configs/h36m/MotionAGFormer-xsmall.yaml",
+    "s": "configs/h36m/MotionAGFormer-small.yaml",
+    "b": "configs/h36m/MotionAGFormer-base.yaml",
+    "l": "configs/h36m/MotionAGFormer-large.yaml"
+}
