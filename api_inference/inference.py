@@ -1,8 +1,8 @@
 import sys
 import argparse
 import cv2
-from lib.preprocess import h36m_coco_format, revise_kpts
-from lib.hrnet.gen_kpts import gen_video_kpts as hrnet_pose
+from src.preprocess import h36m_coco_format, revise_kpts
+from src.hrnet.gen_kpts import gen_video_kpts as hrnet_pose
 import os 
 import numpy as np
 import torch
@@ -13,7 +13,7 @@ import copy
 from pprint import pprint
 
 sys.path.append(os.getcwd())
-from lib.utils import normalize_screen_coordinates, camera_to_world
+from src.utils import normalize_screen_coordinates, camera_to_world
 from model.MotionAGFormer import MotionAGFormer
 
 import matplotlib
