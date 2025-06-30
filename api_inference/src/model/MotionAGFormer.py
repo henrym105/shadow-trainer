@@ -4,10 +4,10 @@ import torch
 from torch import nn
 from timm.layers import DropPath
 
-from model.modules.attention import Attention
-from model.modules.graph import GCN
-from model.modules.mlp import MLP
-from model.modules.tcn import MultiScaleTCN
+from src.model.modules.attention import Attention
+from src.model.modules.graph import GCN
+from src.model.modules.mlp import MLP
+from src.model.modules.tcn import MultiScaleTCN
 
 
 class AGFormerBlock(nn.Module):
