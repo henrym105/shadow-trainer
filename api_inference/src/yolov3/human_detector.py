@@ -55,7 +55,7 @@ def write(x, img, colors):
 def arg_parse():
     """"Parse arguements to the detect module""" 
     # Dynamically assign absolute paths using os.path
-    default_weight_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '../checkpoint/yolov3.weights'))
+    default_weight_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../checkpoint/yolov3.weights'))
     default_cfg_file = os.path.abspath(os.path.join(os.path.dirname(__file__), 'cfg/yolov3.cfg'))
     default_image = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data/dog-cycle-car.png'))
 

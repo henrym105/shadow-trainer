@@ -8,7 +8,7 @@ import logging
 import json
 import boto3
 import shutil
-from inference import get_pose2D, get_pose3D, img2video, get_pytorch_device
+from inference import get_pose2D, get_pose3D, img2video, get_pytorch_device, get_or_download_checkpoint
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -66,19 +66,37 @@ def load_model_config(model_size: str, config_path: str) -> tuple:
         logger.error(f"Failed to load or parse model_config_map.json: {e}")
         return None, str(e)
 
-def run_pipeline(input_path, output_dir, device, model_size, model_config):
+
+def run_pipeline(input_path: str, output_dir: str, device: str, model_size: str, model_config: dict) -> tuple:
+    """Runs the full processing pipeline consisting of 2D pose estimation, 3D pose estimation, and image-to-video conversion.
+    
+    Args:
+        input_path (str): Path to the input data (e.g., images or video).
+        output_dir (str): Directory where output files will be saved.
+        device (str): Device to use for computation (e.g., 'cpu' or 'cuda').
+        model_size (str): Size specification for the 3D pose estimation model.
+        model_config (dict): Configuration dictionary for the 3D pose estimation model.
+    Returns:
+        tuple[str | None, str | None]: 
+            - output_video_path (str | None): Path to the generated output video if successful, otherwise None.
+            - error_message (str | None): Error message if the pipeline fails, otherwise None.
+    """
+
+
     try:
         logger.info("Running get_pose2D...")
         logger.info(f"Input path: {input_path}, Output directory: {output_dir}, Device: {device}")
         get_pose2D(input_path, output_dir, device)
+        
         logger.info("Running get_pose3D...")
         get_pose3D(input_path, output_dir, device, model_size, model_config)
+        
         logger.info("Running img2video...")
         output_video_path = img2video(input_path, output_dir)
-        return output_video_path, None
+        return output_video_path, ""
     except Exception as e:
         logger.error(f"Pipeline failed: {e}")
-        return None, str(e)
+        return "", str(e)
 
 # --- Cleanup Utility ---
 def clear_tmp_dir(dir_path):

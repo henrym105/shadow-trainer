@@ -25,5 +25,6 @@ dependencies = [
     "jupyter>=1.1.1,<2.0.0",
     "sagemaker>=2.247.1",
     "streamlit>=1.46.1",
-    "pytest>=8.3.5"
+    "pytest>=8.3.5",
+    "ultralytics>=8.3.161",
 ]

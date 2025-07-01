@@ -5,6 +5,7 @@ weight_decay: 0.01
 lr_decay: 0.99
 epochs: 60
 
+
 # Model
 model_name: MotionAGFormer
 n_layers: 12

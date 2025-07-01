@@ -19,7 +19,7 @@
 
 curl -X POST "http://localhost:8000/process_video/" \
   -H "accept: application/json" \
-  -F "file=@videos/IMG_4654.MOV" \
+  -F "file=@videos/pitch_sample_3_raw.mp4" \
   -F "model_size=xs"
 
 # api update: create new file that creates quick response in api to avoid keeping open http request

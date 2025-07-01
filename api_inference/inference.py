@@ -1,4 +1,4 @@
-import sys
+import boto3
 import argparse
 import cv2
 import os 
@@ -10,8 +10,8 @@ from tqdm import tqdm
 import copy
 from pprint import pprint
 
-from src.preprocess import h36m_coco_format, revise_kpts
-from src.hrnet.gen_kpts import gen_video_kpts as hrnet_pose
+from src.preprocess import h36m_coco_format
+from src.hrnet.gen_kpts import gen_video_kpts
 from src.utils import normalize_screen_coordinates, camera_to_world
 from src.model.MotionAGFormer import MotionAGFormer
 
@@ -34,6 +34,38 @@ import torch
 import yaml
 from easydict import EasyDict as edict
 from typing import Any, IO
+
+
+def get_or_download_checkpoint(filename_pattern, local_dir, s3_bucket="shadow-trainer-prod", s3_prefix="model_weights") -> str:
+    """
+    Checks if a file matching filename_pattern exists in local_dir. If not, searches and downloads from S3.
+    Returns the local file path of the first match found.
+    """
+    import fnmatch
+    os.makedirs(local_dir, exist_ok=True)
+    # Search locally
+    local_matches = fnmatch.filter(os.listdir(local_dir), filename_pattern)
+    if local_matches:
+        local_path = os.path.join(local_dir, local_matches[0])
+        print(f"[INFO] Found checkpoint locally: {local_path}")
+        return local_path
+
+    # Search S3
+    s3 = boto3.client("s3")
+    s3_prefix_full = f"{s3_prefix}/"
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=s3_bucket, Prefix=s3_prefix_full):
+        if "Contents" in page:
+            for obj in page["Contents"]:
+                s3_key = obj["Key"]
+                s3_filename = os.path.basename(s3_key)
+                if fnmatch.fnmatch(s3_filename, filename_pattern):
+                    local_path = os.path.join(local_dir, s3_filename)
+                    print(f"[INFO] Downloading model weights from s3://{s3_bucket}/{s3_key} to {local_path}")
+                    s3.download_file(s3_bucket, s3_key, local_path)
+                    return local_path
+
+    raise FileNotFoundError(f"No checkpoint found matching pattern '{filename_pattern}' in {local_dir} or s3://{s3_bucket}/{s3_prefix}/")
 
 
 def print_args(args):
@@ -172,15 +204,19 @@ def get_pose2D(video_path, output_dir, device):
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
     print('\nGenerating 2D pose...')
-    # keypoints, scores = hrnet_pose(video_path, det_dim=416, num_peroson=1, gen_output=True)
-    keypoints, scores = hrnet_pose(video_path, det_dim=416, num_peroson=1, gen_output=True, device=device)
+
+    # Check if HRNet checkpoint exists, if not, download from S3
+    checkpoint_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoint")
+    get_or_download_checkpoint("pose_hrnet_w48_384x288.pth", checkpoint_dir)
+    get_or_download_checkpoint("yolov3.weights", checkpoint_dir)
+
+    keypoints, scores = gen_video_kpts(video_path, det_dim=416, num_person=2, gen_output=True, device=device)
+    # keypoints, scores = gen_video_kpts_yolov11(video_path, det_dim=416, num_person=1, gen_output=True, device=device)
 
     keypoints, scores, valid_frames = h36m_coco_format(keypoints, scores)
+
     # Add conf score to the last dim
     keypoints = np.concatenate((keypoints, scores[..., None]), axis=-1)
-
-    # # If you ever use torch tensors here, move them to device
-    # keypoints = torch.from_numpy(keypoints).to(device)
 
     output_dir = os.path.join(output_dir, 'input_2D')
     os.makedirs(output_dir, exist_ok=True)
@@ -319,17 +355,21 @@ def flip_data(data, left_joints=[1, 2, 3, 14, 15, 16], right_joints=[4, 5, 6, 11
     return flipped_data
 
 @torch.no_grad()
-def get_pose3D(video_path, output_dir, device, model_size='*', yaml_path=None):
+def get_pose3D(video_path: str, output_dir: str, device: str, model_size: str='*', yaml_path: str=None):
     """
     Args:
-        video_path: path to video
-        output_dir: output directory
-        device: torch device
-        model_size: model size string (e.g. 'b', 's', etc.)
-        yaml_path: path to yaml config file
+        video_path (str): Path to the input video file.
+        output_dir (str): Directory where the output will be saved.
+        device (str): Device to run the model on ('cpu', 'cuda', or 'mps').
+        model_size (str): Size of the model to use ('xs', 's', 'b', 'l').
+        yaml_path (str): Path to the YAML configuration file for the model.
+
+    Raises:
+        ValueError: If the YAML configuration file is not provided.
     """
     if yaml_path is not None:
         args=get_config(yaml_path)
+        # Filter args to only include those in the "Model" section
         args = {k: v for k, v in args.items() if k in [
             'n_layers', 'dim_in', 'dim_feat', 'dim_rep', 'dim_out',
             'mlp_ratio', 'act_layer',
@@ -343,17 +383,7 @@ def get_pose3D(video_path, output_dir, device, model_size='*', yaml_path=None):
         ]}
         args['act_layer'] = nn.GELU
     else:
-        args, _ = argparse.ArgumentParser().parse_known_args()
-        args.n_layers, args.dim_in, args.dim_feat, args.dim_rep, args.dim_out = 16, 3, 128, 512, 3
-        args.mlp_ratio, args.act_layer = 4, nn.GELU
-        args.attn_drop, args.drop, args.drop_path = 0.0, 0.0, 0.0
-        args.use_layer_scale, args.layer_scale_init_value, args.use_adaptive_fusion = True, 0.00001, True
-        args.num_heads, args.qkv_bias, args.qkv_scale = 8, False, None
-        args.hierarchical = False
-        args.use_temporal_similarity, args.neighbour_num, args.temporal_connection_len = True, 2, 1
-        args.use_tcn, args.graph_only = False, False
-        args.n_frames = 243
-        args = vars(args)
+        raise ValueError("You must provide a YAML configuration file for the model via the 'yaml_path' argument.")
 
     print("\n[INFO] Using MotionAGFormer with the following configuration:")
     pprint(args)
@@ -362,24 +392,17 @@ def get_pose3D(video_path, output_dir, device, model_size='*', yaml_path=None):
     model = nn.DataParallel(MotionAGFormer(**args)).to(device)
     print(f"{type(model) = }")
 
-    # Dynamically generate the absolute path to the checkpoint file based on the root directory of this script
-    root_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path_pattern = os.path.join(root_dir, "checkpoint", f"motionagformer-{model_size}*.pth.tr")
-    model_path = sorted(glob.glob(model_path_pattern))[0]
-    print(f"{model_path = }")
+    checkpoint_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoint")
+    model_filename = f"motionagformer-{model_size}-h36m*.pth*"
+    model_path = get_or_download_checkpoint(model_filename, checkpoint_dir)
 
     pre_dict = torch.load(model_path, map_location=device)
     model.load_state_dict(pre_dict['model'], strict=True)
-
     model.eval()
 
     ## input
     keypoints_path = os.path.join(output_dir, 'input_2D', 'keypoints.npz')
     keypoints = np.load(keypoints_path, allow_pickle=True)['reconstruction']
-    # keypoints = np.load('demo/lakeside3.npy')
-    # keypoints = keypoints[:240]
-    # keypoints = keypoints[None, ...]
-    # keypoints = turn_into_h36m(keypoints)
 
     clips, downsample = turn_into_clips(keypoints, args['n_frames'])
 

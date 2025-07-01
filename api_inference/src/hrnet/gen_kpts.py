@@ -29,17 +29,21 @@ from src.sort.sort import Sort
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
-    # general
-    parser.add_argument('--cfg', type=str, 
-                        # default='src/hrnet/experiments/w48_384x288_adam_lr1e-3.yaml',
-                        default='/app/api_inference/src/hrnet/experiments/w48_384x288_adam_lr1e-3.yaml',
+
+    # Dynamically set default paths relative to this file's location
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    default_cfg = os.path.join(base_dir, 'src', 'hrnet', 'experiments', 'w48_384x288_adam_lr1e-3.yaml')
+    default_model_dir = os.path.join(base_dir, 'checkpoint', 'pose_hrnet_w48_384x288.pth')
+
+
+    parser.add_argument('--cfg', type=str,
+                        default=default_cfg,
                         help='experiment configure file name')
+    parser.add_argument('--modelDir', type=str,
+                        default=default_model_dir,
+                        help='The model directory')
     parser.add_argument('opts', nargs=argparse.REMAINDER, default=None,
                         help="Modify config options using the command-line")
-    parser.add_argument('--modelDir', type=str, 
-                        # default='src/checkpoint/pose_hrnet_w48_384x288.pth',
-                        default='/app/api_inference/src/checkpoint/pose_hrnet_w48_384x288.pth',
-                        help='The model directory')
     parser.add_argument('--det-dim', type=int, default=416,
                         help='The input dimension of the detected image')
     parser.add_argument('--thred-score', type=float, default=0.30,
@@ -81,7 +85,7 @@ def model_load(config, device):
     return model
 
 
-def gen_video_kpts(video, det_dim=416, num_peroson=1, gen_output=False, device=None):
+def gen_video_kpts(video, det_dim=416, num_person=1, gen_output=False, device=None):
     # Updating configuration
     args = parse_args()
     reset_config(args)
@@ -120,7 +124,7 @@ def gen_video_kpts(video, det_dim=416, num_peroson=1, gen_output=False, device=N
         if people_track.shape[0] == 1:
             people_track_ = people_track[-1, :-1].reshape(1, 4)
         elif people_track.shape[0] >= 2:
-            people_track_ = people_track[-num_peroson:, :-1].reshape(num_peroson, 4)
+            people_track_ = people_track[-num_person:, :-1].reshape(num_person, 4)
             people_track_ = people_track_[::-1]
         else:
             continue
@@ -132,15 +136,15 @@ def gen_video_kpts(video, det_dim=416, num_peroson=1, gen_output=False, device=N
 
         with torch.no_grad():
             # bbox is coordinate location
-            inputs, origin_img, center, scale = PreProcess(frame, track_bboxs, cfg, num_peroson, device=device)
+            inputs, origin_img, center, scale = PreProcess(frame, track_bboxs, cfg, num_person, device=device)
             inputs = inputs[:, [2, 1, 0]]
             output = pose_model(inputs)
 
             # compute coordinate
             preds, maxvals = get_final_preds(cfg, output.clone().cpu().numpy(), np.asarray(center), np.asarray(scale))
 
-        kpts = np.zeros((num_peroson, 17, 2), dtype=np.float32)
-        scores = np.zeros((num_peroson, 17), dtype=np.float32)
+        kpts = np.zeros((num_person, 17, 2), dtype=np.float32)
+        scores = np.zeros((num_person, 17), dtype=np.float32)
         for i, kpt in enumerate(preds):
             kpts[i] = kpt
 
