@@ -1,0 +1,3 @@
+#!/bin/sh
+# Entrypoint script for SageMaker inference container
+exec python api_inference/run_api.py
