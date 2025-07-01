@@ -24,11 +24,13 @@ COPY pyproject.toml ./
 # Install Python dependencies
 RUN uv pip install --system --requirement pyproject.toml
 
-# Copy only necessary source files, excluding large model files for build efficiency
+# Copy only necessary source files
 COPY api_inference ./api_inference
+COPY serve /app/serve
 
-# Remove large model files if any slipped through (as a safety net)
+# Removes large model files (shouldnt exist, but this ensures none slipped through cracks as safety net)
 RUN find ./api_inference -type f \( -name "*.weights" -o -name "*.pt*" \) -delete
+
 # Remove build tools and cache to reduce image size
 RUN apt-get purge -y --auto-remove && rm -rf /root/.cache/pip
 

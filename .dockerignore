@@ -1,0 +1,54 @@
+# Ignore Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore model weights and checkpoints
+*.pt*
+*.pth*
+*.weights
+*.ckpt
+
+# Ignore data, outputs, and videos
+api_inference/checkpoint/*
+api_inference/videos/*
+api_inference/*.mp4
+api_inference/*_output/
+
+# Ignore temporary and log files
+*.log
+*.tmp
+*.swp
+
+# Ignore AWS and Docker files that shouldn't be in the build
+.aws/
+*.env
+.env*
+
+# Ignore test and notebook files
+*.ipynb
+*.test*
+
+# Ignore build and cache directories
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore output directories
+output/
+demo/
+
+# Ignore shell scripts and other non-essential files
+scripts/
+run_docker_container.sh
+
+# Ignore SageMaker config and temp files
+shadow-trainer-taskdef.json
+tmp_api/
