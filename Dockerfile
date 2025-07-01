@@ -35,5 +35,10 @@ RUN apt-get purge -y --auto-remove && rm -rf /root/.cache/pip
 # Expose port (if running an API server, adjust as needed)
 EXPOSE 8000
 
-# Set the default command (adjust as needed, e.g., to run an API server)
-CMD ["python", "api_inference/run_api.py"]
+# Copy SageMaker entrypoint script and make it executable
+COPY serve /usr/local/bin/serve
+RUN chmod +x /usr/local/bin/serve
+
+# Set the default command for SageMaker (it looks for 'serve' in PATH)
+ENV PATH="/usr/local/bin:${PATH}"
+CMD ["serve"]
