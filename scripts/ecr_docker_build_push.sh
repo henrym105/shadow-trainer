@@ -1,17 +1,31 @@
-# Remove old image
-docker rmi shadow-trainer:small
+#!/bin/bash
+
+set -e
+
+# Configurable variables
+REGION="us-east-2"
+ACCOUNT_ID="381491870028"
+REPO_NAME="shadow-trainer"
+# IMAGE_TAG="latest"
+IMAGE_TAG="v3"
+LOCAL_IMAGE="${REPO_NAME}:${IMAGE_TAG}"
+ECR_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${REPO_NAME}:${IMAGE_TAG}"
+
+# Remove old local image if exists
+docker rmi $LOCAL_IMAGE || true
 
 # Login to ECR
-aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 381491870028.dkr.ecr.us-east-2.amazonaws.com
+aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
-# Build the Docker image locally
-docker build -t shadow-trainer:small .
+# Build Docker image
+docker build -t $LOCAL_IMAGE .
 
-# Create the ECR repository if it doesn't exist
-aws ecr create-repository --repository-name shadow-trainer
+# Create ECR repository if it doesn't exist
+aws ecr describe-repositories --repository-names $REPO_NAME --region $REGION > /dev/null 2>&1 || \
+    aws ecr create-repository --repository-name $REPO_NAME --region $REGION
 
-# Tag the Docker image with the ECR repository URI
-docker tag shadow-trainer:small 381491870028.dkr.ecr.us-east-2.amazonaws.com/shadow-trainer:small
+# Tag image for ECR
+docker tag $LOCAL_IMAGE $ECR_URI
 
-# Push the Docker image to ECR
-docker push 381491870028.dkr.ecr.us-east-2.amazonaws.com/shadow-trainer:small
+# Push image to ECR
+docker push $ECR_URI

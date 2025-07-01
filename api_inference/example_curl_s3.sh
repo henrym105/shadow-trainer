@@ -30,8 +30,14 @@ curl -X POST "http://localhost:8000/process_video/" \
 # curl -X POST "http://localhost:8000/process_video/" \
 #     -H "accept: application/json" \
 #     --get \
-#     --data-urlencode "file=s3://shadow-trainer-prod/sample_input/henry1.MOV" \
-#     --data-urlencode "model_size=xs"
+#     --data-urlencode "file=s3://shadow-trainer-prod/sample_input/pitch_mini.mp4" \
+#     --data-urlencode "model_size=b"
+
+curl -X POST "http://localhost:8000/process_video/" \
+    -H "accept: application/json" \
+    --get \
+    --data-urlencode "file=s3://shadow-trainer-prod/sample_input/henry1.MOV" \
+    --data-urlencode "model_size=s"
 
 
 # curl -X POST "http://localhost:8000/process_video/" \
