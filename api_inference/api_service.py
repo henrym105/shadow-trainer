@@ -189,8 +189,9 @@ def process_video(
 
     logger.info(f"Returning processed video: {output_video_path}")
     if output_video_s3_url:
-        clear_tmp_dir(TMP_DIR)
-        return {"output_video_s3_url": output_video_s3_url}
+        # clear_tmp_dir(TMP_DIR)
+        return {"output_video_s3_url": output_video_s3_url,
+                "output_video_local_path": output_video_path}
     else:
         return {"output_video_local_path": output_video_path}
 
