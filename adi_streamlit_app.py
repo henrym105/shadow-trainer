@@ -84,7 +84,7 @@ if input_mode == "Local File":
     video_file = st.file_uploader("Upload Video (.mp4 or .mov)", type=["mp4", "mov"])
 
     # Show previews of videos in the videos/ directory as a grid (1-4 per row)
-    videos_dir = os.path.join(CUR_DIR, "videos")
+    videos_dir = os.path.join(CUR_DIR, "api_inference", "videos")
     if os.path.exists(videos_dir):
         video_files = [f for f in os.listdir(videos_dir) if f.lower().endswith((".mp4", ".mov"))]
         if video_files:
@@ -98,10 +98,13 @@ if input_mode == "Local File":
 else:
     s3_path = st.text_input("Enter S3 Path (e.g., s3://bucket/key/video.mp4)")
 
+
 if st.button("Process Video"):
     with st.spinner("Processing video, please wait..."):
+        response = None
+        temp_video_path = None
         if input_mode == "Local File" and video_file is not None:
-            TMP_DIR = os.path.join(CUR_DIR, "tmp_upload")
+            TMP_DIR = os.path.join(CUR_DIR, "api_inference", "tmp_upload")
             os.makedirs(TMP_DIR, exist_ok=True)
             temp_video_path = os.path.join(TMP_DIR, video_file.name)
 
@@ -130,7 +133,7 @@ if st.button("Process Video"):
             st.error("Please provide a valid input.")
             st.stop()
 
-        if response.status_code == 200:
+        if response is not None and response.status_code == 200:
             result = response.json()
             video_url = result.get("output_video_local_path") or result.get("output_video_s3_url")
             if video_url:
@@ -143,6 +146,12 @@ if st.button("Process Video"):
                             video_bytes = f.read()
                         st.video(video_bytes)
                         st.write(f"Output Video Path: {video_url}")
+                        st.download_button(
+                            label="Download Output Video",
+                            data=video_bytes,
+                            file_name=os.path.basename(video_url),
+                            mime="video/mp4"
+                        )
                     else:
                         st.write(f"Output Video Path: {video_url}")
             else:
@@ -153,3 +162,4 @@ if st.button("Process Video"):
             except Exception:
                 error = response.text
             st.error(f"API Error: {error}")
+

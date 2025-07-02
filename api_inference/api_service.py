@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 s3_client = boto3.client('s3')
 
+API_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- Utility Functions ---
 def is_s3_path(path: str) -> bool:
@@ -52,7 +53,7 @@ def load_model_config(model_size: str, config_path: str) -> tuple:
         # Ensure config_path is absolute
         config_path_abs = config_path
         if not os.path.isabs(config_path):
-            config_path_abs = os.path.abspath(os.path.join(os.path.dirname(__file__), config_path))
+            config_path_abs = os.path.abspath(os.path.join(API_ROOT_DIR, config_path))
         with open(config_path_abs, "r") as f:
             model_config_map = json.load(f)
         logger.info(f"Loaded model_config_map: {model_config_map}")
@@ -181,7 +182,8 @@ async def invocations(request: Request):
 
 def process_video_internal(file: str, model_size: str = "xs"):
     """Internal function to process video - extracted from the existing endpoint."""
-    TMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmp_api")
+    # TMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmp_api")
+    TMP_DIR = os.path.join(API_ROOT_DIR, "tmp_api")
     os.makedirs(TMP_DIR, exist_ok=True)
     logger.info(f"Temporary directory for API: {TMP_DIR}")
 
@@ -218,7 +220,7 @@ def process_video_internal(file: str, model_size: str = "xs"):
     logger.info(f"Output directory: {output_dir}")
 
     # --- Model Config ---
-    config_path = os.path.join(os.path.dirname(__file__), "model_config_map.json")
+    config_path = os.path.join(API_ROOT_DIR, "model_config_map.json")
     model_config, err = load_model_config(model_size, config_path)
     if err:
         return JSONResponse(status_code=500, content={"error": f"Failed to load model config: {err}"})
