@@ -5,15 +5,20 @@ import subprocess
 import time
 import threading
 
+# --------------------------------------------------------------------------
+# CONSTANTS
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+# --------------------------------------------------------------------------
+
 st.set_page_config(page_title="Shadow Trainer Video Processor", layout="centered")
 
 # Logo + Title
-col1, col2 = st.columns([1, 5])
-with col1:
-    st.image("Shadow Trainer Logo.png", width=150)
+st.markdown("<h1 style='text-align: center; font-size: 3.5em;'>Shadow Trainer</h1>", unsafe_allow_html=True)
+col1, col2, col3 = st.columns([3, 3, 3])
 with col2:
-    st.title("Shadow Trainer Pose Estimator")
+    st.image("Shadow Trainer Logo.png")
 
+st.markdown("---")
 st.markdown("""
 Upload a video file or provide an S3 path to process it using the Shadow Trainer backend API. The processed video will be displayed below.
 """)
@@ -74,16 +79,32 @@ pitch_type = st.multiselect(
 video_file = None
 s3_path = None
 
+
 if input_mode == "Local File":
     video_file = st.file_uploader("Upload Video (.mp4 or .mov)", type=["mp4", "mov"])
+
+    # Show previews of videos in the videos/ directory as a grid (1-4 per row)
+    videos_dir = os.path.join(CUR_DIR, "videos")
+    if os.path.exists(videos_dir):
+        video_files = [f for f in os.listdir(videos_dir) if f.lower().endswith((".mp4", ".mov"))]
+        if video_files:
+            st.markdown("**Sample Videos:**")
+            cols = st.columns(len(video_files))
+            for idx, vid in enumerate(video_files):
+                vid_path = os.path.join(videos_dir, vid)
+                with cols[idx]:
+                    st.video(vid_path, format="video/mp4", width="stretch")
+                    st.caption(vid)
 else:
     s3_path = st.text_input("Enter S3 Path (e.g., s3://bucket/key/video.mp4)")
 
 if st.button("Process Video"):
     with st.spinner("Processing video, please wait..."):
         if input_mode == "Local File" and video_file is not None:
-            temp_video_path = os.path.join("tmp_upload", video_file.name)
-            os.makedirs("tmp_upload", exist_ok=True)
+            TMP_DIR = os.path.join(CUR_DIR, "tmp_upload")
+            os.makedirs(TMP_DIR, exist_ok=True)
+            temp_video_path = os.path.join(TMP_DIR, video_file.name)
+
             with open(temp_video_path, "wb") as f:
                 f.write(video_file.read())
             params = {
