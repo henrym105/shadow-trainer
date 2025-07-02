@@ -51,4 +51,4 @@ run_docker_container.sh
 
 # Ignore SageMaker config and temp files
 shadow-trainer-taskdef.json
-tmp_api/
+**tmp_api/
