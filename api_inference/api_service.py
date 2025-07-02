@@ -1,8 +1,8 @@
 
 
 # --- Imports and Setup ---
-from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import JSONResponse, Response
 import os
 import logging
 import json
@@ -129,7 +129,59 @@ def process_video(
     Returns:
         JSONResponse: Contains the output video URL or local path.
     """
-    TMP_DIR = os.path.join(os.getcwd(), "tmp_api")
+    return process_video_internal(file, model_size)
+
+
+# --- Health Check Endpoint ---
+@app.get("/")
+def root():
+    return {"message": "MotionAGFormer API is running."}
+
+# --- SageMaker Required Endpoints ---
+@app.get("/ping")
+def ping():
+    """Health check endpoint required by SageMaker."""
+    try:
+        # Basic health check - verify model config can be loaded
+        config_path = os.path.join(os.path.dirname(__file__), "model_config_map.json")
+        if os.path.exists(config_path):
+            return Response(status_code=200)
+        else:
+            return Response(status_code=500)
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return Response(status_code=500)
+
+@app.post("/invocations")
+async def invocations(request: Request):
+    """SageMaker inference endpoint."""
+    try:
+        # Parse request body
+        body = await request.body()
+        if request.headers.get("content-type") == "application/json":
+            input_data = json.loads(body.decode())
+        else:
+            # Handle other content types if needed
+            return JSONResponse(status_code=400, content={"error": "Content-Type must be application/json"})
+        
+        # Extract parameters from input data
+        file = input_data.get("file")
+        model_size = input_data.get("model_size", "xs")
+        
+        if not file:
+            return JSONResponse(status_code=400, content={"error": "Missing required parameter: file"})
+        
+        # Process the video using the existing logic
+        result = process_video_internal(file, model_size)
+        return result
+        
+    except Exception as e:
+        logger.error(f"Invocation failed: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+def process_video_internal(file: str, model_size: str = "xs"):
+    """Internal function to process video - extracted from the existing endpoint."""
+    TMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmp_api")
     os.makedirs(TMP_DIR, exist_ok=True)
     logger.info(f"Temporary directory for API: {TMP_DIR}")
 
@@ -194,10 +246,4 @@ def process_video(
                 "output_video_local_path": output_video_path}
     else:
         return {"output_video_local_path": output_video_path}
-
-
-# --- Health Check Endpoint ---
-@app.get("/")
-def root():
-    return {"message": "MotionAGFormer API is running."}
 

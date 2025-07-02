@@ -6,8 +6,8 @@ set -e
 REGION="us-east-2"
 ACCOUNT_ID="381491870028"
 REPO_NAME="shadow-trainer"
-# IMAGE_TAG="latest"
-IMAGE_TAG="v3"
+IMAGE_TAG="latest"
+# IMAGE_TAG="v3"
 LOCAL_IMAGE="${REPO_NAME}:${IMAGE_TAG}"
 ECR_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${REPO_NAME}:${IMAGE_TAG}"
 
