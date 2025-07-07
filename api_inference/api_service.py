@@ -100,11 +100,20 @@ def run_pipeline(input_path: str, output_dir: str, device: str, model_size: str,
         return "", str(e)
 
 # --- Cleanup Utility ---
-def clear_tmp_dir(dir_path):
-    """Delete all files and folders in the given directory."""
+def clear_tmp_dir(dir_path, keep_videos=False):
+    """Delete all files and folders in the given directory.
+    If keep_videos is True, keep .mp4 and .mov files.
+
+    Args:
+        dir_path (str): Path to the directory to clear.
+        keep_videos (bool): If True, do not delete video files (.mp4, .mov).
+    """
     if os.path.exists(dir_path):
         for filename in os.listdir(dir_path):
             file_path = os.path.join(dir_path, filename)
+            # Skip video files if keep_videos is True
+            if keep_videos and os.path.splitext(filename)[-1].lower() in [".mp4", ".mov"]:
+                continue
             try:
                 if os.path.isfile(file_path) or os.path.islink(file_path):
                     os.unlink(file_path)
@@ -185,6 +194,7 @@ def process_video_internal(file: str, model_size: str = "xs"):
     # TMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmp_api")
     TMP_DIR = os.path.join(API_ROOT_DIR, "tmp_api")
     os.makedirs(TMP_DIR, exist_ok=True)
+    clear_tmp_dir(TMP_DIR, keep_videos=False)
     logger.info(f"Temporary directory for API: {TMP_DIR}")
 
     # --- Input Handling ---
@@ -241,9 +251,12 @@ def process_video_internal(file: str, model_size: str = "xs"):
         if err:
             return JSONResponse(status_code=500, content={"error": f"Failed to upload output video to S3: {err}"})
 
+    # Keep video files in TMP_DIR for local access immediately after processing
+    clear_tmp_dir(TMP_DIR, keep_videos=True) 
+
+    # --- Return Response ---
     logger.info(f"Returning processed video: {output_video_path}")
     if output_video_s3_url:
-        # clear_tmp_dir(TMP_DIR)
         return {"output_video_s3_url": output_video_s3_url,
                 "output_video_local_path": output_video_path}
     else:
