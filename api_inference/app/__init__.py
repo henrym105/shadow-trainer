@@ -1,0 +1,3 @@
+"""
+Shadow Trainer FastAPI Application
+"""
