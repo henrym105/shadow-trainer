@@ -1,0 +1,29 @@
+{
+  "family": "shadow-trainer-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::381491870028:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "shadow-trainer",
+      "image": "381491870028.dkr.ecr.us-east-2.amazonaws.com/shadow-trainer:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/shadow-trainer",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
