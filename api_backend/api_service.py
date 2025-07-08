@@ -1,22 +1,25 @@
-
-
 # --- Imports and Setup ---
-from fastapi import FastAPI, Query, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import FastAPI, Query
+from fastapi.responses import JSONResponse
 import os
 import logging
 import json
 import boto3
 import shutil
-from inference import get_pose2D, get_pose3D, img2video, get_pytorch_device, get_or_download_checkpoint
+
+import numpy as np
+from src.inference import create_pose_overlay_video, get_pose2D, get_pose3D, img2video, get_pytorch_device
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
-s3_client = boto3.client('s3')
-
 API_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+TMP_DIR = os.path.join(API_ROOT_DIR, "tmp_api_output")
+os.makedirs(TMP_DIR, exist_ok=True)
+
+s3_client = boto3.client('s3')
+app = FastAPI()
+
 
 # --- Utility Functions ---
 def is_s3_path(path: str) -> bool:
@@ -82,22 +85,27 @@ def run_pipeline(input_path: str, output_dir: str, device: str, model_size: str,
             - output_video_path (str | None): Path to the generated output video if successful, otherwise None.
             - error_message (str | None): Error message if the pipeline fails, otherwise None.
     """
+    logger.info("Running get_pose2D...")
+    logger.info(f"Input path: {input_path}, Output directory: {output_dir}, Device: {device}")
+    get_pose2D(input_path, output_dir, device)
 
+    logger.info("Running get_pose3D...")
+    output_npy = get_pose3D(input_path, output_dir, device, model_size, model_config)
+    print(f"Output npy file generated: {output_npy}")
+    print(f"Output npy file shape: {output_npy.shape if output_npy is not None else 'None'}")
+    
+    logger.info("Running overlay video rendering...")
+    pro_data = np.load(os.path.join(API_ROOT_DIR, "src/checkpoint/example_SnellBlake.npy"))
+    print(f"loaded pro_data w/ shape: {pro_data.shape}")
 
-    try:
-        logger.info("Running get_pose2D...")
-        logger.info(f"Input path: {input_path}, Output directory: {output_dir}, Device: {device}")
-        get_pose2D(input_path, output_dir, device)
-        
-        logger.info("Running get_pose3D...")
-        get_pose3D(input_path, output_dir, device, model_size, model_config)
-        
-        logger.info("Running img2video...")
-        output_video_path = img2video(input_path, output_dir)
-        return output_video_path, ""
-    except Exception as e:
-        logger.error(f"Pipeline failed: {e}")
-        return "", str(e)
+    output_video_path = create_pose_overlay_video(output_npy, pro_data, output_dir)
+    print(f"{output_video_path = }")
+
+    # logger.info("Running img2video...")
+    # output_video_path = img2video(input_path, output_dir)
+
+    return output_video_path, ""
+
 
 # --- Cleanup Utility ---
 def clear_tmp_dir(dir_path, keep_videos=False):
@@ -112,8 +120,10 @@ def clear_tmp_dir(dir_path, keep_videos=False):
         for filename in os.listdir(dir_path):
             file_path = os.path.join(dir_path, filename)
             # Skip video files if keep_videos is True
-            if keep_videos and os.path.splitext(filename)[-1].lower() in [".mp4", ".mov"]:
-                continue
+            is_video_file = (os.path.splitext(filename)[-1].lower() in [".mp4", ".mov"])
+            is_pose3D_npy = (filename == "pose3D_npy")
+            if keep_videos and (is_video_file or is_pose3D_npy):
+                continue  
             try:
                 if os.path.isfile(file_path) or os.path.islink(file_path):
                     os.unlink(file_path)
@@ -121,6 +131,13 @@ def clear_tmp_dir(dir_path, keep_videos=False):
                     shutil.rmtree(file_path)
             except Exception as e:
                 logger.error(f'Failed to delete {file_path}. Reason: {e}')
+
+
+
+# --- Health Check Endpoint ---
+@app.get("/")
+def root():
+    return {"message": "MotionAGFormer API is running."}
 
 
 
@@ -142,58 +159,8 @@ def process_video(
     return process_video_internal(file, model_size)
 
 
-# --- Health Check Endpoint ---
-@app.get("/")
-def root():
-    return {"message": "MotionAGFormer API is running."}
-
-# --- SageMaker Required Endpoints ---
-@app.get("/ping")
-def ping():
-    """Health check endpoint required by SageMaker."""
-    try:
-        # Basic health check - verify model config can be loaded
-        config_path = os.path.join(os.path.dirname(__file__), "model_config_map.json")
-        if os.path.exists(config_path):
-            return Response(status_code=200)
-        else:
-            return Response(status_code=500)
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return Response(status_code=500)
-
-@app.post("/invocations")
-async def invocations(request: Request):
-    """SageMaker inference endpoint."""
-    try:
-        # Parse request body
-        body = await request.body()
-        if request.headers.get("content-type") == "application/json":
-            input_data = json.loads(body.decode())
-        else:
-            # Handle other content types if needed
-            return JSONResponse(status_code=400, content={"error": "Content-Type must be application/json"})
-        
-        # Extract parameters from input data
-        file = input_data.get("file")
-        model_size = input_data.get("model_size", "xs")
-        
-        if not file:
-            return JSONResponse(status_code=400, content={"error": "Missing required parameter: file"})
-        
-        # Process the video using the existing logic
-        result = process_video_internal(file, model_size)
-        return result
-        
-    except Exception as e:
-        logger.error(f"Invocation failed: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-def process_video_internal(file: str, model_size: str = "xs"):
+def process_video_internal(file: str, model_size: str = "xs") -> JSONResponse:
     """Internal function to process video - extracted from the existing endpoint."""
-    # TMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmp_api")
-    TMP_DIR = os.path.join(API_ROOT_DIR, "tmp_api")
-    os.makedirs(TMP_DIR, exist_ok=True)
     clear_tmp_dir(TMP_DIR, keep_videos=False)
     logger.info(f"Temporary directory for API: {TMP_DIR}")
 
@@ -246,19 +213,20 @@ def process_video_internal(file: str, model_size: str = "xs"):
 
     # --- Output Handling ---
     output_video_s3_url = None
-    if bucket:
-        output_video_s3_url, err = upload_to_s3(output_video_path, bucket, video_name)
-        if err:
-            return JSONResponse(status_code=500, content={"error": f"Failed to upload output video to S3: {err}"})
+    output_video_s3_url, err = upload_to_s3(output_video_path, bucket, video_name)
+    if err:
+        return JSONResponse(status_code=500, content={"error": f"Failed to upload output video to S3: {err}"})
 
     # Keep video files in TMP_DIR for local access immediately after processing
-    clear_tmp_dir(TMP_DIR, keep_videos=True) 
+    # clear_tmp_dir(TMP_DIR, keep_videos=True) 
 
     # --- Return Response ---
     logger.info(f"Returning processed video: {output_video_path}")
     if output_video_s3_url:
-        return {"output_video_s3_url": output_video_s3_url,
+        response = {"output_video_s3_url": output_video_s3_url,
                 "output_video_local_path": output_video_path}
     else:
-        return {"output_video_local_path": output_video_path}
+        response = {"output_video_local_path": output_video_path}
+    
+    return JSONResponse(content=response)
 

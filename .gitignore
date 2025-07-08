@@ -10,6 +10,8 @@
 **.gif
 **.npz
 
+# Keep Shadow Trainer logo file
+!/api_frontend/Shadow Trainer Logo.png
 
 # Temp folder with output of the api inference
 api_inference/tmp_api
