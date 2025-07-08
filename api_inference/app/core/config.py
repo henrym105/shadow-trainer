@@ -15,7 +15,8 @@ TEMPLATES_DIR = APP_DIR / "frontend" / "templates"
 VIDEOS_DIR = STATIC_DIR / "videos"
 
 # API configuration
-API_BASE_URL = os.environ.get("SHADOW_TRAINER_API_URL", "http://localhost:8000")
+# API_BASE_URL = "http://shadow-trainer.com/"
+API_BASE_URL = "http://localhost:8000"
 DEFAULT_MODEL_SIZE = "xs"
 
 # Ensure directories exist

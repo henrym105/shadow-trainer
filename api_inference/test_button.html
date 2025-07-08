@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Button Test</title>
+</head>
+<body>
+    <h1>Button Test</h1>
+    
+    <div id="sampleVideos">
+        <button class="use-sample-video-btn" data-video-url="/assets/videos/test.mp4" data-video-name="Test Video">
+            <i class="fas fa-play"></i> Use This Video
+        </button>
+    </div>
+
+    <script>
+        // Test script to verify button clicking works
+        const buttons = document.querySelectorAll('.use-sample-video-btn');
+        console.log('Found buttons:', buttons.length);
+        
+        buttons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                console.log('Button clicked!');
+                const button = e.currentTarget;
+                const videoUrl = button.getAttribute('data-video-url');
+                const videoName = button.getAttribute('data-video-name');
+                console.log('Video URL:', videoUrl, 'Video Name:', videoName);
+                alert('Button works! Video: ' + videoName + ', URL: ' + videoUrl);
+            });
+        });
+    </script>
+</body>
+</html>

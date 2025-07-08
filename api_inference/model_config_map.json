@@ -1,6 +1,59 @@
 {
-    "xs": "src/configs/h36m/MotionAGFormer-xsmall.yaml",
-    "s": "src/configs/h36m/MotionAGFormer-small.yaml",
-    "b": "src/configs/h36m/MotionAGFormer-base.yaml",
-    "l": "src/configs/h36m/MotionAGFormer-large.yaml"
+  "model_sizes": {
+    "xs": {
+      "name": "MotionAGFormer-XS",
+      "config_file": "MotionAGFormer-ap3d-xsmall.yaml",
+      "checkpoint_file": "motionagformer-xs-h36m.pth.tr",
+      "description": "Extra Small model - fastest processing",
+      "parameters": "~1M",
+      "processing_speed": "fast",
+      "accuracy": "basic"
+    },
+    "s": {
+      "name": "MotionAGFormer-S",
+      "config_file": "MotionAGFormer-ap3d-small.yaml", 
+      "checkpoint_file": "motionagformer-s-h36m.pth.tr",
+      "description": "Small model - balanced speed and accuracy",
+      "parameters": "~5M",
+      "processing_speed": "medium",
+      "accuracy": "good"
+    },
+    "b": {
+      "name": "MotionAGFormer-B",
+      "config_file": "MotionAGFormer-ap3d-base.yaml",
+      "checkpoint_file": "motionagformer-b-h36m.pth.tr",
+      "description": "Base model - high accuracy",
+      "parameters": "~25M",
+      "processing_speed": "slow",
+      "accuracy": "high"
+    },
+    "l": {
+      "name": "MotionAGFormer-L",
+      "config_file": "MotionAGFormer-large.yaml",
+      "checkpoint_file": "motionagformer-l-h36m.pth.tr",
+      "description": "Large model - highest accuracy",
+      "parameters": "~100M",
+      "processing_speed": "very_slow",
+      "accuracy": "highest"
+    }
+  },
+  "hrnet": {
+    "name": "HRNet-W48",
+    "config_file": "w48_384x288_adam_lr1e-3.yaml",
+    "checkpoint_file": "pose_hrnet_w48_384x288.pth",
+    "description": "2D pose estimation network",
+    "input_size": [384, 288]
+  },
+  "yolov3": {
+    "name": "YOLOv3",
+    "config_file": "yolov3.cfg",
+    "checkpoint_file": "yolov3.weights",
+    "description": "Human detection network"
+  },
+  "paths": {
+    "models_dir": "assets/models",
+    "configs_dir": "src/configs",
+    "temp_dir": "tmp",
+    "output_dir": "tmp/outputs"
+  }
 }

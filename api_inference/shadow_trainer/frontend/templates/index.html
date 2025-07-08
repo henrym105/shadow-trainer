@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow Trainer - Video Processor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/style.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .container-fluid {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            margin: 20px;
+            padding: 0;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            border-radius: 15px 15px 0 0;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px 10px 0 0 !important;
+            font-weight: 600;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        .logo {
+            max-height: 150px;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+        }
+        #videoResult video {
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <header class="header text-center">
+            <h1 class="display-3 mb-3">Shadow Trainer</h1>
+            <div class="row justify-content-center">
+                <div class="col-md-4">
+                    <img src="/static/images/logo.png" alt="Shadow Trainer Logo" class="img-fluid logo">
+                </div>
+            </div>
+            <p class="lead mt-3">Advanced 3D Pose Estimation for Video Analysis</p>
+        </header>
+
+        <!-- Main Content -->
+        <div class="container py-4">
+            <!-- Description -->
+            <div class="row justify-content-center mb-4">
+                <div class="col-md-10">
+                    <p class="lead text-center">
+                        Upload a video file or provide an S3 path to process it using our advanced 3D pose estimation models. 
+                        Get detailed motion analysis with overlaid skeletal tracking.
+                    </p>
+                </div>
+            </div>
+
+            <div class="row justify-content-center">
+                <div class="col-md-10">
+                    <!-- Input Type Selection -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-upload me-2"></i>Video Input</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="btn-group mb-3" role="group">
+                                <input type="radio" class="btn-check" name="inputType" id="localFile" value="local" checked>
+                                <label class="btn btn-outline-primary" for="localFile">
+                                    <i class="fas fa-file-video me-2"></i>Local File
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="inputType" id="s3Path" value="s3">
+                                <label class="btn btn-outline-primary" for="s3Path">
+                                    <i class="fab fa-aws me-2"></i>S3 Path
+                                </label>
+                            </div>
+
+                            <!-- Local File Upload -->
+                            <div id="localFileSection">
+                                <div class="mb-3">
+                                    <label for="videoFile" class="form-label">Upload Video (.mp4, .mov, .avi)</label>
+                                    <input type="file" class="form-control" id="videoFile" accept=".mp4,.mov,.avi">
+                                    <div class="form-text">Maximum file size: 100MB</div>
+                                </div>
+                            </div>
+
+                            <!-- S3 Path Input -->
+                            <div id="s3PathSection" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="s3PathInput" class="form-label">S3 Path</label>
+                                    <input type="text" class="form-control" id="s3PathInput" 
+                                           placeholder="s3://bucket-name/path/to/video.mp4">
+                                    <div class="form-text">Enter the full S3 URI to your video file</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Configuration -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Processing Configuration</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <label for="modelSize" class="form-label">Model Size</label>
+                                    <select class="form-select" id="modelSize">
+                                        <option value="xs" selected>XS - Fast (Recommended)</option>
+                                        <option value="s">S - Balanced</option>
+                                        <option value="b">B - Accurate</option>
+                                        <option value="l">L - High Precision</option>
+                                    </select>
+                                    <div class="form-text">Larger models are more accurate but slower</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Dominant Hand</label>
+                                    <div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="handedness" 
+                                                   id="rightHanded" value="Right-handed" checked>
+                                            <label class="form-check-label" for="rightHanded">Right-handed</label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="handedness" 
+                                                   id="leftHanded" value="Left-handed">
+                                            <label class="form-check-label" for="leftHanded">Left-handed</label>
+                                        </div>
+                                    </div>
+                                    <div class="form-text">Select the dominant hand for analysis</div>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">Pitch Types (Optional)</label>
+                                    <div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" id="pitchFF" value="FF">
+                                            <label class="form-check-label" for="pitchFF">Fastball</label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" id="pitchSI" value="SI">
+                                            <label class="form-check-label" for="pitchSI">Sinker</label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" id="pitchSL" value="SL">
+                                            <label class="form-check-label" for="pitchSL">Slider</label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" id="pitchCH" value="CH">
+                                            <label class="form-check-label" for="pitchCH">Changeup</label>
+                                        </div>
+                                    </div>
+                                    <div class="form-text">Select pitch types for specialized analysis</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Process Button -->
+                    <div class="text-center mb-4">
+                        <button type="button" class="btn btn-primary btn-lg" id="processBtn">
+                            <i class="fas fa-play me-2"></i>Process Video
+                        </button>
+                    </div>
+
+                    <!-- Results Section -->
+                    <div id="resultsSection" style="display: none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-video me-2"></i>Processing Results</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="loadingSpinner" class="text-center" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Processing...</span>
+                                    </div>
+                                    <p class="mt-3">Processing video, please wait...</p>
+                                    <div class="progress mt-3">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                             role="progressbar" style="width: 0%" id="progressBar"></div>
+                                    </div>
+                                </div>
+                                <div id="videoResult" style="display: none;">
+                                    <video id="outputVideo" class="w-100" controls></video>
+                                    <div class="mt-3 text-center">
+                                        <button type="button" class="btn btn-success me-2" id="downloadBtn">
+                                            <i class="fas fa-download me-2"></i>Download Output Video
+                                        </button>
+                                        <button type="button" class="btn btn-secondary" id="processAnotherBtn">
+                                            <i class="fas fa-redo me-2"></i>Process Another Video
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="errorResult" class="alert alert-danger" style="display: none;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sample Videos Section -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-film me-2"></i>Sample Videos</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-3">Try our sample videos to see the Shadow Trainer in action:</p>
+                            <div id="sampleVideos" class="row">
+                                <!-- Sample videos will be loaded here via JavaScript -->
+                                <div class="col-12 text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <span class="ms-2">Loading sample videos...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Font Awesome for icons -->
+    <script src="https://kit.fontawesome.com/your-kit-id.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
