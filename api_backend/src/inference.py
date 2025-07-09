@@ -1,6 +1,7 @@
 import argparse
 import cv2
 import os 
+import matplotlib.axis
 import numpy as np
 import torch
 import torch.nn as nn
@@ -14,6 +15,7 @@ from src.preprocess import h36m_coco_format
 from src.hrnet.gen_kpts import gen_video_kpts
 from src.utils import get_or_download_checkpoint, normalize_screen_coordinates, camera_to_world, get_config
 from src.model.MotionAGFormer import MotionAGFormer
+from src.visualizations import resample_pose_sequence
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -23,8 +25,45 @@ plt.switch_backend('agg')
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
+# ---------------------- CONSTANTS ----------------------
+OUTPUT_FOLDER_RAW_KEYPOINTS = "raw_keypoints"
+KEYPOINTS_FILE_2D = "2D_keypoints.npz"
+KEYPOINTS_FILE_3D = "3D_keypoints.npz"
 
-def show2Dpose(kps: np.ndarray, img: np.ndarray) -> np.ndarray:
+# debug flag
+DEBUG = True
+# -------------------------------------------------------
+
+def get_joint_colors(color='R', use_0_255_range=False):
+    """ Returns the left and right joint colors based on the specified color scheme.
+    Args:
+        color (str): Color scheme to use. Options are 'RB', 'R', 'G', 'blk'.
+        use_0_255_range (bool): If True, returns colors in 0-255 range, otherwise in 0-1 range.
+
+    Returns:
+        tuple: Left and right joint colors as tuples of RGB values.
+    """
+    format_options = {
+        'RB':  ((0.0, 0.0, 1.0), (1.0, 0.0, 0.0)),     # Blue, Red
+        'R':   ((0.6, 0.0, 0.0), (1.0, 0.0, 0.0)),     # Dark Red, Bright Red
+        'G':   ((0.0, 0.6, 0.0), (0.0, 1.0, 0.0)),     # Dark Green, Bright Green
+        'blk': ((0.4, 0.4, 0.4), (0.2, 0.2, 0.2)),     # Light gray, Dark gray
+    }
+
+    lcolor, rcolor = format_options.get(color, ((0,0,1),(1,0,0)))  # Default to Blue, Red
+
+    if use_0_255_range:
+        # Adjust for OpenCV's default color format of range 0-255 and BGR order
+        lcolor = lcolor[::-1]
+        rcolor = rcolor[::-1]
+        lcolor = tuple(int(255 * c) for c in lcolor)
+        rcolor = tuple(int(255 * c) for c in rcolor)
+
+    return (lcolor, rcolor)
+
+
+
+def show2Dpose(kps: np.ndarray, img: np.ndarray, color = 'R') -> np.ndarray:
     """
     Draws a 2D human pose skeleton on the given image using the provided keypoints.
 
@@ -39,10 +78,10 @@ def show2Dpose(kps: np.ndarray, img: np.ndarray) -> np.ndarray:
                    [5, 6], [0, 7], [7, 8], [8, 9], [9, 10],
                    [8, 11], [11, 12], [12, 13], [8, 14], [14, 15], [15, 16]]
 
-    LR = np.array([0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0], dtype=bool)
+    # 1 = left arm & leg, 0 = right arm/leg, torso, neck
+    LR = np.array([0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0], dtype=bool)
 
-    lcolor = (255, 0, 0)
-    rcolor = (0, 0, 255)
+    lcolor, rcolor = get_joint_colors(color, use_0_255_range=True)
     thickness = 3
 
     for j,c in enumerate(connections):
@@ -57,47 +96,44 @@ def show2Dpose(kps: np.ndarray, img: np.ndarray) -> np.ndarray:
     return img
 
 
-def show3Dpose(vals: np.ndarray, ax) -> None:
-    """Adds visualization of 3D human pose keypoints on the given matplotlib 3D axis.
+def show3Dpose(vals, ax, color='RB', camera_view_height = 15.0, camera_view_z_rotation = 70.0):
+    # --------------------------------
+    # use this to modify the camera perspective angle
+    ax.view_init(elev=camera_view_height, azim=camera_view_z_rotation)
+    # --------------------------------
+    
+    lcolor, rcolor = get_joint_colors(color)
 
-    Args:
-        vals (np.ndarray): An array of shape (N, 3) representing the 3D coordinates of N joints.
-        ax (matplotlib.axes._subplots.Axes3DSubplot): A matplotlib 3D axis object to plot the pose on.
+    I = np.array([0, 0, 1, 4, 2, 5, 0, 7, 8, 8, 14, 15, 11, 12, 8, 9])
+    J = np.array([1, 4, 2, 5, 3, 6, 7, 8, 14, 11, 15, 16, 12, 13, 9, 10])
+    LR = np.array([0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0], dtype=bool)
 
-    Returns:
-        None
-    """
-    ax.view_init(elev=15., azim=70)
+    for i in range(len(I)):
+        x, y, z = [np.array([vals[I[i], j], vals[J[i], j]]) for j in range(3)]
+        ax.plot(x, y, z, lw=2, color=lcolor if LR[i] else rcolor)
 
-    lcolor=(0,0,1)
-    rcolor=(1,0,0)
-
-    I = np.array( [0, 0, 1, 4, 2, 5, 0, 7,  8,  8, 14, 15, 11, 12, 8,  9])
-    J = np.array( [1, 4, 2, 5, 3, 6, 7, 8, 14, 11, 15, 16, 12, 13, 9, 10])
-
-    LR = np.array([0, 1, 0, 1, 0, 1, 0, 0, 0,   1,  0,  0,  1,  1, 0, 0], dtype=bool)
-
-    for i in np.arange( len(I) ):
-        x, y, z = [np.array( [vals[I[i], j], vals[J[i], j]] ) for j in range(3)]
-        ax.plot(x, y, z, lw=2, color = lcolor if LR[i] else rcolor)
-
-    RADIUS = 0.72
+    RADIUS = 0.7
     RADIUS_Z = 0.7
-
-    xroot, yroot, zroot = vals[0,0], vals[0,1], vals[0,2]
-    ax.set_xlim3d([-RADIUS+xroot, RADIUS+xroot])
-    ax.set_ylim3d([-RADIUS+yroot, RADIUS+yroot])
-    ax.set_zlim3d([-RADIUS_Z+zroot, RADIUS_Z+zroot])
-    ax.set_aspect('auto') # works fine in matplotlib==2.2.2
+    xroot, yroot, zroot = vals[0, 0], vals[0, 1], vals[0, 2]
+    ax.set_xlim3d([-RADIUS + xroot, RADIUS + xroot])
+    ax.set_ylim3d([-RADIUS + yroot, RADIUS + yroot])
+    ax.set_zlim3d([-RADIUS_Z + zroot, RADIUS_Z + zroot])
+    ax.set_aspect('auto')
 
     white = (1.0, 1.0, 1.0, 0.0)
-    ax.xaxis.set_pane_color(white) 
+    ax.xaxis.set_pane_color(white)
     ax.yaxis.set_pane_color(white)
     ax.zaxis.set_pane_color(white)
 
-    ax.tick_params('x', labelbottom = False)
-    ax.tick_params('y', labelleft = False)
-    ax.tick_params('z', labelleft = False)
+    show_axis_label = True
+    ax.tick_params('x', labelbottom=show_axis_label)
+    ax.tick_params('y', labelleft=show_axis_label)
+    ax.tick_params('z', labelleft=show_axis_label)
+
+    # Plot small black dots at each keypoint
+    vals = np.asarray(vals)
+    ax.scatter(vals[:, 0], vals[:, 1], vals[:, 2], c='k', s=3, depthshade=False, alpha=0.5)
+
 
 
 def get_pose2D(video_path, output_dir, device):
@@ -119,304 +155,398 @@ def get_pose2D(video_path, output_dir, device):
     # Add conf score to the last dim
     keypoints = np.concatenate((keypoints, scores[..., None]), axis=-1)
 
-    output_dir = os.path.join(output_dir, 'input_2D')
+    output_dir = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
     os.makedirs(output_dir, exist_ok=True)
 
-    output_npz = os.path.join(output_dir, 'keypoints.npz')
+    output_npz = os.path.join(output_dir, KEYPOINTS_FILE_2D)
     np.savez_compressed(output_npz, reconstruction=keypoints)
+    if DEBUG: print(f"2D keypoints saved to {output_npz}, with shape {keypoints.shape}")
+
+
+
+def load_npy_file(npy_filepath: str) -> np.ndarray:
+    """Load keypoints from a .npy file. Use this to load professional 3D keypoints.
+    
+    Args:
+        npy_filepath (str): Path to the professional keypoints .npy file.
+    
+    Returns:
+        np.ndarray: Loaded professional keypoints.
+    """
+    keypoints_array = np.load(npy_filepath)
+    if DEBUG: print(f"Loaded professional keypoints from {npy_filepath} with shape {keypoints_array.shape}")
+    return keypoints_array
 
 
 
 @torch.no_grad()
-def get_pose3D(video_path: str, output_dir: str, device: str, model_size: str='*', yaml_path: str=None):
-    """Generate 3D pose estimation from video input.
-    
+def get_pose3D(
+    video_path: str, output_dir: str, device: str, model_size: str='*', yaml_path: str=None,
+    pro_keypoints_filepath: str = None
+    ): 
+    """
     Args:
         video_path (str): Path to the input video file.
         output_dir (str): Directory where the output will be saved.
         device (str): Device to run the model on ('cpu', 'cuda', or 'mps').
         model_size (str): Size of the model to use ('xs', 's', 'b', 'l').
         yaml_path (str): Path to the YAML configuration file for the model.
+        pro_keypoints_filepath (str): Path to the professional keypoints .npy file for alignment.
 
     Raises:
         ValueError: If the YAML configuration file is not provided.
     """
-    # Load model configuration
-    args = _load_model_config(yaml_path)
-    
-    # Setup and load model
-    model = _setup_and_load_model(args, device, model_size)
-
-    # Load input keypoints
-    keypoints_path = os.path.join(output_dir, 'input_2D', 'keypoints.npz')
-    keypoints = np.load(keypoints_path, allow_pickle=True)['reconstruction']
-    clips, downsample = turn_into_clips(keypoints, args['n_frames'])
-
-    # Get video properties
-    cap = cv2.VideoCapture(video_path)
-    video_length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    cap.release()
-
-    # Generate 2D pose images
-    img_size, output_dir_2D = _generate_2D_pose_images(video_path, output_dir, keypoints, video_length)
-    
-    # Generate 3D pose predictions
-    user_pose3d_npy = _generate_3D_pose_predictions(model, clips, downsample, img_size, device, args, output_dir)
-    
-    # Generate combined demo images
-    _generate_demo_images(output_dir_2D, output_dir_3D, output_dir)
-
-    return 
-
-def _load_model_config(yaml_path: str) -> dict:
-    """Load and filter model configuration from YAML file.
-    
-    Args:
-        yaml_path (str): Path to the YAML configuration file.
-        
-    Returns:
-        dict: Filtered model configuration arguments.
-        
-    Raises:
-        ValueError: If yaml_path is None.
-    """
-    if yaml_path is None:
+    if yaml_path is not None:
+        args=get_config(yaml_path)
+        # Filter args to only include those in the "Model" section
+        args = {k: v for k, v in args.items() if k in [
+            'n_layers', 'dim_in', 'dim_feat', 'dim_rep', 'dim_out',
+            'mlp_ratio', 'act_layer',
+            'attn_drop', 'drop', 'drop_path',
+            'use_layer_scale', 'layer_scale_init_value', 'use_adaptive_fusion',
+            'num_heads', 'qkv_bias', 'qkv_scale',
+            'hierarchical',
+            'use_temporal_similarity', 'neighbour_num', 'temporal_connection_len',
+            'use_tcn', 'graph_only',
+            'n_frames'
+        ]}
+        args['act_layer'] = nn.GELU
+    else:
         raise ValueError("You must provide a YAML configuration file for the model via the 'yaml_path' argument.")
-    
-    args = get_config(yaml_path)
-    # Filter args to only include those in the "Model" section
-    filtered_args = {k: v for k, v in args.items() if k in [
-        'n_layers', 'dim_in', 'dim_feat', 'dim_rep', 'dim_out',
-        'mlp_ratio', 'act_layer',
-        'attn_drop', 'drop', 'drop_path',
-        'use_layer_scale', 'layer_scale_init_value', 'use_adaptive_fusion',
-        'num_heads', 'qkv_bias', 'qkv_scale',
-        'hierarchical',
-        'use_temporal_similarity', 'neighbour_num', 'temporal_connection_len',
-        'use_tcn', 'graph_only',
-        'n_frames'
-    ]}
-    filtered_args['act_layer'] = nn.GELU
-    
-    print("\n[INFO] Using MotionAGFormer with the following configuration:")
-    pprint(filtered_args)
-    
-    return filtered_args
 
+    if DEBUG: print("\n[INFO] Using MotionAGFormer with the following configuration:")
+    if DEBUG: pprint(args)
 
-def _setup_and_load_model(args: dict, device: str, model_size: str) -> nn.Module:
-    """Setup MotionAGFormer model and load checkpoint weights.
-    
-    Args:
-        args (dict): Model configuration arguments.
-        device (str): Device to run the model on.
-        model_size (str): Size of the model to use.
-        
-    Returns:
-        nn.Module: Loaded and initialized model.
-    """
+    # ---------------------- Reload the model ----------------------
     model = nn.DataParallel(MotionAGFormer(**args)).to(device)
-    print(f"{type(model) = }")
+    if DEBUG: print(f"{type(model) = }")
 
-    checkpoint_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "checkpoint")
+    checkpoint_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoint")
+    if DEBUG: print(f"[INFO] Checkpoint directory: {checkpoint_dir}")
     model_filename = f"motionagformer-{model_size}-h36m*.pth*"
     model_path = get_or_download_checkpoint(model_filename, checkpoint_dir)
 
     pre_dict = torch.load(model_path, map_location=device)
     model.load_state_dict(pre_dict['model'], strict=True)
     model.eval()
-    
-    return model
 
+    # -------- load 2D keypoints numpy file, create 2D images in pose2D folder --------
+    ## input
+    keypoints_path = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_2D)
+    keypoints = np.load(keypoints_path, allow_pickle=True)['reconstruction']
 
-def _generate_2D_pose_images(video_path: str, output_dir: str, keypoints: np.ndarray, video_length: int) -> tuple:
-    """Generate 2D pose visualization images from keypoints.
-    
-    Args:
-        video_path (str): Path to the input video file.
-        output_dir (str): Directory where output will be saved.
-        keypoints (np.ndarray): 2D keypoints array.
-        video_length (int): Number of frames in the video.
-        
-    Returns:
-        tuple: Image size (height, width, channels) and output directory for 2D poses.
-    """
+    clips, downsample = turn_into_clips(keypoints=keypoints, target_frames=args['n_frames'])
+
     cap = cv2.VideoCapture(video_path)
-    output_dir_2D = os.path.join(output_dir, 'pose2D')
-    os.makedirs(output_dir_2D, exist_ok=True)
-    
+    video_length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    ## 3D
     print('\nGenerating 2D pose image...')
-    img_size = None
     for i in tqdm(range(video_length)):
         ret, img = cap.read()
         if img is None:
             continue
         img_size = img.shape
-
         input_2D = keypoints[0][i]
+
         image = show2Dpose(input_2D, copy.deepcopy(img))
 
+        output_dir_2D = os.path.join(output_dir, 'pose2D')
+        os.makedirs(output_dir_2D, exist_ok=True)
         output_path_2D = os.path.join(output_dir_2D, f"{i:04d}_2D.png")
         cv2.imwrite(output_path_2D, image)
+
+
+    # ----------- Setup for 3D Pose Generation -----------
+    # Load professional keypoints and prepare for alignment
+    pro_keypoints_npy = load_npy_file(pro_keypoints_filepath)
     
-    cap.release()
-    return img_size, output_dir_2D
+    # Check if we need to resample the professional keypoints to match our video length
+    video_length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if len(pro_keypoints_npy) != video_length:
+        print(f"\nResampling professional keypoints from {len(pro_keypoints_npy)} to {video_length} frames")
+        pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, video_length)
+    
+    pro_keypoints_std = np.array([standardize_3d_keypoints(frame) for frame in pro_keypoints_npy])
+    output_3d_keypoints = np.empty_like(pro_keypoints_std)
 
+    # ----------- Run 3D Pose Generation -----------
+    print('\nGenerating 3D pose...')
+    # for clip_idx, clip in tqdm(enumerate(clips)):
+    for clip_idx in tqdm(range(len(clips))):
+        clip = clips[clip_idx]
 
-@torch.no_grad()
-def _generate_3D_pose_predictions(model: nn.Module, clips: list, downsample: np.ndarray, 
-                                 img_size: tuple, device: str, args: dict, output_dir: str) -> np.ndarray:
-    """
-    Run model inference to convert 2D keypoints into 3D keypoints and standardize them.
-    Does NOT create or save any images.
+        if DEBUG: print(f"Processing clip {clip_idx + 1}/{len(clips)}...")
 
-    Args:
-        model (nn.Module): Trained MotionAGFormer model.
-        clips (list): List of keypoint clips.
-        downsample (np.ndarray): Downsampling indices.
-        img_size (tuple): Image dimensions (height, width, channels).
-        device (str): Device to run inference on.
-        args (dict): Model configuration arguments.
-        output_dir (str): Directory where output will be saved.
-
-    Returns:
-        np.ndarray: Array of all standardized 3D poses, shape (num_frames, num_joints, 3).
-    """
-    print('\nGenerating 3D pose (inference only)...')
-    all_poses = []
-    for idx, clip in tqdm(enumerate(clips)):
         input_2D = normalize_screen_coordinates(clip, w=img_size[1], h=img_size[0]) 
         input_2D_aug = flip_data(input_2D)
 
         input_2D = torch.from_numpy(input_2D.astype('float32')).to(device)
         input_2D_aug = torch.from_numpy(input_2D_aug.astype('float32')).to(device)
 
+        # MotionAGFormer inference on input and flipped input 2d keypoints, then unflip the flipped 2d values
+        # Resulting 3D keypoints are the average of both 
         output_3D_non_flip = model(input_2D) 
         output_3D_flip = flip_data(model(input_2D_aug))
         output_3D = (output_3D_non_flip + output_3D_flip) / 2
 
-        if idx == len(clips) - 1:
+        if clip_idx == len(clips) - 1:
             output_3D = output_3D[:, downsample]
 
         output_3D[:, :, 0, :] = 0
         post_out_all = output_3D[0].cpu().detach().numpy()
 
-        for post_out in post_out_all:
-            post_out_std = standardize_3d_keypoints(post_out)
-            all_poses.append(post_out_std)
+        if DEBUG: print(f"post_out_all shape: {post_out_all.shape}")
+        if DEBUG: print(f"pro_keypoints_std shape: {pro_keypoints_std.shape}")
 
-    print('3D pose inference successful!')
-    return np.stack(all_poses, axis=0)
+        # Create 3d pose frames for the output video
+        for j, post_out in enumerate(post_out_all):
+            frame_id = clip_idx * args['n_frames'] + j
+
+            # Set the output filepath for this frame
+            output_dir_3D = os.path.join(output_dir, 'pose3D')
+            os.makedirs(output_dir_3D, exist_ok=True)
+            output_path_3D = os.path.join(output_dir_3D, f"{frame_id:04d}_3D.png")
+
+            fig = plt.figure(figsize=(9.6, 5.4))
+            gs = gridspec.GridSpec(1, 1)
+            gs.update(wspace=-0.00, hspace=0.05) 
+            ax = plt.subplot(gs[0], projection='3d')
+            
+            post_out = standardize_3d_keypoints(post_out)
+            pro_keypoints_std = standardize_3d_keypoints(pro_keypoints_npy[frame_id], apply_rotation=False)
+
+            if pro_keypoints_filepath is not None:    
+                # If we have professional keypoints, we will overlay them on the user's pose
+                if (frame_id) == 0: 
+                    # On the first frame, find the difference between the user and pro stance angle, determined by the chosen body parts
+                    # Apply that same rotation adjustment about the Z axis to the Pro's stance for all other frames so that 
+                    # the professional keypoints are aligned with the user's stance from the start
+                    
+                    USE_BODY_PART = "hips"
+                    pro_feet_angle = get_stance_angle(pro_keypoints_std, USE_BODY_PART)
+                    user_feet_angle = get_stance_angle(post_out, USE_BODY_PART)
+                    angle_adjustment = user_feet_angle - pro_feet_angle
+                    if DEBUG: 
+                        print("post_out shape:", post_out.shape)
+                        print("pro_post_out_std shape:", pro_keypoints_std.shape)
+                        print(f"Angle between {USE_BODY_PART} in first frame of USER VIDEO: {user_feet_angle:.2f} degrees")
+                        print(f"Angle between {USE_BODY_PART} in first frame of PROFESSIONAL VIDEO: {pro_feet_angle:.2f} degrees")
+                        print("Angle adjustment:", int(angle_adjustment))
+
+                create_pose_overlay_image(post_out, pro_keypoints_std, ax, output_path_3D, angle_adjustment, USE_BODY_PART)
+
+                # Save the 3D pose image with the overlay
+                # Store the 3D keypoints in the output dictionary
+                output_3d_keypoints[frame_id] = post_out
+                if DEBUG: print(f"Overlay image saved to {output_path_3D}")
+            else:
+                # If no professional keypoints are provided, just show the user's pose
+                show3Dpose(post_out, ax)
+            
+            # Save the 3d pose image as png
+            plt.savefig(output_path_3D, dpi=200, format='png', bbox_inches='tight')
+            plt.close(fig)
 
 
-def standardize_3d_keypoints(keypoints: np.ndarray) -> np.ndarray:
-    rot = [0.1407056450843811, -0.1500701755285263, -0.755240797996521, 0.6223280429840088]
-    rot = np.array(rot, dtype='float32')
+    # Save the 3D keypoints to a .npz file
+    output_3D_npz = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D)
+    np.savez_compressed(output_3D_npz, reconstruction=output_3d_keypoints)
+    if DEBUG: print(f"3D keypoints saved to {output_3D_npz}, with shape {output_3d_keypoints.shape}")
+
+    print('Generating 3D pose successful!')
+    generate_demo_video(output_dir_2D, output_dir_3D, output_dir)
+
+
+def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:
+    """
+    Get the angle between the left and right ankles, hips, or shoulders from the 3D pose data.
+
+    Args:
+        data (np.ndarray): 3D pose data for a single frame, expected shape (17, 3), where the 2nd dimension contains x, y, z coordinates.
+        use_part (str): Which body part to use for angle calculation: "feet", "hips", or "shoulders".
+
+    Returns:
+        float: Angle in degrees between the specified keypoints.
+    """
+    if use_body_part == "hips":
+        left = data[1][:2]
+        right = data[4][:2]
+    elif use_body_part == "shoulders":
+        left = data[14][:2]
+        right = data[11][:2]
+    else:  # Default to "feet"
+        left = data[6][:2]
+        right = data[3][:2]
+    return find_angle(right, left)
+
+
+def create_pose_overlay_image(
+    data1: np.ndarray, data2: np.ndarray, ax: matplotlib.axis, output_path: str, 
+    angle_adjustment: float = 0.0, use_body_part: str = "feet",
+    view_angle: float = 0.0, camera_height: float = 15.0
+) -> str:
+    """Create a single image with 3D pose keypoints from data1 and data2 overlaid on the same axis.
+    Both data1 and data2 are standardized before plotting.
+
+    Args:
+        data1 (np.ndarray): 3D pose data for the user, expected shape (17, 3).
+        data2 (np.ndarray): 3D pose data for the professional, expected shape (17, 3).
+        ax: Matplotlib 3D axis to plot on.
+        output_path (str): Path to save the output image.
+        angle_adjustment (float): Angle adjustment in degrees to align the pro pose with the user pose.
+        use_body_part (str): Which body part to use for angle calculation: "feet", "hips", or "shoulders".
+        view_angle (float): Elevation angle for the camera view.
+        camera_height (float): Height of the camera view.
+    
+    Returns:
+        str: The output path where the image is saved.
+    """
+    # Rotate the pro pose to align with the user pose based on the angle adjustment from the first frame
+    data2 = rotate_along_z(data2, angle_adjustment)
+
+    # Recenter both poses on their left ankles
+    # 6 is left ankle, 0 is sacrum (middle of hips)
+    keypoint_in_center = 0
+    data1 = recenter_on_joint(data1, keypoint_in_center) 
+    data2 = recenter_on_joint(data2, keypoint_in_center)
+    
+    d1_angle = get_stance_angle(data1, use_body_part)
+    d2_angle = get_stance_angle(data2, use_body_part)
+    if DEBUG: print("\nuser stance angle =", int(d1_angle))
+    if DEBUG: print("pro  stance angle =", int(d2_angle))
+
+    draw_reference_angle_line(ax, d1_angle, color='blue', linewidth=2)
+    draw_reference_angle_line(ax, d2_angle, color='green', linewidth=2)
+
+    # Visualize the aligned poses
+    # Plot the user on top of the pro pose
+    show3Dpose(data2, ax, color='blk')
+    show3Dpose(data1, ax, color='R')
+    return output_path
+
+
+def draw_reference_angle_line(ax, angle_degrees, color='k', linewidth=2) -> None:
+    """
+    Draws a line in 3D space at z=0 from one edge of a box (x,y in [-1,1]) through (0,0,0)
+    at the specified angle (degrees, counterclockwise from x-axis).
+
+    Args:
+        ax: Matplotlib 3D axis.
+        angle_degrees (float): Angle in degrees (0 = along +x axis, 90 = along +y axis).
+        color (str): Line color.
+        linewidth (int): Line width.
+    """
+
+    theta = np.deg2rad(angle_degrees)
+    # Direction vector
+    dx = np.cos(theta)
+    dy = np.sin(theta)
+
+    # Find intersection with box edge (x or y = ±1)
+    # Parametric: (x, y) = t*(dx, dy), find t so x or y hits ±1
+    t_x = np.inf if dx == 0 else 1.0 / abs(dx)
+    t_y = np.inf if dy == 0 else 1.0 / abs(dy)
+    t = min(t_x, t_y)
+
+    # Endpoints: from -t to +t (so line goes edge-to-edge)
+    x0, y0 = -dx * t, -dy * t
+    x1, y1 = dx * t, dy * t
+
+    # Clip to box [-1,1]
+    def clip(val):
+        return max(-1, min(1, val))
+
+    # If the line is not axis-aligned, the above will work.
+    # But for completeness, clip both endpoints to the box.
+    x0, y0 = clip(x0), clip(y0)
+    x1, y1 = clip(x1), clip(y1)
+    ax.plot([x0, x1], [y0, y1], [0, 0], color=color, linewidth=linewidth, alpha=0.5)
+
+
+
+
+def add_ax_lim_labels(ax: matplotlib.axis):
+    xlim = ax.get_xlim3d()
+    ylim = ax.get_ylim3d()
+    zlim = ax.get_zlim3d()
+    ax.set_xlabel(f'X [{xlim[0]:.2f}, {xlim[1]:.2f}]')
+    ax.set_ylabel(f'Y [{ylim[0]:.2f}, {ylim[1]:.2f}]')
+    ax.set_zlabel(f'Z [{zlim[0]:.2f}, {zlim[1]:.2f}]')
+    
+
+
+def standardize_3d_keypoints(keypoints: np.ndarray, apply_rotation: bool = True) -> np.ndarray:
+    """
+    Standardizes 3D keypoints by transforming them from camera coordinates to world coordinates,
+    shifting them so that the minimum z value is at zero (ground level), and normalizing 
+    them so that the largest value is 1.
+
+    Args:
+        keypoints (np.ndarray): 3D keypoints of shape (N, 17, 3) where N is the number of frames.
+        apply_rotation (bool): Whether to apply a rotation transformation to the keypoints. 
+            Should be False when standardizing the PRO PLAYER keypoints.
+        
+    Returns:
+        np.ndarray: Standardized 3D keypoints of shape (N, 17, 3).
+    """
+    if apply_rotation:
+        # Define a quaternion rotation (from model or calibration)
+        rot = [0.1407056450843811, -0.1500701755285263, -0.755240797996521, 0.6223280429840088]
+        rot = np.array(rot, dtype='float32')
+    else:
+        rot = [0.0, 0.0, 0.0, 0.0]
+        rot = np.array(rot, dtype='float32')        
+
+    # Transform the keypoints from camera coordinates to world coordinates using the rotation
     keypoints = camera_to_world(keypoints, R=rot, t=0)
+    
+    # Shift all keypoints so that the minimum z value is at zero (ground level)
     keypoints[:, 2] -= np.min(keypoints[:, 2])
+    
+    # Normalize keypoints to be between 0 and 1 (scaling for visualization/consistency)
     max_value = np.max(keypoints)
     keypoints /= max_value
     return keypoints
 
 
-def visualize_3D_poses(poses: np.ndarray, output_dir: str, pro_video_file: np.ndarray) -> None:
-    """Visualize and save 3D pose images from standardized 3D keypoints.
-
-    Args:
-        poses (np.ndarray): Array of standardized 3D poses, shape (num_frames, num_joints, 3).
-        output_dir (str): Directory where output will be saved.
-    """
-    output_dir_3D = os.path.join(output_dir, 'pose3D')
-    os.makedirs(output_dir_3D, exist_ok=True)
-
-    print('\nGenerating 3D pose images...')
-    for idx, post_out_std in enumerate(tqdm(poses)):
-        fig = plt.figure(figsize=(9.6, 5.4))
-        gs = gridspec.GridSpec(1, 1)
-        gs.update(wspace=-0.00, hspace=0.05) 
-        ax = plt.subplot(gs[0], projection='3d')
-        # show3Dpose(post_out_std, ax)
-
-        output_path_3D = os.path.join(output_dir_3D, f"{idx:04d}_3D.png")
-        if pro_video_file is not None:
-            pro_post_out_std = standardize_3d_keypoints(pro_video_file[idx])
-            create_pose_overlay_image(post_out_std, pro_post_out_std, output_path_3D)
-        plt.savefig(output_path_3D, dpi=200, format='png', bbox_inches='tight')
-        plt.close(fig)
-
-    print('3D pose visualization successful!')
-
-
-
-def create_pose_overlay_image(data1: np.ndarray, data2: np.ndarray, output_path: str):
-    """Create a single image with 3D pose keypoints from data1 and data2 overlaid on the same axis.
-    Both data1 and data2 are standardized before plotting.
-
-    Args:
-        data1 (np.ndarray): Shape (num_joints, 3)
-        data2 (np.ndarray): Shape (num_joints, 3)
-        output_path (str): Output path for the image (e.g., .png)
-    """
-    fig = plt.figure(figsize=(6, 6))
-    gs = gridspec.GridSpec(1, 1)
-    ax = plt.subplot(gs[0], projection='3d')
-    
-    std_data1 = standardize_3d_keypoints(data1)
-    std_data2 = standardize_3d_keypoints(data2)
-    
-    show3Dpose(std_data1, ax)
-    show3Dpose(std_data2, ax)
-
-    plt.savefig(output_path, dpi=100, bbox_inches='tight')
-    plt.close(fig)
-    print(f"Overlay image saved to {output_path}")
-    return output_path
-
-
-def _generate_demo_images(output_dir_2D: str, output_dir_3D: str, output_dir: str) -> None:
-    """Generate combined demo images showing 2D input and 3D reconstruction side by side.
-    
-    Args:
-        output_dir_2D (str): Directory containing 2D pose images.
-        output_dir_3D (str): Directory containing 3D pose images.
-        output_dir (str): Base output directory.
-    """
+def generate_demo_video(output_dir_2D: str, output_dir_3D: str, output_dir: str) -> None:
+    """Generate a demo video showing 2D input and 3D reconstruction side by side."""
+    ## all
     image_2d_dir = sorted(glob.glob(os.path.join(output_dir_2D, '*.png')))
     image_3d_dir = sorted(glob.glob(os.path.join(output_dir_3D, '*.png')))
-
-    output_dir_pose = os.path.join(output_dir, 'pose')
-    os.makedirs(output_dir_pose, exist_ok=True)
 
     print('\nGenerating demo...')
     for i in tqdm(range(len(image_2d_dir))):
         image_2d = plt.imread(image_2d_dir[i])
         image_3d = plt.imread(image_3d_dir[i])
 
-        # Crop images
+        ## crop
         edge = (image_2d.shape[1] - image_2d.shape[0]) // 2
         image_2d = image_2d[:, edge:image_2d.shape[1] - edge]
 
         edge = 130
         image_3d = image_3d[edge:image_3d.shape[0] - edge, edge:image_3d.shape[1] - edge]
 
-        # Create combined visualization
+        ## show
         font_size = 12
         fig = plt.figure(figsize=(15.0, 5.4))
         ax = plt.subplot(121)
         showimage(ax, image_2d)
-        ax.set_title("Input", fontsize=font_size)
+        ax.set_title("Input", fontsize = font_size)
 
         ax = plt.subplot(122)
         showimage(ax, image_3d)
-        ax.set_title("Reconstruction", fontsize=font_size)
+        ax.set_title("Reconstruction", fontsize = font_size)
 
-        # Save combined image
+        ## save
+        output_dir_pose = os.path.join(output_dir, 'pose')
+        os.makedirs(output_dir_pose, exist_ok=True)
         plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
         plt.margins(0, 0)
         output_path_pose = os.path.join(output_dir_pose, f"{i:04d}_pose.png")
         plt.savefig(output_path_pose, dpi=200, bbox_inches='tight')
         plt.close(fig)
-
 
 
 
@@ -560,6 +690,79 @@ def get_pytorch_device():
     else:
         return torch.device("cpu")
     
+
+def rotate_along_z(kpts: np.ndarray, degrees: float) -> np.ndarray:
+    """
+    Rotates a set of 3D keypoints around the Z-axis.
+
+    Parameters:
+        kpts (np.ndarray): Array of shape (17, 3) containing [x, y, z] keypoints.
+        degrees (float): Angle in degrees to rotate around the Z-axis.
+
+    Returns:
+        np.ndarray: Rotated keypoints of shape (17, 3).
+    """
+    assert kpts.shape == (17, 3), "Input must be of shape (17, 3)"
+
+    radians = np.deg2rad(degrees)
+    cos_theta = np.cos(radians)
+    sin_theta = np.sin(radians)
+
+    # Rotation matrix for Z-axis
+    Rz = np.array([
+        [cos_theta, -sin_theta, 0],
+        [sin_theta,  cos_theta, 0],
+        [0,               0,    1]
+    ])
+
+    # Rotate each point
+    rotated_kpts = kpts @ Rz.T  # matrix multiply (17x3) x (3x3).T = (17x3)
+
+    return rotated_kpts
+
+
+def recenter_on_joint(pose: np.ndarray, keypoint_idx: int = 6, target_xyz=(0.0, 0.0, 0.0)):
+    """
+    Recenter a pose so that the specified ankle joint moves to the given target coordinates.
+
+    Parameters:
+    - pose (np.ndarray): Shape (17, 3) containing joint coordinates
+    - keypoint_idx (int): Index of the ankle joint (6 for left ankle, 3 for right ankle)
+    - target_xyz (tuple): The target (x, y, z) coordinates to move the ankle to
+
+    Returns:
+    - np.ndarray: Recentered pose
+    """
+    keypoint_xyz = pose[keypoint_idx:keypoint_idx+1, :]  # shape (1, 3)
+    target = np.array(target_xyz)  # shape (3,)
+    return pose - keypoint_xyz + target
+
+
+def find_angle(coord1, coord2):
+    """Finds the angle in degrees between the line segment connecting two 2D coordinates
+    and the positive x-axis.
+
+    Args:
+        coord1 (tuple): A tuple representing the first (x, y) coordinate.
+        coord2 (tuple): A tuple representing the second (x, y) coordinate.
+
+    Returns:
+        float: The angle in degrees. Returns None if the points are the same.
+    """
+    x1, y1 = coord1
+    x2, y2 = coord2
+
+    dx = x2 - x1
+    dy = y2 - y1
+
+    if dx == 0 and dy == 0:
+        return None  # Points are the same, angle is undefined
+
+    angle = np.degrees(np.arctan2(dy, dx))
+    if angle < 0:
+        angle += 360
+    return angle
+
 
 if __name__ == "__main__":
     # Choose model size and config file to use:

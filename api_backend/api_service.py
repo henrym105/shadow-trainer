@@ -1,4 +1,3 @@
-# --- Imports and Setup ---
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 import os
@@ -8,7 +7,7 @@ import boto3
 import shutil
 
 import numpy as np
-from src.inference import create_pose_overlay_video, get_pose2D, get_pose3D, img2video, get_pytorch_device
+from src.inference import get_pose2D, get_pose3D, img2video, get_pytorch_device
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -18,7 +17,7 @@ TMP_DIR = os.path.join(API_ROOT_DIR, "tmp_api_output")
 os.makedirs(TMP_DIR, exist_ok=True)
 
 s3_client = boto3.client('s3')
-app = FastAPI()
+app = FastAPI(debug=True)
 
 
 # --- Utility Functions ---
@@ -90,19 +89,18 @@ def run_pipeline(input_path: str, output_dir: str, device: str, model_size: str,
     get_pose2D(input_path, output_dir, device)
 
     logger.info("Running get_pose3D...")
-    output_npy = get_pose3D(input_path, output_dir, device, model_size, model_config)
+    pro_keypoints_filepath: str = "./api_backend/checkpoint/example_SnellBlake.npy"
+
+    output_npy = get_pose3D(input_path, output_dir, device, model_size, model_config, pro_keypoints_filepath)
     print(f"Output npy file generated: {output_npy}")
     print(f"Output npy file shape: {output_npy.shape if output_npy is not None else 'None'}")
-    
+
     logger.info("Running overlay video rendering...")
     pro_data = np.load(os.path.join(API_ROOT_DIR, "src/checkpoint/example_SnellBlake.npy"))
     print(f"loaded pro_data w/ shape: {pro_data.shape}")
 
-    output_video_path = create_pose_overlay_video(output_npy, pro_data, output_dir)
-    print(f"{output_video_path = }")
-
-    # logger.info("Running img2video...")
-    # output_video_path = img2video(input_path, output_dir)
+    logger.info("Running img2video...")
+    output_video_path = img2video(input_path, output_dir)
 
     return output_video_path, ""
 
@@ -216,9 +214,6 @@ def process_video_internal(file: str, model_size: str = "xs") -> JSONResponse:
     output_video_s3_url, err = upload_to_s3(output_video_path, bucket, video_name)
     if err:
         return JSONResponse(status_code=500, content={"error": f"Failed to upload output video to S3: {err}"})
-
-    # Keep video files in TMP_DIR for local access immediately after processing
-    # clear_tmp_dir(TMP_DIR, keep_videos=True) 
 
     # --- Return Response ---
     logger.info(f"Returning processed video: {output_video_path}")
