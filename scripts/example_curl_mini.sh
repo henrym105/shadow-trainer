@@ -6,7 +6,7 @@ set -e
 
 # Wait for the API to be up (max 30s)
 for i in $(seq 1 30); do
-  if curl -s http://localhost:8000/docs > /dev/null; then
+  if curl -s http://localhost:8002/docs > /dev/null; then
     break
   fi
   echo "Waiting for API to be ready... ($i)" >&2
@@ -14,8 +14,8 @@ for i in $(seq 1 30); do
 done
 
 # # Example cURL command to send a video file from S3 to the FastAPI service
-curl -X POST "http://localhost:8000/process_video/" \
+curl -X POST "http://localhost:8002/process_video/" \
     -H "accept: application/json" \
     --get \
     --data-urlencode "file=s3://shadow-trainer-prod/sample_input/henry-mini.mov" \
-    --data-urlencode "model_size=xs"
+    --data-urlencode "model_size=s"
