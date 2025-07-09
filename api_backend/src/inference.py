@@ -28,9 +28,9 @@ matplotlib.rcParams['ps.fonttype'] = 42
 # ---------------------- CONSTANTS ----------------------
 BACKEND_API_DIR_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_FOLDER_RAW_KEYPOINTS = "raw_keypoints"
-KEYPOINTS_FILE_2D = "2D_keypoints.npz"
-KEYPOINTS_FILE_3D_USER = "user_3D_keypoints.npz"
-KEYPOINTS_FILE_3D_PRO  = "pro_3D_keypoints.npz"
+KEYPOINTS_FILE_2D = "2D_keypoints.npy"
+KEYPOINTS_FILE_3D_USER = "user_3D_keypoints.npy"
+KEYPOINTS_FILE_3D_PRO  = "pro_3D_keypoints.npy"
 
 # debug flag
 DEBUG = True
@@ -160,9 +160,9 @@ def get_pose2D(video_path, output_dir, device):
     output_dir = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
     os.makedirs(output_dir, exist_ok=True)
 
-    output_npz = os.path.join(output_dir, KEYPOINTS_FILE_2D)
-    np.savez_compressed(output_npz, reconstruction=keypoints)
-    if DEBUG: print(f"2D keypoints saved to {output_npz}, with shape {keypoints.shape}")
+    output_npy = os.path.join(output_dir, KEYPOINTS_FILE_2D)
+    np.save(output_npy, keypoints)
+    if DEBUG: print(f"2D keypoints saved to {output_npy}, with shape {keypoints.shape}")
 
 
 
@@ -235,7 +235,7 @@ def get_pose3D(
     # -------- load 2D keypoints numpy file, create 2D images in pose2D folder --------
     ## input
     keypoints_path = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_2D)
-    keypoints = np.load(keypoints_path, allow_pickle=True)['reconstruction']
+    keypoints = np.load(keypoints_path, allow_pickle=True)
 
     clips, downsample = turn_into_clips(keypoints=keypoints, target_frames=args['n_frames'])
 
@@ -353,21 +353,20 @@ def get_pose3D(
             plt.savefig(output_path_3D, dpi=200, format='png', bbox_inches='tight')
             plt.close(fig)
 
-
-    # Save the 3D keypoints to a .npz file
-    output_3D_npz = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_USER)
-    np.savez_compressed(output_3D_npz, reconstruction=user_output_3d_keypoints)
-    if DEBUG: print(f"3D keypoints saved to {output_3D_npz}, with shape {user_output_3d_keypoints.shape}")
+    # Save the 3D keypoints to a .npy file
+    output_3D_npy = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_USER)
+    np.save(output_3D_npy, user_output_3d_keypoints)
+    if DEBUG: print(f"3D keypoints saved to {output_3D_npy}, with shape {user_output_3d_keypoints.shape}")
 
     # Save a copy of the professional keypoints for reference
-    output_pro_3D_npz = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_PRO)
-    np.savez_compressed(output_pro_3D_npz, reconstruction=pro_keypoints_npy)
-    if DEBUG: print(f"Professional 3D keypoints saved to {output_pro_3D_npz}, with shape {pro_keypoints_npy.shape}")
+    output_pro_3D_npy = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_PRO)
+    np.save(output_pro_3D_npy, pro_keypoints_npy)
+    if DEBUG: print(f"Professional 3D keypoints saved to {output_pro_3D_npy}, with shape {pro_keypoints_npy.shape}")
 
     print('Generating 3D pose successful!')
     generate_demo_video(output_dir_2D, output_dir_3D, output_dir)
 
-    return output_3D_npz
+    return output_3D_npy
 
 
 def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:

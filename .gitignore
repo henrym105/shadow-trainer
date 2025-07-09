@@ -9,6 +9,7 @@
 **.jpeg
 **.gif
 **.npz
+**.npy
 
 # Keep Shadow Trainer logo file
 !/api_frontend/Shadow Trainer Logo.png

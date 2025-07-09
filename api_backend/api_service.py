@@ -94,10 +94,6 @@ def run_pipeline(input_path: str, output_dir: str, device: str, model_size: str,
     output_npy = get_pose3D(input_path, output_dir, device, model_size, model_config, pro_keypoints_filepath)
     print(f"Output npy file generated: {output_npy}")
 
-    # logger.info("Running overlay video rendering...")
-    # pro_data = np.load(os.path.join(API_ROOT_DIR, "src/checkpoint/example_SnellBlake.npy"))
-    # print(f"loaded pro_data w/ shape: {pro_data.shape}")
-
     logger.info("Running img2video...")
     output_video_path = img2video(input_path, output_dir)
 
