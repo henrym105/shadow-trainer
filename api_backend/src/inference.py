@@ -13,7 +13,7 @@ from pprint import pprint
 # from utils import get_config
 from src.preprocess import h36m_coco_format
 from src.hrnet.gen_kpts import gen_video_kpts
-from src.utils import get_or_download_checkpoint, normalize_screen_coordinates, camera_to_world, get_config, save_numpy_as_json
+from src.utils import get_or_download_checkpoint, normalize_screen_coordinates, camera_to_world, get_config
 from src.model.MotionAGFormer import MotionAGFormer
 from src.visualizations import resample_pose_sequence
 
@@ -26,6 +26,7 @@ matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
 # ---------------------- CONSTANTS ----------------------
+BACKEND_API_DIR_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_FOLDER_RAW_KEYPOINTS = "raw_keypoints"
 KEYPOINTS_FILE_2D = "2D_keypoints.npz"
 KEYPOINTS_FILE_3D_USER = "user_3D_keypoints.npz"
@@ -145,7 +146,7 @@ def get_pose2D(video_path, output_dir, device):
     print('\nGenerating 2D pose...')
 
     # Check if HRNet checkpoint exists, if not, download from S3
-    checkpoint_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "checkpoint")
+    checkpoint_dir = os.path.join(BACKEND_API_DIR_ROOT, "checkpoint")
     get_or_download_checkpoint("pose_hrnet_w48_384x288.pth", checkpoint_dir)
     get_or_download_checkpoint("yolov3.weights", checkpoint_dir)
 
@@ -222,7 +223,7 @@ def get_pose3D(
     model = nn.DataParallel(MotionAGFormer(**args)).to(device)
     if DEBUG: print(f"{type(model) = }")
 
-    checkpoint_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoint")
+    checkpoint_dir = os.path.join(BACKEND_API_DIR_ROOT, "checkpoint")
     if DEBUG: print(f"[INFO] Checkpoint directory: {checkpoint_dir}")
     model_filename = f"motionagformer-{model_size}-h36m*.pth*"
     model_path = get_or_download_checkpoint(model_filename, checkpoint_dir)
@@ -365,6 +366,8 @@ def get_pose3D(
 
     print('Generating 3D pose successful!')
     generate_demo_video(output_dir_2D, output_dir_3D, output_dir)
+
+    return output_3D_npz
 
 
 def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:
