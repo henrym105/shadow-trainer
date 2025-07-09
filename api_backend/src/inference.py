@@ -13,7 +13,7 @@ from pprint import pprint
 # from utils import get_config
 from src.preprocess import h36m_coco_format
 from src.hrnet.gen_kpts import gen_video_kpts
-from src.utils import get_or_download_checkpoint, normalize_screen_coordinates, camera_to_world, get_config
+from src.utils import get_or_download_checkpoint, normalize_screen_coordinates, camera_to_world, get_config, save_numpy_as_json
 from src.model.MotionAGFormer import MotionAGFormer
 from src.visualizations import resample_pose_sequence
 
@@ -28,7 +28,8 @@ matplotlib.rcParams['ps.fonttype'] = 42
 # ---------------------- CONSTANTS ----------------------
 OUTPUT_FOLDER_RAW_KEYPOINTS = "raw_keypoints"
 KEYPOINTS_FILE_2D = "2D_keypoints.npz"
-KEYPOINTS_FILE_3D = "3D_keypoints.npz"
+KEYPOINTS_FILE_3D_USER = "user_3D_keypoints.npz"
+KEYPOINTS_FILE_3D_PRO  = "pro_3D_keypoints.npz"
 
 # debug flag
 DEBUG = True
@@ -268,7 +269,7 @@ def get_pose3D(
         pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, video_length)
     
     pro_keypoints_std = np.array([standardize_3d_keypoints(frame) for frame in pro_keypoints_npy])
-    output_3d_keypoints = np.empty_like(pro_keypoints_std)
+    user_output_3d_keypoints = np.empty_like(pro_keypoints_std)
 
     # ----------- Run 3D Pose Generation -----------
     print('\nGenerating 3D pose...')
@@ -337,8 +338,11 @@ def get_pose3D(
                 create_pose_overlay_image(post_out, pro_keypoints_std, ax, output_path_3D, angle_adjustment, USE_BODY_PART)
 
                 # Save the 3D pose image with the overlay
-                # Store the 3D keypoints in the output dictionary
-                output_3d_keypoints[frame_id] = post_out
+                # Append post_out as a new layer to user_output_3d_keypoints
+                if DEBUG: print(f"Output 3D keypoints shape before append: {user_output_3d_keypoints.shape}")
+                user_output_3d_keypoints[frame_id] = post_out
+                if DEBUG: print(f"Output 3D keypoints shape after append: {user_output_3d_keypoints.shape}")
+
                 if DEBUG: print(f"Overlay image saved to {output_path_3D}")
             else:
                 # If no professional keypoints are provided, just show the user's pose
@@ -350,9 +354,14 @@ def get_pose3D(
 
 
     # Save the 3D keypoints to a .npz file
-    output_3D_npz = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D)
-    np.savez_compressed(output_3D_npz, reconstruction=output_3d_keypoints)
-    if DEBUG: print(f"3D keypoints saved to {output_3D_npz}, with shape {output_3d_keypoints.shape}")
+    output_3D_npz = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_USER)
+    np.savez_compressed(output_3D_npz, reconstruction=user_output_3d_keypoints)
+    if DEBUG: print(f"3D keypoints saved to {output_3D_npz}, with shape {user_output_3d_keypoints.shape}")
+
+    # Save a copy of the professional keypoints for reference
+    output_pro_3D_npz = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_PRO)
+    np.savez_compressed(output_pro_3D_npz, reconstruction=pro_keypoints_npy)
+    if DEBUG: print(f"Professional 3D keypoints saved to {output_pro_3D_npz}, with shape {pro_keypoints_npy.shape}")
 
     print('Generating 3D pose successful!')
     generate_demo_video(output_dir_2D, output_dir_3D, output_dir)
