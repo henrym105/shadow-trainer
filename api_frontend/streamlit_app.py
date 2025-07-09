@@ -1,4 +1,5 @@
 
+import threading
 import streamlit as st
 import requests
 import os
@@ -14,10 +15,9 @@ Upload a video file or provide an S3 path to process it using the Shadow Trainer
 
 
 # Ensure API is running before proceeding
-API_URL = os.environ.get("SHADOW_TRAINER_API_URL", "http://localhost:8000/process_video/")
+API_URL = "http://localhost:8000/process_video/"
 API_HEALTH_URL = API_URL.replace("/process_video/", "/")
 
-import threading
 
 api_log_lines = []
 
