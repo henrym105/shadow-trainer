@@ -105,8 +105,8 @@ chmod +x ./start_all.sh
 ./start_all.sh
 ```
 This will:
-- Start the FastAPI backend on port **8002** (serving at `https://www.shadow-trainer.com/api/`)
-- Start the Streamlit frontend on port **8000** (serving at `https://www.shadow-trainer.com/`)
+- Start the FastAPI backend on port **8002** (serving at `http://www.shadow-trainer.com/api/`)
+- Start the Streamlit frontend on port **8000** (serving at `http://www.shadow-trainer.com/`)
 - Open both in a tmux session for easy monitoring
 
 **Note:** Ensure ports 8000 and 8002 are open in your AWS security group and mapped to your domain.
@@ -126,7 +126,7 @@ uv run python run_api.py
 cd api_frontend
 uv run streamlit run streamlit_app.py --server.port 8000 --server.enableCORS false
 ```
-The frontend will be available at [https://www.shadow-trainer.com/](https://www.shadow-trainer.com/) and the API at [https://www.shadow-trainer.com/api/](https://www.shadow-trainer.com/api/)
+The frontend will be available at [http://www.shadow-trainer.com/](http://www.shadow-trainer.com/) and the API at [http://www.shadow-trainer.com/api/](http://www.shadow-trainer.com/api/)
 
 ---
 
