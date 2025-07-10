@@ -17,4 +17,4 @@ done
 curl -X POST "http://localhost:8002/video/process" \
     -H "accept: application/json" \
     -H "Content-Type: application/json" \
-    -d '{"file": "s3://shadow-trainer-prod/sample_input/henry-mini.", "model_size": "s"}'
+    -d '{"file": "s3://shadow-trainer-prod/sample_input/henry-mini.mov", "model_size": "xs"}'

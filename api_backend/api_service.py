@@ -7,7 +7,7 @@ import boto3
 from fastapi import Body, FastAPI, Query
 
 from pydantic_models import ProcessVideoRequest, ProcessVideoResponse
-from src.inference import get_pose2D, get_pose3D, img2video, get_pytorch_device
+from src.inference import get_pose2D, get_pose3D, get_pose3D_no_vis, img2video, get_pytorch_device
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ def load_model_config(model_size: str, config_path: str) -> tuple:
         return None, str(e)
 
 
-def run_pipeline(input_path: str, output_dir: str, device: str, model_size: str, model_config: dict) -> tuple:
+def run_pipeline(input_video_path: str, output_dir: str, device: str, model_size: str, model_config: dict) -> tuple:
     """Runs the full processing pipeline consisting of 2D pose estimation, 3D pose estimation, and image-to-video conversion.
     
     Args:
@@ -92,17 +92,17 @@ def run_pipeline(input_path: str, output_dir: str, device: str, model_size: str,
             - error_message (str | None): Error message if the pipeline fails, otherwise None.
     """
     logger.info("Running get_pose2D...")
-    logger.info(f"Input path: {input_path}, Output directory: {output_dir}, Device: {device}")
-    get_pose2D(input_path, output_dir, device)
+    logger.info(f"Input video path: {input_video_path}, Output directory: {output_dir}, Device: {device}")
+    keypoints_file_2d = get_pose2D(input_video_path, output_dir, device)
 
     logger.info("Running get_pose3D...")
     pro_keypoints_filepath: str = "./api_backend/checkpoint/example_SnellBlake.npy"
 
-    output_npy = get_pose3D(input_path, output_dir, device, model_size, model_config, pro_keypoints_filepath)
+    output_npy = get_pose3D(keypoints_file_2d, input_video_path, output_dir, device, model_size, model_config, pro_keypoints_filepath)
     print(f"Output npy file generated: {output_npy}")
 
     logger.info("Running img2video...")
-    output_video_path = img2video(input_path, output_dir)
+    output_video_path = img2video(input_video_path, output_dir)
 
     return output_video_path, ""
 

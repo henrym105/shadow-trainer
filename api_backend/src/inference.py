@@ -137,7 +137,17 @@ def show3Dpose(vals, ax, color='RB', camera_view_height = 15.0, camera_view_z_ro
 
 
 
-def get_pose2D(video_path, output_dir, device):
+def get_pose2D(video_path, output_dir, device) -> str:
+    """ Generate 2D pose keypoints from a video file and save them as a .npy file.
+    
+    Args:
+        video_path (str): Path to the input video file.
+        output_dir (str): Directory where the output will be saved.
+        device (str): Device to run the model on ('cpu', 'cuda', or 'mps').
+
+    Returns:
+        str: Path to the saved 2D keypoints .npy file.
+    """
     cap = cv2.VideoCapture(video_path)
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -159,9 +169,11 @@ def get_pose2D(video_path, output_dir, device):
     output_dir = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
     os.makedirs(output_dir, exist_ok=True)
 
-    output_npy = os.path.join(output_dir, KEYPOINTS_FILE_2D)
-    np.save(output_npy, keypoints)
-    if DEBUG: print(f"2D keypoints saved to {output_npy}, with shape {keypoints.shape}")
+    output_2d_keypoints_filepath = os.path.join(output_dir, KEYPOINTS_FILE_2D)
+    np.save(output_2d_keypoints_filepath, keypoints)
+    if DEBUG: print(f"2D keypoints saved to {output_2d_keypoints_filepath}, with shape {keypoints.shape}")
+
+    return output_2d_keypoints_filepath
 
 
 
@@ -182,11 +194,12 @@ def load_npy_file(npy_filepath: str) -> np.ndarray:
 
 @torch.no_grad()
 def get_pose3D(
-    video_path: str, output_dir: str, device: str, model_size: str='*', yaml_path: str=None,
+    keypoints_filepath_2d: str, video_path: str, output_dir: str, device: str, model_size: str='*', yaml_path: str=None,
     pro_keypoints_filepath: str = None
     ): 
     """
     Args:
+        keypoints_filepath_2d (str): Path to the 2D keypoints .npy file.
         video_path (str): Path to the input video file.
         output_dir (str): Directory where the output will be saved.
         device (str): Device to run the model on ('cpu', 'cuda', or 'mps').
@@ -233,37 +246,23 @@ def get_pose3D(
 
     # -------- load 2D keypoints numpy file, create 2D images in pose2D folder --------
     ## input
-    keypoints_path = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_2D)
-    keypoints = np.load(keypoints_path, allow_pickle=True)
+    keypoints = np.load(keypoints_filepath_2d, allow_pickle=True)
 
     clips, downsample = turn_into_clips(keypoints=keypoints, target_frames=args['n_frames'])
 
     cap = cv2.VideoCapture(video_path)
     video_length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    img_size_h_w = get_frame_size(cap)
 
-    ## 3D
+    # ## 3D
     print('\nGenerating 2D pose image...')
-    for i in tqdm(range(video_length)):
-        ret, img = cap.read()
-        if img is None:
-            continue
-        img_size = img.shape
-        input_2D = keypoints[0][i]
-
-        image = show2Dpose(input_2D, copy.deepcopy(img))
-
-        output_dir_2D = os.path.join(output_dir, 'pose2D')
-        os.makedirs(output_dir_2D, exist_ok=True)
-        output_path_2D = os.path.join(output_dir_2D, f"{i:04d}_2D.png")
-        cv2.imwrite(output_path_2D, image)
-
+    output_dir_2D = create_2D_images(cap, keypoints, output_dir)
 
     # ----------- Setup for 3D Pose Generation -----------
     # Load professional keypoints and prepare for alignment
     pro_keypoints_npy = load_npy_file(pro_keypoints_filepath)
     
     # Check if we need to resample the professional keypoints to match our video length
-    video_length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     if len(pro_keypoints_npy) != video_length:
         print(f"\nResampling professional keypoints from {len(pro_keypoints_npy)} to {video_length} frames")
         pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, video_length)
@@ -279,7 +278,7 @@ def get_pose3D(
 
         if DEBUG: print(f"Processing clip {clip_idx + 1}/{len(clips)}...")
 
-        input_2D = normalize_screen_coordinates(clip, w=img_size[1], h=img_size[0]) 
+        input_2D = normalize_screen_coordinates(clip, w=img_size_h_w[1], h=img_size_h_w[0]) 
         input_2D_aug = flip_data(input_2D)
 
         input_2D = torch.from_numpy(input_2D.astype('float32')).to(device)
@@ -300,57 +299,16 @@ def get_pose3D(
         if DEBUG: print(f"post_out_all shape: {post_out_all.shape}")
         if DEBUG: print(f"pro_keypoints_std shape: {pro_keypoints_std.shape}")
 
-        # Create 3d pose frames for the output video
-        for j, post_out in enumerate(post_out_all):
-            frame_id = clip_idx * args['n_frames'] + j
-
-            # Set the output filepath for this frame
-            output_dir_3D = os.path.join(output_dir, 'pose3D')
-            os.makedirs(output_dir_3D, exist_ok=True)
-            output_path_3D = os.path.join(output_dir_3D, f"{frame_id:04d}_3D.png")
-
-            fig = plt.figure(figsize=(9.6, 5.4))
-            gs = gridspec.GridSpec(1, 1)
-            gs.update(wspace=-0.00, hspace=0.05) 
-            ax = plt.subplot(gs[0], projection='3d')
-            
-            post_out = standardize_3d_keypoints(post_out)
-            pro_keypoints_std = standardize_3d_keypoints(pro_keypoints_npy[frame_id], apply_rotation=False)
-
-            if pro_keypoints_filepath is not None:    
-                # If we have professional keypoints, we will overlay them on the user's pose
-                if (frame_id) == 0: 
-                    # On the first frame, find the difference between the user and pro stance angle, determined by the chosen body parts
-                    # Apply that same rotation adjustment about the Z axis to the Pro's stance for all other frames so that 
-                    # the professional keypoints are aligned with the user's stance from the start
-                    
-                    USE_BODY_PART = "hips"
-                    pro_feet_angle = get_stance_angle(pro_keypoints_std, USE_BODY_PART)
-                    user_feet_angle = get_stance_angle(post_out, USE_BODY_PART)
-                    angle_adjustment = user_feet_angle - pro_feet_angle
-                    if DEBUG: 
-                        print("post_out shape:", post_out.shape)
-                        print("pro_post_out_std shape:", pro_keypoints_std.shape)
-                        print(f"Angle between {USE_BODY_PART} in first frame of USER VIDEO: {user_feet_angle:.2f} degrees")
-                        print(f"Angle between {USE_BODY_PART} in first frame of PROFESSIONAL VIDEO: {pro_feet_angle:.2f} degrees")
-                        print("Angle adjustment:", int(angle_adjustment))
-
-                create_pose_overlay_image(post_out, pro_keypoints_std, ax, output_path_3D, angle_adjustment, USE_BODY_PART)
-
-                # Save the 3D pose image with the overlay
-                # Append post_out as a new layer to user_output_3d_keypoints
-                if DEBUG: print(f"Output 3D keypoints shape before append: {user_output_3d_keypoints.shape}")
-                user_output_3d_keypoints[frame_id] = post_out
-                if DEBUG: print(f"Output 3D keypoints shape after append: {user_output_3d_keypoints.shape}")
-
-                if DEBUG: print(f"Overlay image saved to {output_path_3D}")
-            else:
-                # If no professional keypoints are provided, just show the user's pose
-                show3Dpose(post_out, ax)
-            
-            # Save the 3d pose image as png
-            plt.savefig(output_path_3D, dpi=200, format='png', bbox_inches='tight')
-            plt.close(fig)
+        # Create 3d pose frames for the output video using a helper function
+        output_dir_3D = create_3d_pose_frames_for_video(
+            post_out_all,
+            clip_idx,
+            args['n_frames'],
+            output_dir,
+            pro_keypoints_npy,
+            pro_keypoints_filepath,
+            user_output_3d_keypoints
+        )
 
     # Save the 3D keypoints to a .npy file
     output_3D_npy = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_USER)
@@ -363,9 +321,243 @@ def get_pose3D(
     if DEBUG: print(f"Professional 3D keypoints saved to {output_pro_3D_npy}, with shape {pro_keypoints_npy.shape}")
 
     print('Generating 3D pose successful!')
+    print(output_dir_2D, output_dir_3D, output_dir)
     generate_demo_video(output_dir_2D, output_dir_3D, output_dir)
 
+    # Release the opencv video capture object at the end
+    cap.release()
+
     return output_3D_npy
+
+
+
+def create_3d_pose_frames_for_video(post_out_all, clip_idx, n_frames, output_dir, pro_keypoints_npy, pro_keypoints_filepath, user_output_3d_keypoints):
+    """Create 3D pose frames for the output video, saving overlays if professional keypoints are provided."""
+    angle_adjustment = 0.0
+    USE_BODY_PART = "hips"
+    output_dir_3D = os.path.join(output_dir, 'pose3D')
+    os.makedirs(output_dir_3D, exist_ok=True)
+
+    for j, post_out in enumerate(post_out_all):
+        # Set the output filepath for this frame
+        frame_id = clip_idx * n_frames + j
+        output_path_3D = os.path.join(output_dir_3D, f"{frame_id:04d}_3D.png")
+
+        # Create a new figure for the 3D pose
+        fig = plt.figure(figsize=(9.6, 5.4))
+        gs = gridspec.GridSpec(1, 1)
+        gs.update(wspace=-0.00, hspace=0.05)
+        ax = plt.subplot(gs[0], projection='3d')
+
+        post_out_std = standardize_3d_keypoints(post_out)
+        pro_keypoints_std = standardize_3d_keypoints(pro_keypoints_npy[frame_id], apply_rotation=False)
+
+        if pro_keypoints_filepath is not None:
+            # If we have professional keypoints, we will overlay them on the user's pose
+            if frame_id == 0:
+                # On the first frame, find the difference between the user and pro stance angle
+                pro_feet_angle = get_stance_angle(pro_keypoints_std, USE_BODY_PART)
+                user_feet_angle = get_stance_angle(post_out_std, USE_BODY_PART)
+                angle_adjustment = user_feet_angle - pro_feet_angle
+                if DEBUG:
+                    print("post_out shape:", post_out_std.shape)
+                    print("pro_post_out_std shape:", pro_keypoints_std.shape)
+                    print(f"Angle between {USE_BODY_PART} in first frame of USER VIDEO: {user_feet_angle:.2f} degrees")
+                    print(f"Angle between {USE_BODY_PART} in first frame of PROFESSIONAL VIDEO: {pro_feet_angle:.2f} degrees")
+                    print("Angle adjustment:", int(angle_adjustment))
+
+            create_pose_overlay_image(post_out_std, pro_keypoints_std, ax, output_path_3D, angle_adjustment, USE_BODY_PART)
+
+            # Save the 3D pose image with the overlay
+            # Append post_out as a new layer to user_output_3d_keypoints
+            if DEBUG: print(f"Output 3D keypoints shape before append: {user_output_3d_keypoints.shape}")
+            user_output_3d_keypoints[frame_id] = post_out_std
+            if DEBUG: print(f"Output 3D keypoints shape after append: {user_output_3d_keypoints.shape}")
+            if DEBUG: print(f"Overlay image saved to {output_path_3D}")
+        else:
+            # If no professional keypoints are provided, just show the user's pose
+            show3Dpose(post_out_std, ax)
+
+        # Save the 3d pose image as png
+        plt.savefig(output_path_3D, dpi=200, format='png', bbox_inches='tight')
+        plt.close(fig)
+    return output_dir_3D
+
+
+@torch.no_grad()
+def get_pose3D_no_vis(
+    user_keypoints_path: str, output_dir: str, device: str, model_size: str='xs', yaml_path: str=None
+    ):
+    """Run 3D pose inference from 2D keypoints and save the output 3D keypoints as .npy. No visualization or pro comparison.
+
+    Args:
+        user_keypoints_path (str): Path to the 2D keypoints .npy file.
+        output_dir (str): Directory to save the output.
+        device (str): PyTorch device.
+        model_size (str): Model size string.
+        yaml_path (str): Path to model config YAML.
+
+    Returns:
+        str: Path to saved 3D keypoints .npy file.
+    """
+    if yaml_path is not None:
+        args = get_config(yaml_path)
+        args = {k: v for k, v in args.items() if k in [
+            'n_layers', 'dim_in', 'dim_feat', 'dim_rep', 'dim_out',
+            'mlp_ratio', 'act_layer',
+            'attn_drop', 'drop', 'drop_path',
+            'use_layer_scale', 'layer_scale_init_value', 'use_adaptive_fusion',
+            'num_heads', 'qkv_bias', 'qkv_scale',
+            'hierarchical',
+            'use_temporal_similarity', 'neighbour_num', 'temporal_connection_len',
+            'use_tcn', 'graph_only',
+            'n_frames'
+        ]}
+        args['act_layer'] = nn.GELU
+    else:
+        raise ValueError("You must provide a YAML configuration file for the model via the 'yaml_path' argument.")
+
+    if DEBUG: print("\n[INFO] Using MotionAGFormer with the following configuration:")
+    if DEBUG: pprint(args)
+
+    # Load model
+    model = nn.DataParallel(MotionAGFormer(**args)).to(device)
+    checkpoint_dir = os.path.join(BACKEND_API_DIR_ROOT, "checkpoint")
+    model_filename = f"motionagformer-{model_size}-h36m*.pth*"
+    model_path = download_file_if_not_exists(model_filename, checkpoint_dir)
+    pre_dict = torch.load(model_path, map_location=device)
+    model.load_state_dict(pre_dict['model'], strict=True)
+    model.eval()
+
+    # Load 2D keypoints
+    keypoints = np.load(user_keypoints_path, allow_pickle=True)
+    clips, downsample = turn_into_clips(keypoints=keypoints, target_frames=args['n_frames'])
+
+    # Infer video length from keypoints shape
+    video_length = keypoints.shape[1]
+    user_output_3d_keypoints = np.empty((video_length, 17, 3))
+
+    # Dummy image size (should match normalization in training)
+    # If you have original image size, use it. Here we use 256x256 as fallback.
+    img_size_h_w = (256, 256, 3)
+
+    idx = 0
+    for clip_idx in range(len(clips)):
+        clip = clips[clip_idx]
+        input_2D = normalize_screen_coordinates(clip, w=img_size_h_w[1], h=img_size_h_w[0])
+        input_2D_aug = flip_data(input_2D)
+        input_2D = torch.from_numpy(input_2D.astype('float32')).to(device)
+        input_2D_aug = torch.from_numpy(input_2D_aug.astype('float32')).to(device)
+        output_3D_non_flip = model(input_2D)
+        output_3D_flip = flip_data(model(input_2D_aug))
+        output_3D = (output_3D_non_flip + output_3D_flip) / 2
+        if clip_idx == len(clips) - 1:
+            output_3D = output_3D[:, downsample]
+        output_3D[:, :, 0, :] = 0
+        post_out_all = output_3D[0].cpu().detach().numpy()
+        for j, post_out in enumerate(post_out_all):
+            if idx < video_length:
+                user_output_3d_keypoints[idx] = standardize_3d_keypoints(post_out)
+                idx += 1
+
+    output_3D_npy = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_USER)
+    np.save(output_3D_npy, user_output_3d_keypoints)
+    if DEBUG: print(f"3D keypoints saved to {output_3D_npy}, with shape {user_output_3d_keypoints.shape}")
+    return output_3D_npy
+
+
+def create_3d_pose_frames_from_array(
+    user_3d_keypoints: np.ndarray,
+    output_dir: str,
+    pro_keypoints_npy: np.ndarray = None,
+    pro_keypoints_filepath: str = None
+):
+    """
+    Create 3D pose frame visualizations for each frame in the given 3D keypoints array.
+
+    Args:
+        user_3d_keypoints (np.ndarray): Array of shape (N, 17, 3) containing user 3D keypoints.
+        output_dir (str): Output directory to save the images.
+        pro_keypoints_npy (np.ndarray, optional): Array of shape (N, 17, 3) for professional 3D keypoints.
+        pro_keypoints_filepath (str, optional): Path to the professional keypoints file (for debug/logging).
+    """
+    angle_adjustment = 0.0
+    USE_BODY_PART = "hips"
+    output_dir_3D = os.path.join(output_dir, 'pose3D')
+    os.makedirs(output_dir_3D, exist_ok=True)
+
+    # ----------- Setup for 3D Pose Generation -----------
+    # Load professional keypoints and prepare for alignment
+    pro_keypoints_npy = load_npy_file(pro_keypoints_filepath)
+    
+    # Check if we need to resample the professional keypoints to match our video length
+    if len(pro_keypoints_npy) != video_length:
+        print(f"\nResampling professional keypoints from {len(pro_keypoints_npy)} to {video_length} frames")
+        pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, video_length)
+    
+    pro_keypoints_std = np.array([standardize_3d_keypoints(frame) for frame in pro_keypoints_npy])
+
+    n_frames = user_3d_keypoints.shape[0]
+    for frame_id in range(n_frames):
+        output_path_3D = os.path.join(output_dir_3D, f"{frame_id:04d}_3D.png")
+        fig = plt.figure(figsize=(9.6, 5.4))
+        gs = gridspec.GridSpec(1, 1)
+        gs.update(wspace=-0.00, hspace=0.05)
+        ax = plt.subplot(gs[0], projection='3d')
+
+        post_out_std = standardize_3d_keypoints(user_3d_keypoints[frame_id])
+        if pro_keypoints_npy is not None:
+            pro_keypoints_std = standardize_3d_keypoints(pro_keypoints_npy[frame_id], apply_rotation=False)
+            if frame_id == 0:
+                pro_angle = get_stance_angle(pro_keypoints_std, USE_BODY_PART)
+                user_angle = get_stance_angle(post_out_std, USE_BODY_PART)
+                angle_adjustment = user_angle - pro_angle
+                if DEBUG:
+                    print("user_3d_keypoints shape:", post_out_std.shape)
+                    print("pro_keypoints_std shape:", pro_keypoints_std.shape)
+                    print(f"Angle between {USE_BODY_PART} in first frame of USER VIDEO: {user_angle:.2f} degrees")
+                    print(f"Angle between {USE_BODY_PART} in first frame of PROFESSIONAL VIDEO: {pro_angle:.2f} degrees")
+                    print("Angle adjustment:", int(angle_adjustment))
+            create_pose_overlay_image(post_out_std, pro_keypoints_std, ax, output_path_3D, angle_adjustment, USE_BODY_PART)
+        else:
+            show3Dpose(post_out_std, ax)
+
+        plt.savefig(output_path_3D, dpi=200, format='png', bbox_inches='tight')
+        plt.close(fig)
+
+
+
+def get_frame_size(cap: cv2.VideoCapture) -> tuple:
+    """Get the size of the first frame in the video capture.
+    
+    Args:
+        cap (cv2.VideoCapture): OpenCV video capture object.
+
+    Returns:
+        tuple: Size of the first frame as (height, width).
+    """
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    return (height, width, 3)  # Assuming 3 channels (RGB)
+
+
+def create_2D_images(cap, keypoints, output_dir):
+    output_dir_2D = os.path.join(output_dir, 'pose2D')
+    os.makedirs(output_dir_2D, exist_ok=True)
+
+    video_length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print('\nGenerating 2D pose image...')
+    for i in tqdm(range(video_length)):
+        ret, img = cap.read()
+        if img is None:
+            continue
+        input_2D = keypoints[0][i]
+        image = show2Dpose(input_2D, copy.deepcopy(img))
+
+        output_path_2D = os.path.join(output_dir_2D, f"{i:04d}_2D.png")
+        cv2.imwrite(output_path_2D, image)
+    return output_dir_2D
+
 
 
 def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:
