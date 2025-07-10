@@ -10,7 +10,7 @@ import threading
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 # --------------------------------------------------------------------------
 
-st.set_page_config(page_title="Shadow Trainer Video Processor", layout="centered")
+# st.set_page_config(page_title="Shadow Trainer Video Processor", layout="centered")
 
 # Logo + Title
 st.markdown("<h1 style='text-align: center; font-size: 3.5em;'>Shadow Trainer</h1>", unsafe_allow_html=True)

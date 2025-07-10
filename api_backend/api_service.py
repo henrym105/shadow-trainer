@@ -4,9 +4,9 @@ import os
 import shutil
 
 import boto3
-from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
+from fastapi import Body, FastAPI, Query
 
+from pydantic_models import ProcessVideoRequest, ProcessVideoResponse
 from src.inference import get_pose2D, get_pose3D, img2video, get_pytorch_device
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -134,32 +134,25 @@ def clear_tmp_dir(dir_path, keep_videos=False):
 
 
 
+
 # --- Health Check Endpoint ---
-@app.get("/")
-def root():
+@app.get("/health/")
+def health_check():
     return {"message": "MotionAGFormer API is running."}
 
 
 
-# --- Main Endpoint ---
-@app.post("/process_video/")
-def process_video(
-    file: str = Query(..., description="S3 path or local path to input video"),
-    model_size: str = Query("xs", description="Model size: xs, s, b, l")
-):
+
+# --- Video Processing Endpoint ---
+@app.post("/video/process", response_model=ProcessVideoResponse)
+def process_video(request: ProcessVideoRequest = Body(...)):
     """Process a video from an S3 path or local path using the specified model size.
-    
-    Args:
-        file (str): S3 path or local path to the input video.
-        model_size (str): Model size to use for processing (xs, s, b, l).
-
-    Returns:
-        JSONResponse: Contains the output video URL or local path.
+    Returns a structured response with output paths and error if any.
     """
-    return process_video_internal(file, model_size)
+    return process_video_internal(request.file, request.model_size)
 
 
-def process_video_internal(file: str, model_size: str = "xs") -> JSONResponse:
+def process_video_internal(file: str, model_size: str = "xs") -> ProcessVideoResponse:
     """Internal function to process video - extracted from the existing endpoint."""
     clear_tmp_dir(TMP_DIR, keep_videos=False)
     logger.info(f"Temporary directory for API: {TMP_DIR}")
@@ -169,24 +162,40 @@ def process_video_internal(file: str, model_size: str = "xs") -> JSONResponse:
         file_ext = os.path.splitext(file)[-1]
         if not validate_video_extension(file_ext):
             logger.warning(f"Unsupported file extension: {file_ext}")
-            return JSONResponse(status_code=400, content={"error": "Only .mp4 and .mov files are supported."})
+            return ProcessVideoResponse(
+                output_video_local_path="",
+                output_video_s3_url=None,
+                error="Only .mp4 and .mov files are supported."
+            )
 
         input_path = os.path.join(TMP_DIR, os.path.basename(file))  
         bucket, key, err = download_from_s3(file, input_path)
         if err:
-            return JSONResponse(status_code=500, content={"error": f"Failed to download from S3: {err}"})
+            return ProcessVideoResponse(
+                output_video_local_path="",
+                output_video_s3_url=None,
+                error=f"Failed to download from S3: {err}"
+            )
 
         video_name = os.path.splitext(os.path.basename(input_path))[0]
     else:
         if not os.path.isfile(file):
             logger.error(f"Local file does not exist: {file}")
-            return JSONResponse(status_code=400, content={"error": f"Local file does not exist: {file}"})
+            return ProcessVideoResponse(
+                output_video_local_path="",
+                output_video_s3_url=None,
+                error=f"Local file does not exist: {file}"
+            )
 
         input_path = file
         file_ext = os.path.splitext(input_path)[-1]
         if not validate_video_extension(file_ext):
             logger.warning(f"Unsupported file extension: {file_ext}")
-            return JSONResponse(status_code=400, content={"error": "Only .mp4 and .mov files are supported."})
+            return ProcessVideoResponse(
+                output_video_local_path="",
+                output_video_s3_url=None,
+                error="Only .mp4 and .mov files are supported."
+            )
 
         video_name = os.path.splitext(os.path.basename(input_path))[0]
         bucket = "shadow-trainer-prod"  # Change as needed or make configurable
@@ -200,7 +209,11 @@ def process_video_internal(file: str, model_size: str = "xs") -> JSONResponse:
     config_path = os.path.join(API_ROOT_DIR, "model_config_map.json")
     model_config, err = load_model_config(model_size, config_path)
     if err:
-        return JSONResponse(status_code=500, content={"error": f"Failed to load model config: {err}"})
+        return ProcessVideoResponse(
+            output_video_local_path="",
+            output_video_s3_url=None,
+            error=f"Failed to load model config: {err}"
+        )
     
     device = get_pytorch_device()
     logger.info(f"Using device: {device}")
@@ -209,21 +222,27 @@ def process_video_internal(file: str, model_size: str = "xs") -> JSONResponse:
     logger.info(f"\nInput path: {input_path}\nOutput directory: {output_dir}, \nDevice: {device}")
     output_video_path, err = run_pipeline(input_path, output_dir, device, model_size, model_config)
     if err:
-        return JSONResponse(status_code=500, content={"error": f"Pipeline failed: {err}"})
+        return ProcessVideoResponse(
+            output_video_local_path="",
+            output_video_s3_url=None,
+            error=f"Pipeline failed: {err}"
+        )
 
     # --- Output Handling ---
-    output_video_s3_url = None
-    output_video_s3_url, err = upload_to_s3(output_video_path, bucket, video_name)
-    if err:
-        return JSONResponse(status_code=500, content={"error": f"Failed to upload output video to S3: {err}"})
+    output_video_s3_url, upload_err = upload_to_s3(output_video_path, bucket, video_name)
+    if upload_err:
+        # Return local path, but s3 url is blank, error is set
+        return ProcessVideoResponse(
+            output_video_local_path=output_video_path,
+            output_video_s3_url=None,
+            error=f"Failed to upload output video to S3: {upload_err}"
+        )
 
     # --- Return Response ---
     logger.info(f"Returning processed video: {output_video_path}")
-    if output_video_s3_url:
-        response = {"output_video_s3_url": output_video_s3_url,
-                "output_video_local_path": output_video_path}
-    else:
-        response = {"output_video_local_path": output_video_path}
-    
-    return JSONResponse(content=response)
+    return ProcessVideoResponse(
+        output_video_local_path=output_video_path,
+        output_video_s3_url=output_video_s3_url,
+        error=None
+    )
 

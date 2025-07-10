@@ -9,12 +9,13 @@ CUR_DIR = os.path.dirname(os.path.dirname(__file__))
 # Load keypoints from .npz file
 @st.cache_data(show_spinner=False)
 def load_keypoints(npz_path):
-    data = np.load(npz_path, allow_pickle=True)['reconstruction']
+    data = np.load(npz_path)
     print(f"Loaded keypoints data with shape: {data.shape}")
     return data
 
-user_data = load_keypoints(os.path.join(CUR_DIR, "api_backend", "tmp_api_output", "henry-mini_output", "raw_keypoints", "user_3D_keypoints.npz"))
-pro_data = load_keypoints(os.path.join(CUR_DIR, "api_backend", "tmp_api_output", "henry-mini_output", "raw_keypoints", "pro_3D_keypoints.npz"))
+KEYPOINTS_DIR = os.path.join(CUR_DIR, "api_backend", "tmp_api_output", "henry1_full_output", "raw_keypoints")
+user_data = load_keypoints(os.path.join(KEYPOINTS_DIR, "user_3D_keypoints.npy"))
+pro_data = load_keypoints(os.path.join(KEYPOINTS_DIR, "pro_3D_keypoints.npy"))
 
 st.set_page_config(layout="wide")
 st.title("3D Human Pose Visualization")

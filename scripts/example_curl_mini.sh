@@ -14,7 +14,7 @@ for i in $(seq 1 30); do
 done
 
 # # Example cURL command to send a video file from S3 to the FastAPI service
-curl -X POST "http://localhost:8002/process_video/" \
+curl -X POST "http://localhost:8002/video/process/" \
     -H "accept: application/json" \
     --get \
     --data-urlencode "file=s3://shadow-trainer-prod/sample_input/henry-mini.mov" \

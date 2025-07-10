@@ -394,6 +394,7 @@ def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:
 def create_pose_overlay_image(
     data1: np.ndarray, data2: np.ndarray, ax: matplotlib.axis, output_path: str, 
     angle_adjustment: float = 0.0, use_body_part: str = "feet",
+    show_hip_reference_line: bool = False,
     view_angle: float = 0.0, camera_height: float = 15.0
 ) -> str:
     """Create a single image with 3D pose keypoints from data1 and data2 overlaid on the same axis.
@@ -406,6 +407,7 @@ def create_pose_overlay_image(
         output_path (str): Path to save the output image.
         angle_adjustment (float): Angle adjustment in degrees to align the pro pose with the user pose.
         use_body_part (str): Which body part to use for angle calculation: "feet", "hips", or "shoulders".
+        show_hip_reference_line (bool): Whether to draw reference lines for the hip angles. Default is False.
         view_angle (float): Elevation angle for the camera view.
         camera_height (float): Height of the camera view.
     
@@ -426,8 +428,9 @@ def create_pose_overlay_image(
     if DEBUG: print("\nuser stance angle =", int(d1_angle))
     if DEBUG: print("pro  stance angle =", int(d2_angle))
 
-    draw_reference_angle_line(ax, d1_angle, color='blue', linewidth=2)
-    draw_reference_angle_line(ax, d2_angle, color='green', linewidth=2)
+    if show_hip_reference_line:
+        draw_reference_angle_line(ax, d1_angle, color='blue', linewidth=2)
+        draw_reference_angle_line(ax, d2_angle, color='green', linewidth=2)
 
     # Visualize the aligned poses
     # Plot the user on top of the pro pose
@@ -511,40 +514,52 @@ def standardize_3d_keypoints(keypoints: np.ndarray, apply_rotation: bool = True)
 
 def generate_demo_video(output_dir_2D: str, output_dir_3D: str, output_dir: str) -> None:
     """Generate a demo video showing 2D input and 3D reconstruction side by side."""
-    ## all
-    image_2d_dir = sorted(glob.glob(os.path.join(output_dir_2D, '*.png')))
-    image_3d_dir = sorted(glob.glob(os.path.join(output_dir_3D, '*.png')))
+    # Efficient batch processing for demo video generation
+    image_2d_paths = sorted(glob.glob(os.path.join(output_dir_2D, '*.png')))
+    image_3d_paths = sorted(glob.glob(os.path.join(output_dir_3D, '*.png')))
+
+    n_frames = min(len(image_2d_paths), len(image_3d_paths))
+    if n_frames == 0:
+        print("No frames found for demo video generation.")
+        return
 
     print('\nGenerating demo...')
-    for i in tqdm(range(len(image_2d_dir))):
-        image_2d = plt.imread(image_2d_dir[i])
-        image_3d = plt.imread(image_3d_dir[i])
+    output_dir_pose = os.path.join(output_dir, 'pose')
+    os.makedirs(output_dir_pose, exist_ok=True)
 
-        ## crop
-        edge = (image_2d.shape[1] - image_2d.shape[0]) // 2
-        image_2d = image_2d[:, edge:image_2d.shape[1] - edge]
+    # Preload all images into memory for faster access (if memory allows)
+    images_2d = []
+    images_3d = []
+    for i in range(n_frames):
+        img2d = plt.imread(image_2d_paths[i])
+        img3d = plt.imread(image_3d_paths[i])
+        # Crop 2D
+        edge2d = (img2d.shape[1] - img2d.shape[0]) // 2
+        img2d = img2d[:, edge2d:img2d.shape[1] - edge2d]
+        # Crop 3D
+        edge3d = 130
+        img3d = img3d[edge3d:img3d.shape[0] - edge3d, edge3d:img3d.shape[1] - edge3d]
+        images_2d.append(img2d)
+        images_3d.append(img3d)
 
-        edge = 130
-        image_3d = image_3d[edge:image_3d.shape[0] - edge, edge:image_3d.shape[1] - edge]
-
-        ## show
-        font_size = 12
-        fig = plt.figure(figsize=(15.0, 5.4))
-        ax = plt.subplot(121)
-        showimage(ax, image_2d)
-        ax.set_title("Input", fontsize = font_size)
-
-        ax = plt.subplot(122)
-        showimage(ax, image_3d)
-        ax.set_title("Reconstruction", fontsize = font_size)
-
-        ## save
-        output_dir_pose = os.path.join(output_dir, 'pose')
-        os.makedirs(output_dir_pose, exist_ok=True)
+    # Use Agg canvas directly for speed, avoid repeated plt.figure/close
+    from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+    font_size = 12
+    for i in tqdm(range(n_frames)):
+        fig, axs = plt.subplots(1, 2, figsize=(15.0, 5.4))
+        # Remove axes for both
+        for ax in axs:
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.axis('off')
+        axs[0].imshow(images_2d[i])
+        axs[0].set_title("Input", fontsize=font_size)
+        axs[1].imshow(images_3d[i])
+        axs[1].set_title("Reconstruction", fontsize=font_size)
         plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
         plt.margins(0, 0)
         output_path_pose = os.path.join(output_dir_pose, f"{i:04d}_pose.png")
-        plt.savefig(output_path_pose, dpi=200, bbox_inches='tight')
+        fig.savefig(output_path_pose, dpi=200, bbox_inches='tight')
         plt.close(fig)
 
 
