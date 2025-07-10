@@ -21,10 +21,14 @@ done
 #     --data-urlencode "model_size=s"
 
 
-
-curl -X POST "http://localhost:8002/video/process/" \
+curl -X POST "http://localhost:8002/video/process" \
     -H "accept: application/json" \
-    --get \
-    --data-urlencode "file=s3://shadow-trainer-prod/sample_input/BeiberS1.mp4" \
-    --data-urlencode "model_size=s"
+    -H "Content-Type: application/json" \
+    -d '{"file": "s3://shadow-trainer-prod/sample_input/BeiberS1.mp4", "model_size": "s"}'
 
+
+
+curl -X POST "http://localhost:8002/video/process" \
+    -H "accept: application/json" \
+    -H "Content-Type: application/json" \
+    -d '{"file": "s3://shadow-trainer-prod/sample_input/cal-pitcher.mov", "model_size": "s"}'

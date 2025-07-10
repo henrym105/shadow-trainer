@@ -136,7 +136,7 @@ def clear_tmp_dir(dir_path, keep_videos=False):
 
 
 # --- Health Check Endpoint ---
-@app.get("/health/")
+@app.get("/health")
 def health_check():
     return {"message": "MotionAGFormer API is running."}
 
