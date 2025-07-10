@@ -1,25 +1,24 @@
 import argparse
+import copy
+import glob
+import os
+
 import cv2
-import os 
+import matplotlib
 import matplotlib.axis
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import glob
-from tqdm import tqdm
-import copy
 from pprint import pprint
+from tqdm import tqdm
 
-# from utils import get_config
 from src.preprocess import h36m_coco_format
 from src.hrnet.gen_kpts import gen_video_kpts
-from src.utils import get_or_download_checkpoint, normalize_screen_coordinates, camera_to_world, get_config
+from src.utils import download_file_if_not_exists, normalize_screen_coordinates, camera_to_world, get_config
 from src.model.MotionAGFormer import MotionAGFormer
 from src.visualizations import resample_pose_sequence
-
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 
 plt.switch_backend('agg')
 matplotlib.rcParams['pdf.fonttype'] = 42
@@ -147,8 +146,8 @@ def get_pose2D(video_path, output_dir, device):
 
     # Check if HRNet checkpoint exists, if not, download from S3
     checkpoint_dir = os.path.join(BACKEND_API_DIR_ROOT, "checkpoint")
-    get_or_download_checkpoint("pose_hrnet_w48_384x288.pth", checkpoint_dir)
-    get_or_download_checkpoint("yolov3.weights", checkpoint_dir)
+    download_file_if_not_exists("pose_hrnet_w48_384x288.pth", checkpoint_dir)
+    download_file_if_not_exists("yolov3.weights", checkpoint_dir)
 
     keypoints, scores = gen_video_kpts(video_path, det_dim=416, num_person=2, gen_output=True, device=device)
 
@@ -226,7 +225,7 @@ def get_pose3D(
     checkpoint_dir = os.path.join(BACKEND_API_DIR_ROOT, "checkpoint")
     if DEBUG: print(f"[INFO] Checkpoint directory: {checkpoint_dir}")
     model_filename = f"motionagformer-{model_size}-h36m*.pth*"
-    model_path = get_or_download_checkpoint(model_filename, checkpoint_dir)
+    model_path = download_file_if_not_exists(model_filename, checkpoint_dir)
 
     pre_dict = torch.load(model_path, map_location=device)
     model.load_state_dict(pre_dict['model'], strict=True)
@@ -476,17 +475,6 @@ def draw_reference_angle_line(ax, angle_degrees, color='k', linewidth=2) -> None
 
 
 
-
-def add_ax_lim_labels(ax: matplotlib.axis):
-    xlim = ax.get_xlim3d()
-    ylim = ax.get_ylim3d()
-    zlim = ax.get_zlim3d()
-    ax.set_xlabel(f'X [{xlim[0]:.2f}, {xlim[1]:.2f}]')
-    ax.set_ylabel(f'Y [{ylim[0]:.2f}, {ylim[1]:.2f}]')
-    ax.set_zlabel(f'Z [{zlim[0]:.2f}, {zlim[1]:.2f}]')
-    
-
-
 def standardize_3d_keypoints(keypoints: np.ndarray, apply_rotation: bool = True) -> np.ndarray:
     """
     Standardizes 3D keypoints by transforming them from camera coordinates to world coordinates,
@@ -504,12 +492,12 @@ def standardize_3d_keypoints(keypoints: np.ndarray, apply_rotation: bool = True)
     if apply_rotation:
         # Define a quaternion rotation (from model or calibration)
         rot = [0.1407056450843811, -0.1500701755285263, -0.755240797996521, 0.6223280429840088]
-        rot = np.array(rot, dtype='float32')
     else:
+        # Professional keypoints are already in world coordinates, no rotation needed
         rot = [0.0, 0.0, 0.0, 0.0]
-        rot = np.array(rot, dtype='float32')        
 
     # Transform the keypoints from camera coordinates to world coordinates using the rotation
+    rot = np.array(rot, dtype='float32')
     keypoints = camera_to_world(keypoints, R=rot, t=0)
     
     # Shift all keypoints so that the minimum z value is at zero (ground level)

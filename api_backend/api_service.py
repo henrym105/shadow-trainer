@@ -1,12 +1,12 @@
-from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
-import os
-import logging
 import json
-import boto3
+import logging
+import os
 import shutil
 
-import numpy as np
+import boto3
+from fastapi import FastAPI, Query
+from fastapi.responses import JSONResponse
+
 from src.inference import get_pose2D, get_pose3D, img2video, get_pytorch_device
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -28,6 +28,11 @@ def validate_video_extension(file_ext: str) -> bool:
     return file_ext.lower() in [".mp4", ".mov"]
 
 def download_from_s3(s3_path: str, local_path: str) -> tuple:
+    """Downloads a file from S3 to a local path.
+    Returns a tuple of (bucket, key, error_message).
+    If successful, error_message will be None.
+    If an error occurs, bucket and key will be None.
+    """
     s3_path_no_prefix = s3_path[5:]
     bucket, key = s3_path_no_prefix.split('/', 1)
     try:
@@ -39,6 +44,7 @@ def download_from_s3(s3_path: str, local_path: str) -> tuple:
         return None, None, str(e)
 
 def upload_to_s3(local_path: str, bucket: str, video_name: str) -> tuple:
+    """Uploads the output video to S3 and returns the S3 URL."""
     output_video_s3_key = f"tmp/{video_name}/{os.path.basename(local_path)}"
     try:
         logger.info(f"Uploading output video {local_path} to s3://{bucket}/{output_video_s3_key}")
@@ -51,6 +57,7 @@ def upload_to_s3(local_path: str, bucket: str, video_name: str) -> tuple:
         return None, str(e)
 
 def load_model_config(model_size: str, config_path: str) -> tuple:
+    """Loads the model configuration from a JSON file based on the specified model size."""
     try:
         # Ensure config_path is absolute
         config_path_abs = config_path

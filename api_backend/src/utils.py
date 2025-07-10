@@ -126,7 +126,7 @@ def read_pkl(data_url):
     return content
 
 
-def get_or_download_checkpoint(filename_pattern, local_dir, s3_bucket="shadow-trainer-prod", s3_prefix="model_weights") -> str:
+def download_file_if_not_exists(filename_pattern, local_dir, s3_bucket="shadow-trainer-prod", s3_prefix="model_weights") -> str:
     """Checks if a file matching filename_pattern exists in local_dir. 
     If not, searches and downloads from S3.
     Returns the local file path of the first match found.
