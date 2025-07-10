@@ -44,7 +44,7 @@ Shadow Trainer is an end-to-end video processing and 3D human pose estimation pl
 ## Project Structure
 ```
 ├── api_backend/         # FastAPI backend and inference logic
-│   ├── src/.py          # Core model, preprocessing, and utils
+│   ├── src/             # Core model, preprocessing, and utils
 │   ├── api_service.py   # Main FastAPI app
 │   ├── run_api.py       # Entrypoint for backend
 │   └── ...
