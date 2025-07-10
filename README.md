@@ -44,19 +44,18 @@ Shadow Trainer is an end-to-end video processing and 3D human pose estimation pl
 ## Project Structure
 ```
 ├── api_backend/         # FastAPI backend and inference logic
+│   ├── src/.py          # Core model, preprocessing, and utils
 │   ├── api_service.py   # Main FastAPI app
 │   ├── run_api.py       # Entrypoint for backend
 │   └── ...
 ├── api_frontend/        # Streamlit frontend apps
 │   ├── streamlit_app.py # Main Streamlit app
 │   └── ...
-├── src/                 # Core model, preprocessing, and utils
-├── scripts/             # Shell scripts for setup, curl, and deployment
-├── shared/              # Shared config
+├── scripts/             # Shell scripts for setup, curl testing, and deployment
 ├── Dockerfile           # Docker build file
 ├── pyproject.toml       # Python dependencies
 ├── uv.lock              # uv dependency lockfile
-└── README.md            # This file
+└── README.md            
 ```
 
 ## Architecture Notes
