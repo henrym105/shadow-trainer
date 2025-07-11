@@ -5,6 +5,8 @@ import shutil
 
 import boto3
 from fastapi import Body, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from pydantic_models import ProcessVideoRequest, ProcessVideoResponse
 from src.inference import (
@@ -26,6 +28,17 @@ os.makedirs(TMP_DIR, exist_ok=True)
 s3_client = boto3.client('s3')
 app = FastAPI(debug=True)
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or ["http://localhost:3000"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve output videos via /output/<filename>
+app.mount("/output", StaticFiles(directory=TMP_DIR), name="output")
 
 # --- Utility Functions ---
 def is_s3_path(path: str) -> bool:

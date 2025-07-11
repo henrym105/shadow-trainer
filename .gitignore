@@ -11,6 +11,50 @@
 **.npz
 **.npy
 
+
+# Node modules
+node_modules/
+
+# Build output
+build/
+dist/
+out/
+coverage/
+.nyc_output/
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# dotenv environment files
+.env
+.env.*.local
+
+# Misc
+.cache/
+.vite/
+.next/
+.svelte-kit/
+*.tgz
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+.DS_Store
+
+# Mac system files
+*.DS_Store
+
+# React specific
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+
 # local folder for visualizations and extra temporary setup files
 extras/
 # extras/**

@@ -1,0 +1,91 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+  background: #f7f8fa;
+  color: #222;
+}
+
+.container {
+  max-width: 480px;
+  margin: 40px auto 0 auto;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  padding: 2.5em 2em 1.5em 2em;
+  text-align: center;
+}
+
+.header .logo {
+  width: 120px;
+  margin-bottom: 1em;
+}
+
+.header h1 {
+  font-size: 2.5em;
+  font-weight: 700;
+  margin: 0.2em 0 0.1em 0;
+}
+
+.header h3 {
+  font-weight: 400;
+  color: #555;
+  margin-bottom: 1.5em;
+}
+
+.main-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  margin-bottom: 2em;
+}
+
+.main-form label {
+  font-weight: 500;
+  margin-bottom: 0.2em;
+}
+
+.main-form input {
+  padding: 0.7em 1em;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  font-size: 1em;
+}
+
+.cta-btn {
+  background: linear-gradient(90deg, #2b5876 0%, #4e4376 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.9em 0;
+  font-size: 1.1em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.cta-btn:disabled {
+  background: #bbb;
+  cursor: not-allowed;
+}
+
+.error {
+  color: #b00020;
+  background: #ffeaea;
+  border-radius: 8px;
+  padding: 1em;
+  margin-bottom: 1em;
+}
+
+.response {
+  background: #f4f8fb;
+  border-radius: 10px;
+  padding: 1.2em 1em;
+  margin-bottom: 1.5em;
+  text-align: left;
+}
+
+footer {
+  color: #888;
+  font-size: 0.95em;
+  margin-top: 2em;
+}
