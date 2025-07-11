@@ -9,6 +9,11 @@ import json
 import boto3
 import shutil
 from inference import get_pose2D, get_pose3D, img2video, get_pytorch_device, get_or_download_checkpoint
+# Import the new save_user_keypoints utility
+import sys
+import numpy as np
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from save_user_keypoints import save_and_upload_user_keypoints
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -181,6 +186,7 @@ def process_video(
     if err:
         return JSONResponse(status_code=500, content={"error": f"Pipeline failed: {err}"})
 
+
     # --- Output Handling ---
     output_video_s3_url = None
     if bucket:
@@ -188,13 +194,56 @@ def process_video(
         if err:
             return JSONResponse(status_code=500, content={"error": f"Failed to upload output video to S3: {err}"})
 
-    logger.info(f"Returning processed video: {output_video_path}")
-    if output_video_s3_url:
-        # clear_tmp_dir(TMP_DIR)
-        return {"output_video_s3_url": output_video_s3_url,
-                "output_video_local_path": output_video_path}
+
+
+    # --- Find and upload 3D keypoint .npy files using the new utility, with debug logging ---
+    user_kpts_path = None
+    user_kpts_s3_url = None
+    logger.info(f"Listing files in output_dir: {output_dir}")
+    logger.info(f"Files: {os.listdir(output_dir)}")
+    for fname in os.listdir(output_dir):
+        logger.info(f"Checking file: {fname}")
+        if fname.endswith("user_keypoints.npy"):
+            user_kpts_path = os.path.join(output_dir, fname)
+            logger.info(f"Found user keypoints file: {user_kpts_path}")
+            try:
+                # Use the output video S3 URL if available, else fallback to manual bucket/key
+                if output_video_s3_url:
+                    logger.info(f"Uploading user keypoints to S3 using save_and_upload_user_keypoints. Output video S3 URL: {output_video_s3_url}")
+                    user_kpts_s3_url = save_and_upload_user_keypoints(
+                        np.load(user_kpts_path),
+                        output_video_s3_url
+                    )
+                    logger.info(f"Uploaded user keypoints to: {user_kpts_s3_url}")
+                else:
+                    # Fallback: use manual upload if output_video_s3_url is not available
+                    user_kpts_s3_key = f"tmp/{video_name}/{fname}"
+                    logger.info(f"Uploading user keypoints to S3 manually: s3://{bucket}/{user_kpts_s3_key}")
+                    s3_client.upload_file(user_kpts_path, bucket, user_kpts_s3_key)
+                    user_kpts_s3_url = f"s3://{bucket}/{user_kpts_s3_key}"
+                    logger.info(f"Uploaded user keypoints to: {user_kpts_s3_url}")
+            except Exception as e:
+                logger.error(f"Failed to upload user keypoints to S3: {e}")
+                user_kpts_s3_url = None
+    if not user_kpts_path:
+        logger.warning(f"No user_keypoints.npy file found in {output_dir}")
     else:
-        return {"output_video_local_path": output_video_path}
+        logger.info(f"user_kpts_path: {user_kpts_path}, user_kpts_s3_url: {user_kpts_s3_url}")
+
+
+    # Use your provided pitcher keypoints S3 URL (update here as needed)
+    pitcher_kpts_s3_url = "s3://shadow-trainer-dev/cleaned_numpy/BieberShaneR/FC/cropped_b27ca713-f4a2-4f52-b867-6c9de15a2e20_1.npy"
+
+    logger.info(f"Returning processed video: {output_video_path}")
+    response_dict = {"output_video_local_path": output_video_path}
+    if output_video_s3_url:
+        response_dict["output_video_s3_url"] = output_video_s3_url
+    if user_kpts_s3_url:
+        response_dict["user_keypoints_npy"] = user_kpts_s3_url
+    elif user_kpts_path:
+        response_dict["user_keypoints_npy"] = user_kpts_path
+    response_dict["pitcher_keypoints_npy"] = pitcher_kpts_s3_url
+    return response_dict
 
 
 # --- Health Check Endpoint ---
