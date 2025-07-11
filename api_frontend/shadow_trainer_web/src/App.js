@@ -60,7 +60,7 @@ function App() {
               <h5>Output Video Preview:</h5>
               <video
                 controls
-                src={`http://localhost:8002/output/${response.output_video_local_path.split('/').pop()}`}
+                src={`http://localhost:8002/output/${response.output_video_local_path.split('/tmp_api_output/')[1]}`}
                 style={{ maxWidth: "100%" }}
               />
             </div>
