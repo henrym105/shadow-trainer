@@ -13,9 +13,10 @@ def load_keypoints(npz_path):
     print(f"Loaded keypoints data with shape: {data.shape}")
     return data
 
-KEYPOINTS_DIR = os.path.join(CUR_DIR, "api_backend", "tmp_api_output", "henry1_full_output", "raw_keypoints")
+KEYPOINTS_DIR = os.path.join(CUR_DIR, "api_backend", "tmp_api_output", "henry-mini_output", "raw_keypoints")
 user_data = load_keypoints(os.path.join(KEYPOINTS_DIR, "user_3D_keypoints.npy"))
-pro_data = load_keypoints(os.path.join(KEYPOINTS_DIR, "pro_3D_keypoints.npy"))
+pro_data = load_keypoints(os.path.join(KEYPOINTS_DIR, "user_3D_keypoints.npy"))
+# pro_data = load_keypoints(os.path.join(KEYPOINTS_DIR, "pro_3D_keypoints.npy"))
 
 st.set_page_config(layout="wide")
 st.title("3D Human Pose Visualization")

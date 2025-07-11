@@ -4,10 +4,17 @@ import os
 import shutil
 
 import boto3
-from fastapi import Body, FastAPI, Query
+from fastapi import Body, FastAPI
 
 from pydantic_models import ProcessVideoRequest, ProcessVideoResponse
-from src.inference import get_pose2D, get_pose3D, get_pose3D_no_vis, img2video, get_pytorch_device
+from src.inference import (
+    create_3d_pose_images_from_array,
+    generate_output_combined_frames, 
+    get_pose2D, 
+    get_pose3D_no_vis, 
+    img2video, 
+    get_pytorch_device,
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -76,38 +83,6 @@ def load_model_config(model_size: str, config_path: str) -> tuple:
         logger.error(f"Failed to load or parse model_config_map.json: {e}")
         return None, str(e)
 
-
-def run_pipeline(input_video_path: str, output_dir: str, device: str, model_size: str, model_config: dict) -> tuple:
-    """Runs the full processing pipeline consisting of 2D pose estimation, 3D pose estimation, and image-to-video conversion.
-    
-    Args:
-        input_path (str): Path to the input data (e.g., images or video).
-        output_dir (str): Directory where output files will be saved.
-        device (str): Device to use for computation (e.g., 'cpu' or 'cuda').
-        model_size (str): Size specification for the 3D pose estimation model.
-        model_config (dict): Configuration dictionary for the 3D pose estimation model.
-    Returns:
-        tuple[str | None, str | None]: 
-            - output_video_path (str | None): Path to the generated output video if successful, otherwise None.
-            - error_message (str | None): Error message if the pipeline fails, otherwise None.
-    """
-    logger.info("Running get_pose2D...")
-    logger.info(f"Input video path: {input_video_path}, Output directory: {output_dir}, Device: {device}")
-    keypoints_file_2d = get_pose2D(input_video_path, output_dir, device)
-
-    logger.info("Running get_pose3D...")
-    pro_keypoints_filepath: str = "./api_backend/checkpoint/example_SnellBlake.npy"
-
-    output_npy = get_pose3D(keypoints_file_2d, input_video_path, output_dir, device, model_size, model_config, pro_keypoints_filepath)
-    print(f"Output npy file generated: {output_npy}")
-
-    logger.info("Running img2video...")
-    output_video_path = img2video(input_video_path, output_dir)
-
-    return output_video_path, ""
-
-
-# --- Cleanup Utility ---
 def clear_tmp_dir(dir_path, keep_videos=False):
     """Delete all files and folders in the given directory.
     If keep_videos is True, keep .mp4 and .mov files.
@@ -141,6 +116,19 @@ def health_check():
     return {"message": "MotionAGFormer API is running."}
 
 
+
+# @app.post("/video/upload", response_model=ProcessVideoResponse)
+# def process_video(request: ProcessVideoRequest = Body(...)):
+# take input video from the user, upload to s3 or local device
+
+
+# @app.post("/pitcher/getlist", response_model=ProcessVideoResponse)
+# get the list of pretrained generalized models of mlb pitchers from s3, maybe in dict format {"name": "henry_marquardt", "url": "s3://bucket/path/to/model.npy"}
+# display list of pitcher options in front end, maybe with headshot of each or a sample video of each
+
+
+# Implement the mean per joint error to show user which joint is furthest off
+# update the video 
 
 
 # --- Video Processing Endpoint ---
@@ -220,7 +208,7 @@ def process_video_internal(file: str, model_size: str = "xs") -> ProcessVideoRes
 
     # --- Run Pipeline ---
     logger.info(f"\nInput path: {input_path}\nOutput directory: {output_dir}, \nDevice: {device}")
-    output_video_path, err = run_pipeline(input_path, output_dir, device, model_size, model_config)
+    output_video_path = run_pipeline(input_path, output_dir, device, model_size, model_config)
     if err:
         return ProcessVideoResponse(
             output_video_local_path="",
@@ -246,3 +234,38 @@ def process_video_internal(file: str, model_size: str = "xs") -> ProcessVideoRes
         error=None
     )
 
+
+
+def run_pipeline(input_video_path: str, output_dir: str, device: str, model_size: str, model_config: dict, pro_keypoints_filepath: str = "./api_backend/checkpoint/example_SnellBlake.npy") -> str:
+    """Runs the full processing pipeline consisting of 2D pose estimation, 3D pose estimation, and image-to-video conversion.
+    
+    Args:
+        input_path (str): Path to the input data (e.g., images or video).
+        output_dir (str): Directory where output files will be saved.
+        device (str): Device to use for computation (e.g., 'cpu' or 'cuda').
+        model_size (str): Size specification for the 3D pose estimation model.
+        model_config (dict): Configuration dictionary for the 3D pose estimation model.
+        pro_keypoints_filepath (str): Path to the professional keypoints file to use for 3D pose estimation.
+
+    Returns:
+        - output_video_path (str): Path to the output video file.
+    """
+    logger.info("Running get_pose2D...")
+    logger.info(f"Input video path: {input_video_path}, Output directory: {output_dir}, Device: {device}")
+    user_keypoints_path = get_pose2D(input_video_path, output_dir, device)
+
+    logger.info("Running get_pose3D...")
+    user_3d_keypoints_path = get_pose3D_no_vis(user_keypoints_path, input_video_path, output_dir, device, model_size, model_config)
+
+    logger.info("Creating 3D pose images from full 3D array...")
+    create_3d_pose_images_from_array(user_3d_keypoints_path, output_dir, pro_keypoints_filepath)
+
+    logger.info("Generating combined frames to show 2D and 3D poses...")
+    output_dir_2D = os.path.join(output_dir, "pose2D")
+    output_dir_3D = os.path.join(output_dir, "pose3D")
+    generate_output_combined_frames(output_dir_2D, output_dir_3D, output_dir)
+
+    logger.info("Creating output video from combined output frames...")
+    output_video_path = img2video(input_video_path, output_dir)
+
+    return output_video_path
