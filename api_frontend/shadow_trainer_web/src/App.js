@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
 
@@ -10,13 +10,26 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
+  const [inputVideoAvailable, setInputVideoAvailable] = useState(false);
+  const [inputVideoUrl, setInputVideoUrl] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setResponse(null);
+    setInputVideoAvailable(false);
+    setInputVideoUrl("");
     try {
+      // For S3, predict the local URL
+      if (videoPath.startsWith("s3://")) {
+        const basename = videoPath.split("/").pop();
+        const url = `http://localhost:8002/output/${basename}`;
+        setInputVideoUrl(url);
+      } else if (videoPath.startsWith("http")) {
+        setInputVideoUrl(videoPath);
+        setInputVideoAvailable(true);
+      }
       const res = await axios.post(
         API_URL,
         { file: videoPath, model_size: "xs" },
@@ -30,13 +43,47 @@ function App() {
     }
   };
 
+  // Poll for S3 input video availability
+  useEffect(() => {
+    let intervalId;
+    if (loading && videoPath.startsWith("s3://") && inputVideoUrl) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await fetch(inputVideoUrl, { method: "HEAD" });
+          if (res.ok) {
+            setInputVideoAvailable(true);
+            clearInterval(intervalId);
+          }
+        } catch (e) {
+          // Not available yet
+        }
+      }, 1000);
+    }
+    return () => intervalId && clearInterval(intervalId);
+  }, [loading, videoPath, inputVideoUrl]);
+
   return (
     <div className="container">
       <div className="header">
         <img src="/assets/Shadow Trainer Logo.png" alt="Shadow Trainer Logo" className="logo" />
-        <h1>Shadow Trainer</h1>
+        {/* <h1>Shadow Trainer</h1> */}
         <h3>AI-Powered Motion Analysis</h3>
       </div>
+      {/* Show input video preview while processing */}
+      {loading && (
+        <div className="input-preview">
+          <h5>Input Video Preview:</h5>
+          {inputVideoUrl && inputVideoAvailable ? (
+            <video controls src={inputVideoUrl} style={{ maxWidth: "100%" }} />
+          ) : (
+            <div style={{ color: '#888', fontStyle: 'italic' }}>
+              {videoPath.startsWith('s3://')
+                ? "Waiting for input video to be available..."
+                : "Loading preview..."}
+            </div>
+          )}
+        </div>
+      )}
       <form className="main-form" onSubmit={handleSubmit}>
         <label htmlFor="videoPath">Video S3 Path</label>
         <input

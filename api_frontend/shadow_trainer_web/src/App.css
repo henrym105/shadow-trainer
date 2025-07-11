@@ -6,7 +6,7 @@ body {
 }
 
 .container {
-  max-width: 480px;
+  max-width: 1000px;
   margin: 40px auto 0 auto;
   background: #fff;
   border-radius: 18px;
@@ -16,8 +16,9 @@ body {
 }
 
 .header .logo {
-  width: 120px;
-  margin-bottom: 1em;
+    width: 30%;
+    max-width: 300px;
+    margin-bottom: 1em;
 }
 
 .header h1 {
