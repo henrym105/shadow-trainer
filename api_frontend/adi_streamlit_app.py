@@ -5,9 +5,12 @@ import subprocess
 import time
 import threading
 
+from os.path import join as pjoin
+
 # --------------------------------------------------------------------------
 # CONSTANTS
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+ASSETS_DIR = pjoin(CUR_DIR, "assets")
 # --------------------------------------------------------------------------
 
 # st.set_page_config(page_title="Shadow Trainer Video Processor", layout="centered")
@@ -16,7 +19,7 @@ CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 st.markdown("<h1 style='text-align: center; font-size: 3.5em;'>Shadow Trainer</h1>", unsafe_allow_html=True)
 col1, col2, col3 = st.columns([3, 3, 3])
 with col2:
-    st.image(os.path.join(CUR_DIR, "Shadow Trainer Logo.png"))
+    st.image(pjoin(ASSETS_DIR, "Shadow Trainer Logo.png"))
 
 st.markdown("---")
 st.markdown("""
@@ -24,46 +27,13 @@ Upload a video file or provide an S3 path to process it using the Shadow Trainer
 """)
 
 # API setup
-API_URL = os.environ.get("SHADOW_TRAINER_API_URL", "http://localhost:8000/process_video/")
-API_HEALTH_URL = API_URL.replace("/process_video/", "/")
+API_URL = "http://localhost:8002/"
+API_HEALTH_URL = API_URL + "health/"
+API_VIDEO_ENDPOINT = API_URL + "video/process"
 
 api_log_lines = []
 api_process = None
 
-def stream_api_logs():
-    global api_process
-    if api_process is None:
-        return
-    for line in iter(api_process.stdout.readline, b""):
-        decoded = line.decode(errors="replace").rstrip()
-        print(f"[API] {decoded}")
-        api_log_lines.append(decoded)
-
-def ensure_api_running():
-    global api_process
-    try:
-        resp = requests.get(API_HEALTH_URL, timeout=2)
-        if resp.status_code == 200:
-            return True
-    except Exception:
-        pass
-    st.info("Starting backend API server...")
-    api_process = subprocess.Popen([
-        "python", os.path.join("api_inference", "run_api.py")
-    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1)
-    threading.Thread(target=stream_api_logs, daemon=True).start()
-    for _ in range(20):
-        try:
-            resp = requests.get(API_HEALTH_URL, timeout=2)
-            if resp.status_code == 200:
-                return True
-        except Exception:
-            time.sleep(1)
-    st.error("Failed to start backend API server. Please check logs.")
-    return False
-
-if not ensure_api_running():
-    st.stop()
 
 # Input options
 input_mode = st.radio("Input Type", ["Local File", "S3 Path"], horizontal=True)
@@ -80,33 +50,14 @@ video_file = None
 s3_path = None
 
 
-if input_mode == "Local File":
-    video_file = st.file_uploader("Upload Video (.mp4 or .mov)", type=["mp4", "mov"])
-
-    # Show previews of videos in the videos/ directory as a grid (1-4 per row)
-    videos_dir = os.path.join(CUR_DIR, "api_inference", "videos")
-    if os.path.exists(videos_dir):
-        video_files = [f for f in os.listdir(videos_dir) if f.lower().endswith((".mp4", ".mov"))]
-        if video_files:
-            st.markdown("**Sample Videos:**")
-            cols = st.columns(len(video_files))
-            for idx, vid in enumerate(video_files):
-                vid_path = os.path.join(videos_dir, vid)
-                with cols[idx]:
-                    st.video(vid_path, format="video/mp4", width="stretch")
-                    st.caption(vid)
-else:
-    s3_path = st.text_input("Enter S3 Path (e.g., s3://bucket/key/video.mp4)")
-
-
 if st.button("Process Video"):
     with st.spinner("Processing video, please wait..."):
         response = None
         temp_video_path = None
         if input_mode == "Local File" and video_file is not None:
-            TMP_DIR = os.path.join(CUR_DIR, "api_inference", "tmp_upload")
+            TMP_DIR = pjoin(CUR_DIR, "tmp_upload")
             os.makedirs(TMP_DIR, exist_ok=True)
-            temp_video_path = os.path.join(TMP_DIR, video_file.name)
+            temp_video_path = pjoin(TMP_DIR, video_file.name)
 
             with open(temp_video_path, "wb") as f:
                 f.write(video_file.read())
