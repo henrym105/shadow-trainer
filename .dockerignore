@@ -1,5 +1,5 @@
 # Ignore Python cache and compiled files
-__pycache__/
+**__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -11,10 +11,11 @@ __pycache__/
 *.ckpt
 
 # Ignore data, outputs, and videos
-api_inference/checkpoint/*
-api_inference/videos/*
-api_inference/*.mp4
-api_inference/*_output/
+api_backend/checkpoint/**
+api_backend/tmp_api_output/**
+api_backend/videos/**
+api_backend/**.mp4
+api_backend/*_output/
 
 # Ignore temporary and log files
 *.log

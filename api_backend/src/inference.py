@@ -261,7 +261,7 @@ def get_pose3D_no_vis(
     create_2D_images(cap, keypoints, output_dir)
 
     idx = 0
-    for clip_idx in range(len(clips)):
+    for clip_idx in tqdm(range(len(clips)), desc="Running MotionAGFormer model to convert 2D keypoints to 3D", unit="clip"):
         clip = clips[clip_idx]
         input_2D = normalize_screen_coordinates(clip, w=img_size_h_w[1], h=img_size_h_w[0])
         input_2D_aug = flip_data(input_2D)
@@ -364,7 +364,7 @@ def create_3d_pose_images_from_array(
     np.save(output_pro_3D_npy_path, pro_keypoints_npy)
     if DEBUG: print(f"Professional 3D keypoints saved to {output_pro_3D_npy_path}, with shape {pro_keypoints_npy.shape}")
 
-    for frame_id in range(num_frames):
+    for frame_id in tqdm(range(num_frames), desc="Creating 3D pose images", unit="frame"):
         # Create a new figure for this frame
         fig = plt.figure(figsize=(9.6, 5.4))
         gs = gridspec.GridSpec(1, 1)

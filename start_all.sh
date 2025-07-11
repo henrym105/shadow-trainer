@@ -12,7 +12,7 @@ tmux split-window -h -t $SESSION:0
 tmux send-keys -t $SESSION:0.0 'uv run python api_backend/run_api.py' C-m
 
 # Run frontend in the right pane (pane 1)
-tmux send-keys -t $SESSION:0.1 'uv run streamlit run api_frontend/adi_streamlit_app.py --server.port 8000 --server.enableCORS false' C-m
+tmux send-keys -t $SESSION:0.1 'uv run streamlit run api_frontend/adi_streamlit_app.py --server.port 8000' C-m
 
 # Attach to the tmux session
 tmux attach-session -t $SESSION
