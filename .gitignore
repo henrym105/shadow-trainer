@@ -9,6 +9,15 @@
 **.jpeg
 **.gif
 **.npz
+**.npy
+
+# local folder for visualizations and extra temporary setup files
+extras/
+# extras/**
+
+# Keep Shadow Trainer logo file
+# !**Shadow Trainer Logo.png
+!api_frontend/assets/*.png
 
 
 # Temp folder with output of the api inference

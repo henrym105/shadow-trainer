@@ -2784,6 +2784,19 @@ wheels = [
 ]
 
 [[package]]
+name = "plotly"
+version = "6.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "narwhals" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6e/5c/0efc297df362b88b74957a230af61cd6929f531f72f48063e8408702ffba/plotly-6.2.0.tar.gz", hash = "sha256:9dfa23c328000f16c928beb68927444c1ab9eae837d1fe648dbcda5360c7953d", size = 6801941, upload-time = "2025-06-26T16:20:45.765Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/20/f2b7ac96a91cc5f70d81320adad24cc41bf52013508d649b1481db225780/plotly-6.2.0-py3-none-any.whl", hash = "sha256:32c444d4c940887219cb80738317040363deefdfee4f354498cc0b6dab8978bd", size = 9635469, upload-time = "2025-06-26T16:20:40.76Z" },
+]
+
+[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4019,6 +4032,7 @@ dependencies = [
     { name = "numba", version = "0.61.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "numpy" },
     { name = "opencv-python" },
+    { name = "plotly" },
     { name = "pytest" },
     { name = "pyyaml" },
     { name = "sagemaker" },
@@ -4048,6 +4062,7 @@ requires-dist = [
     { name = "numba", specifier = ">=0.58.1" },
     { name = "numpy", specifier = ">=1.24.4" },
     { name = "opencv-python", specifier = ">=4.11.0.86" },
+    { name = "plotly", specifier = ">=6.2.0" },
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "sagemaker", specifier = ">=2.247.1" },

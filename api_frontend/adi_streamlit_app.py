@@ -10,13 +10,13 @@ import threading
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 # --------------------------------------------------------------------------
 
-st.set_page_config(page_title="Shadow Trainer Video Processor", layout="centered")
+# st.set_page_config(page_title="Shadow Trainer Video Processor", layout="centered")
 
 # Logo + Title
 st.markdown("<h1 style='text-align: center; font-size: 3.5em;'>Shadow Trainer</h1>", unsafe_allow_html=True)
 col1, col2, col3 = st.columns([3, 3, 3])
 with col2:
-    st.image("Shadow Trainer Logo.png")
+    st.image(os.path.join(CUR_DIR, "Shadow Trainer Logo.png"))
 
 st.markdown("---")
 st.markdown("""
