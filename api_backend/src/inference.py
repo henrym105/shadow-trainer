@@ -159,20 +159,15 @@ def get_pose2D(video_path, output_dir, device, yolo_version: str = "11") -> np.n
         # Download hrnet and v3 weights from S3 if they don't exist locally
         download_file_if_not_exists("pose_hrnet_w48_384x288.pth", checkpoint_dir)
         download_file_if_not_exists("yolov3.weights", checkpoint_dir)
-        keypoints, scores = gen_video_kpts(video_path, det_dim=416, num_person=2, gen_output=True, device=device)
+        keypoints, scores = gen_video_kpts(video_path, det_dim=416, num_person=1, gen_output=True, device=device)
         keypoints, scores, valid_frames = h36m_coco_format(keypoints, scores)
         # Add conf score to the last dim
         keypoints = np.concatenate((keypoints, scores[..., None]), axis=-1)
-        # if DEBUG: print(" ------> ------> ------> old keypoints shape:", keypoints.shape)
+
     elif yolo_version == "11":
-        estimator = YOLOPoseEstimator(
-            checkpoint_dir=checkpoint_dir, 
-            model_name="yolo11x-pose.pt", 
-            device=device
-        )
+        estimator = YOLOPoseEstimator("yolo11x-pose.pt", checkpoint_dir, device)
         keypoints = estimator.get_keypoints_from_video(video_path)
-        # print(" ------> ------> ------> new keypoints shape:", keypoints.shape)
-    
+
     assert keypoints.ndim == 4, "Keypoints should have 4 dimensions for (num_ppl, num_frames, 17, 3). Received shape: {}".format(keypoints.shape)
 
     output_dir = pjoin(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
@@ -266,7 +261,7 @@ def get_pose3D_no_vis(
     create_2D_images(cap, keypoints, output_dir)
 
     idx = 0
-    for clip_idx in tqdm(range(len(clips)), desc="Running MotionAGFormer model to convert 2D keypoints to 3D", unit="clip"):
+    for clip_idx in tqdm(range(len(clips)), desc="MotionAGFormer iterations", unit="clip"):
         clip = clips[clip_idx]
         input_2D = normalize_screen_coordinates(clip, w=img_size_h_w[1], h=img_size_h_w[0])
         input_2D_aug = flip_data(input_2D)

@@ -7,7 +7,7 @@ import os
 BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class YOLOPoseEstimator:
-    def __init__(self, checkpoint_dir=".", model_name="yolo11x-pose.pt", device="cpu"):
+    def __init__(self, model_name="yolo11x-pose.pt", checkpoint_dir=".", device="cpu"):
         """Initializes the YOLOPoseEstimator with a specified YOLOv11 pose model.
 
         Args:
@@ -17,22 +17,6 @@ class YOLOPoseEstimator:
         model_path = os.path.join(checkpoint_dir, model_name)
         self.model = YOLO(model_path)
         self.model.to(device)
-        self.yolo_to_hr_map = {
-            15: 0,  # right_ankle -> R_Ankle
-            14: 1,  # right_knee -> R_Knee
-            12: 2,  # right_hip -> R_Hip
-            11: 3,  # left_hip -> L_Hip
-            13: 4,  # left_knee -> L_Knee
-            16: 5,  # left_ankle -> L_Ankle
-            10: 6,  # right_wrist -> R_Wrist
-            8: 7,   # right_elbow -> R_Elbow
-            6: 8,   # right_shoulder -> R_Shoulder
-            5: 9,   # left_shoulder -> L_Shoulder
-            7: 10,  # left_elbow -> L_Elbow
-            9: 11,  # left_wrist -> L_Wrist
-            # Neck: typically derived from shoulders/ears
-            # Head_top: typically derived from nose/eyes/ears
-        }
 
 
     def get_keypoints(self, frame) -> np.ndarray:
@@ -51,16 +35,6 @@ class YOLOPoseEstimator:
             keypoints_xy = pose_results[0].keypoints.xyn[0].cpu().numpy()  # shape (N, 2)
             keypoints_conf = pose_results[0].keypoints.conf[0].cpu().numpy()  # shape (N,)
             keypoints = np.concatenate([keypoints_xy, keypoints_conf[:, None]], axis=1)  # shape (N, 3)
-
-        # Add a new first dimension to keypoints for compatability (e.g., (num_frames, 17, 3) -> (1, num_frames, 17, 3))
-        # Previous code accounts for multiple people could be detected in each frame
-        # keypoints = keypoints[None, ...]
-
-        # Reorder keypoints according to yolo_to_hr_map to match hr_keypoints format
-        # hr_keypoints = np.zeros((17, 3), dtype=keypoints.dtype)
-        # for yolo_idx, hr_idx in self.yolo_to_hr_map.items():
-        #     hr_keypoints[hr_idx] = keypoints[yolo_idx]
-        # keypoints = hr_keypoints
 
         assert keypoints.shape == (17, 3), "Keypoints should have shape (17, 3) with format (x, y, conf). Received shape: {}".format(keypoints.shape)
 
@@ -86,13 +60,6 @@ class YOLOPoseEstimator:
         spine = (mid_hip+thorax)/2
         mid_head = ((keypoints[3] + keypoints[4])/2)
 
-        joint_names = [
-            "Hip", "Right Hip", "Right Knee", "Right Ankle",
-            "Left Hip", "Left Knee", "Left Ankle", "Spine",
-            "Thorax", "Neck", "Head", "Left Shoulder",
-            "Left Elbow", "Left Wrist", "Right Shoulder",
-            "Right Elbow", "Right Wrist"
-        ]
         keypoints = np.insert(keypoints, 0, mid_hip, axis=0)
         keypoints = np.insert(keypoints, 0, spine, axis=0)
         keypoints = np.insert(keypoints, 0, thorax, axis=0)
@@ -116,12 +83,11 @@ class YOLOPoseEstimator:
         hr_keypoints = np.insert(hr_keypoints, 0, keypoints[18], axis=0)
         hr_keypoints = np.insert(hr_keypoints, 0, keypoints[16], axis=0)
         hr_keypoints = np.insert(hr_keypoints, 0, keypoints[3], axis=0)
+
         #multiply first column by frame_width
         hr_keypoints[:, 0] *= frame.shape[1]
         #multiply second column by frame_height
         hr_keypoints[:, 1] *= frame.shape[0]
-        #add an extra value to each part of hr_keypoint axis 1
-        # hr_keypoints = np.insert(hr_keypoints, 2, 0.8, axis=1)
 
         return hr_keypoints
 
@@ -136,22 +102,22 @@ class YOLOPoseEstimator:
                         Each element is a NumPy array of shape (17, 3) representing the person's keypoints in hr_keypoints format.
         """
         cap = cv2.VideoCapture(video_path)
-        keypoints_list = []
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        keypoints_array = np.empty(shape = (1, frame_count, 17, 3))
         
-        for _ in tqdm(range(frame_count), desc="Extracting 2D keypoints from input video"):
+        for i in tqdm(range(frame_count), desc="Extracting 2D keypoints from input video"):
             ret, frame = cap.read()
             if not ret:
                 break
             new_keypoints = self.get_points_from_frame(frame)
-            keypoints_list.append(new_keypoints)
+            keypoints_array[0][i] = new_keypoints
         cap.release()
 
-        keypoints_array = np.array(keypoints_list, dtype=object)
+        # keypoints_array = np.array(keypoints_list, dtype=object)
         
         # Add a new first dimension to keypoints for compatability (e.g., (num_frames, 17, 3) -> (1, num_frames, 17, 3))
         # Previous code accounts for multiple people could be detected in each frame
-        keypoints_array = keypoints_array[None, ...]
+        # keypoints_array = keypoints_array[None, ...]
 
         return keypoints_array
 
