@@ -653,7 +653,7 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
     # Preload all images into memory for faster access (if memory allows)
     images_2d = []
     images_3d = []
-    for i in range(n_frames):
+    for i in tqdm(range(n_frames), desc="Loading images into memory", unit="frame"):
         img2d = plt.imread(image_2d_paths[i])
         img3d = plt.imread(image_3d_paths[i])
         # Only crop 2D if it is wider than tall (avoid empty images)
@@ -670,10 +670,8 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         images_2d.append(img2d)
         images_3d.append(img3d)
 
-    # Use Agg canvas directly for speed, avoid repeated plt.figure/close
-    from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
     font_size = 12
-    for i in tqdm(range(n_frames)):
+    for i in tqdm(range(n_frames), desc="Generating output video frames", unit="frame"):
         fig, axs = plt.subplots(1, 2, figsize=(15.0, 5.4))
         # Remove axes for both
         for ax in axs:
