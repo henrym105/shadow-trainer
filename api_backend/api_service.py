@@ -154,98 +154,62 @@ def process_video(request: ProcessVideoRequest = Body(...)):
 
 
 def process_video_internal(file: str, model_size: str = "xs") -> ProcessVideoResponse:
-    """Internal function to process video - extracted from the existing endpoint."""
-    clear_tmp_dir(TMP_DIR, keep_videos=False)
-    logger.info(f"Temporary directory for API: {TMP_DIR}")
-
-    # --- Input Handling ---
-    if is_s3_path(file):
-        file_ext = os.path.splitext(file)[-1]
-        if not validate_video_extension(file_ext):
-            logger.warning(f"Unsupported file extension: {file_ext}")
+    """Ultra-simple video processing for MVP."""
+    try:
+        logger.info(f"Starting simple video processing for: {file}")
+        
+        # Simple validation
+        if not file or not file.startswith("s3://"):
             return ProcessVideoResponse(
                 output_video_local_path="",
                 output_video_s3_url=None,
-                error="Only .mp4 and .mov files are supported."
+                error="Only S3 paths supported for MVP"
             )
-
-        input_path = os.path.join(TMP_DIR, os.path.basename(file))  
+        
+        # Clear temp directory
+        clear_tmp_dir(TMP_DIR, keep_videos=False)
+        
+        # Download from S3
+        input_path = os.path.join(TMP_DIR, os.path.basename(file))
         bucket, key, err = download_from_s3(file, input_path)
         if err:
             return ProcessVideoResponse(
                 output_video_local_path="",
                 output_video_s3_url=None,
-                error=f"Failed to download from S3: {err}"
+                error=f"Download failed: {err}"
             )
-
+        
+        # Get video name and create output directory
         video_name = os.path.splitext(os.path.basename(input_path))[0]
-    else:
-        if not os.path.isfile(file):
-            logger.error(f"Local file does not exist: {file}")
+        output_dir = os.path.join(TMP_DIR, f"{video_name}_output")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Process video with minimal error handling
+        logger.info("Starting video processing pipeline...")
+        output_video_path = run_simple_pipeline(input_path, output_dir)
+        
+        if not output_video_path or not os.path.exists(output_video_path):
             return ProcessVideoResponse(
                 output_video_local_path="",
                 output_video_s3_url=None,
-                error=f"Local file does not exist: {file}"
+                error="Processing failed - no output video generated"
             )
-
-        input_path = file
-        file_ext = os.path.splitext(input_path)[-1]
-        if not validate_video_extension(file_ext):
-            logger.warning(f"Unsupported file extension: {file_ext}")
-            return ProcessVideoResponse(
-                output_video_local_path="",
-                output_video_s3_url=None,
-                error="Only .mp4 and .mov files are supported."
-            )
-
-        video_name = os.path.splitext(os.path.basename(input_path))[0]
-        bucket = "shadow-trainer-prod"  # Change as needed or make configurable
-
-    output_dir = os.path.join(TMP_DIR, f"{video_name}_output")
-    os.makedirs(output_dir, exist_ok=True)
-    logger.info(f"Video name extracted: {video_name}")
-    logger.info(f"Output directory: {output_dir}")
-
-    # --- Model Config ---
-    config_path = os.path.join(API_ROOT_DIR, "model_config_map.json")
-    model_config, err = load_model_config(model_size, config_path)
-    if err:
-        return ProcessVideoResponse(
-            output_video_local_path="",
-            output_video_s3_url=None,
-            error=f"Failed to load model config: {err}"
-        )
-    
-    device = get_pytorch_device()
-    logger.info(f"Using device: {device}")
-
-    # --- Run Pipeline ---
-    logger.info(f"\nInput path: {input_path}\nOutput directory: {output_dir}, \nDevice: {device}")
-    output_video_path = run_pipeline(input_path, output_dir, device, model_size, model_config)
-    if err:
-        return ProcessVideoResponse(
-            output_video_local_path="",
-            output_video_s3_url=None,
-            error=f"Pipeline failed: {err}"
-        )
-
-    # --- Output Handling ---
-    output_video_s3_url, upload_err = upload_to_s3(output_video_path, bucket, video_name)
-    if upload_err:
-        # Return local path, but s3 url is blank, error is set
+        
+        # Return success
+        logger.info(f"Processing complete: {output_video_path}")
         return ProcessVideoResponse(
             output_video_local_path=output_video_path,
             output_video_s3_url=None,
-            error=f"Failed to upload output video to S3: {upload_err}"
+            error=None
         )
-
-    # --- Return Response ---
-    logger.info(f"Returning processed video: {output_video_path}")
-    return ProcessVideoResponse(
-        output_video_local_path=output_video_path,
-        output_video_s3_url=output_video_s3_url,
-        error=None
-    )
+        
+    except Exception as e:
+        logger.error(f"Processing failed: {e}")
+        return ProcessVideoResponse(
+            output_video_local_path="",
+            output_video_s3_url=None,
+            error=f"Processing error: {str(e)}"
+        )
 
 
 
@@ -282,3 +246,41 @@ def run_pipeline(input_video_path: str, output_dir: str, device: str, model_size
     output_video_path = img2video(input_video_path, output_dir)
 
     return output_video_path
+
+def run_simple_pipeline(input_video_path: str, output_dir: str) -> str:
+    """Ultra-simple pipeline for MVP - just the core processing without complex config."""
+    try:
+        logger.info("Starting simple pipeline...")
+        
+        # Use proper device detection and smallest model
+        device = get_pytorch_device()  # Use GPU if available
+        model_size = "xs"  # Use smallest model
+        logger.info(f"Using device: {device}")
+        
+        # Use default config path
+        config_path = os.path.join(API_ROOT_DIR, "model_config_map.json")
+        model_config, err = load_model_config(model_size, config_path)
+        if err:
+            logger.error(f"Config load failed: {err}")
+            raise Exception(f"Config failed: {err}")
+        
+        # Run the original pipeline but with simpler error handling
+        output_video_path = run_pipeline(input_video_path, output_dir, device, model_size, model_config)
+        
+        return output_video_path
+        
+    except Exception as e:
+        logger.error(f"Simple pipeline failed: {e}")
+        raise
+
+# --- Simple Test Endpoint ---
+@app.post("/video/test", response_model=ProcessVideoResponse)
+def test_video_processing(request: ProcessVideoRequest = Body(...)):
+    """Simple test endpoint that just returns a response without processing"""
+    import time
+    time.sleep(10)  # Simulate some work
+    return ProcessVideoResponse(
+        output_video_local_path="test_output.mp4",
+        output_video_s3_url=None,
+        error=None
+    )

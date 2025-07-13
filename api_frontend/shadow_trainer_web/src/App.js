@@ -2,88 +2,54 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
 
+// Set default timeout for all axios requests
+axios.defaults.timeout = 300000; // 5 minutes
+
 const DEFAULT_S3 = "s3://shadow-trainer-prod/sample_input/henry-mini.mov";
-const API_URL = "http://localhost:8002/video/process";
+const API_PROCESS_URL = "/api/video/process"; // Back to real processing
+const LOCAL_TMP_OUTPUT = "/home/ec2-user/shadow-trainer/api_backend/tmp_api_output";
+
+// const API_URL = "http://www.shadow-trainer.com/api/video/process";
+
 
 function App() {
   const [videoPath, setVideoPath] = useState(DEFAULT_S3);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
-  const [inputVideoAvailable, setInputVideoAvailable] = useState(false);
-  const [inputVideoUrl, setInputVideoUrl] = useState("");
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setResponse(null);
-    setInputVideoAvailable(false);
-    setInputVideoUrl("");
+    
     try {
-      // For S3, predict the local URL
-      if (videoPath.startsWith("s3://")) {
-        const basename = videoPath.split("/").pop();
-        const url = `http://localhost:8002/output/${basename}`;
-        setInputVideoUrl(url);
-      } else if (videoPath.startsWith("http")) {
-        setInputVideoUrl(videoPath);
-        setInputVideoAvailable(true);
-      }
-      const res = await axios.post(
-        API_URL,
-        { file: videoPath, model_size: "xs" },
-        { headers: { "accept": "application/json", "Content-Type": "application/json" }, timeout: 1000 * 60 * 5 }
-      );
+      console.log("Sending request to:", API_PROCESS_URL);
+      console.log("With data:", { file: videoPath, model_size: "s" });
+      
+      const res = await axios.post(API_PROCESS_URL, {
+        file: videoPath,
+        model_size: "s"
+      });
+      
+      console.log("Response received:", res.data);
       setResponse(res.data);
+      
     } catch (err) {
-      setError(err.response?.data?.error || err.message);
+      console.error("Request failed:", err);
+      setError(err.response?.data?.error || err.message || "Unknown error");
     } finally {
       setLoading(false);
     }
   };
 
-  // Poll for S3 input video availability
-  useEffect(() => {
-    let intervalId;
-    if (loading && videoPath.startsWith("s3://") && inputVideoUrl) {
-      intervalId = setInterval(async () => {
-        try {
-          const res = await fetch(inputVideoUrl, { method: "HEAD" });
-          if (res.ok) {
-            setInputVideoAvailable(true);
-            clearInterval(intervalId);
-          }
-        } catch (e) {
-          // Not available yet
-        }
-      }, 1000);
-    }
-    return () => intervalId && clearInterval(intervalId);
-  }, [loading, videoPath, inputVideoUrl]);
-
   return (
     <div className="container">
       <div className="header">
         <img src="/assets/Shadow Trainer Logo.png" alt="Shadow Trainer Logo" className="logo" />
-        {/* <h1>Shadow Trainer</h1> */}
         <h3>AI-Powered Motion Analysis</h3>
       </div>
-      {/* Show input video preview while processing */}
-      {loading && (
-        <div className="input-preview">
-          <h5>Input Video Preview:</h5>
-          {inputVideoUrl && inputVideoAvailable ? (
-            <video controls src={inputVideoUrl} style={{ maxWidth: "100%" }} />
-          ) : (
-            <div style={{ color: '#888', fontStyle: 'italic' }}>
-              {videoPath.startsWith('s3://')
-                ? "Waiting for input video to be available..."
-                : "Loading preview..."}
-            </div>
-          )}
-        </div>
-      )}
+
       <form className="main-form" onSubmit={handleSubmit}>
         <label htmlFor="videoPath">Video S3 Path</label>
         <input
@@ -97,6 +63,7 @@ function App() {
           {loading ? "Processing..." : "Create Your Shadow"}
         </button>
       </form>
+
       {error && <div className="error">{error}</div>}
       {response && (
         <div className="response">
@@ -107,7 +74,7 @@ function App() {
               <h5>Output Video Preview:</h5>
               <video
                 controls
-                src={`http://localhost:8002/output/${response.output_video_local_path.split('/tmp_api_output/')[1]}`}
+                src={`/api/output/${response.output_video_local_path.replace(LOCAL_TMP_OUTPUT + '/', '')}`}
                 style={{ maxWidth: "100%" }}
               />
             </div>
@@ -121,6 +88,7 @@ function App() {
           ) : null}
         </div>
       )}
+
       <footer>
         &copy; 2025 Shadow Trainer. All rights reserved.
       </footer>

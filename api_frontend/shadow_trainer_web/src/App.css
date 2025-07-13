@@ -1,3 +1,66 @@
+/* Sample Video Button */
+.sample-btn {
+  background: #e0e7ef;
+  color: #2b5876;
+  border: 1.5px solid #b5c6e0;
+  border-radius: 8px;
+  padding: 0.7em 1.5em;
+  font-size: 1em;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 0.5em;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sample-btn:disabled {
+  background: #f2f2f2;
+  color: #aaa;
+  border-color: #eee;
+  cursor: not-allowed;
+}
+
+/* Sample Video Thumbnails Scroll */
+.sample-scroll {
+  display: flex;
+  flex-direction: row;
+  gap: 1.2em;
+  overflow-x: auto;
+  padding: 0.5em 0 1.2em 0;
+  margin-bottom: 1.2em;
+}
+
+.sample-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 0.4em 0.7em 0.7em 0.7em;
+  background: #f7f8fa;
+  cursor: pointer;
+  transition: border 0.2s, background 0.2s;
+}
+
+.sample-thumb.selected {
+  border: 2.5px solid #2b5876;
+  background: #e0e7ef;
+  box-shadow: 0 0 0 2px #b5c6e0;
+}
+
+.sample-thumb img {
+  width: 110px;
+  height: 62px;
+  object-fit: cover;
+  border-radius: 7px;
+  margin-bottom: 0.4em;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+
+.sample-label {
+  font-size: 0.98em;
+  color: #333;
+  margin-top: 0.1em;
+}
 body {
   margin: 0;
   font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
@@ -6,6 +69,7 @@ body {
 }
 
 .container {
+  width: 80%;
   max-width: 1000px;
   margin: 40px auto 0 auto;
   background: #fff;
