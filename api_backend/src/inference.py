@@ -20,7 +20,7 @@ from src.preprocess import h36m_coco_format
 from src.hrnet.gen_kpts import gen_video_kpts
 from src.utils import download_file_if_not_exists, normalize_screen_coordinates, camera_to_world, get_config
 from src.model.MotionAGFormer import MotionAGFormer
-from src.visualizations import resample_pose_sequence
+from src.visualizations import resample_pose_sequence, time_warp_pro_video
 from src.yolo2d import YOLOPoseEstimator
 
 # logger = logging.getLogger("api_service")
@@ -338,31 +338,41 @@ def create_3d_pose_images_from_array(
     if DEBUG: logger.info(f"user_keypoints_npy dtype: {user_keypoints_npy.dtype}")
     if DEBUG: logger.info(f"pro_keypoints_npy dtype: {pro_keypoints_npy.dtype}")
 
+    # ------------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------
     # --- Find motion start for both user and pro, then crop ---
-    user_start = find_motion_start(user_keypoints_npy, z_threshold=0.0, min_delta=.05)
-    pro_start = find_motion_start(pro_keypoints_npy, z_threshold=0.0, min_delta=.05)
-    if DEBUG:
-        logger.info(f"User motion starts at frame: {user_start}")
-        logger.info(f"Pro motion starts at frame: {pro_start}")
+    # user_start = find_motion_start(user_keypoints_npy, z_threshold=0.0, min_delta=.05)
+    # pro_start = find_motion_start(pro_keypoints_npy, z_threshold=0.0, min_delta=.05)
+    # if DEBUG:
+    #     logger.info(f"User motion starts at frame: {user_start}")
+    #     logger.info(f"Pro motion starts at frame: {pro_start}")
 
-    user_keypoints_npy = user_keypoints_npy[user_start:]
-    pro_keypoints_npy = pro_keypoints_npy[pro_start:]
-    # Note: output_dir points to the 'pose' directory, but pose2D is at the job root level
-    job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
-    pose2d_dir = pjoin(job_output_dir, 'pose2D')
-    remove_images_before_motion_start(pose2d_dir, user_start)
+    # user_keypoints_npy = user_keypoints_npy[user_start:]
+    # pro_keypoints_npy = pro_keypoints_npy[pro_start:]
+    # # Note: output_dir points to the 'pose' directory, but pose2D is at the job root level
+    # job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
+    # pose2d_dir = pjoin(job_output_dir, 'pose2D')
+    # remove_images_before_motion_start(pose2d_dir, user_start)
 
-    # Set video_length to the minimum of number of frames between user and pro keypoints files
-    num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
+    # # Set video_length to the minimum of number of frames between user and pro keypoints files
+    # num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
 
-    # Resample the longer sequence to match the shorter one
-    user_keypoints_npy = resample_pose_sequence(user_keypoints_npy, num_frames)
-    pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, num_frames)
-    if DEBUG: logger.info(f"\nUser keypoints shape after crop/resample: {user_keypoints_npy.shape}")
-    if DEBUG: logger.info(f"Professional keypoints shape after crop/resample: {pro_keypoints_npy.shape}")
+    # # Resample the longer sequence to match the shorter one
+    # user_keypoints_npy = resample_pose_sequence(user_keypoints_npy, num_frames)
+    # pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, num_frames)
+    # if DEBUG: logger.info(f"\nUser keypoints shape after crop/resample: {user_keypoints_npy.shape}")
+    # if DEBUG: logger.info(f"Professional keypoints shape after crop/resample: {pro_keypoints_npy.shape}")
+
+    pro_keypoints_npy = time_warp_pro_video(user_keypoints_npy, pro_keypoints_npy)
+    if DEBUG: logger.info(f"User keypoints shape after time warp: {user_keypoints_npy.shape}")
+    if DEBUG: logger.info(f"Professional keypoints shape after time warp: {pro_keypoints_npy.shape}")
+
+    # ------------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------
 
     assert (user_keypoints_npy.shape == pro_keypoints_npy.shape), \
         f"User and professional keypoints must have the same shape after cropping & resampling. Got user: {user_keypoints_npy.shape}, pro: {pro_keypoints_npy.shape}"
+    num_frames = user_keypoints_npy.shape[0]
 
     # Save a copy of the professional keypoints for reference
     # Note: output_dir points to the 'pose' directory, but we need to save to the job root's raw_keypoints directory
@@ -404,7 +414,7 @@ def create_3d_pose_images_from_array(
                 ax = ax, 
                 angle_adjustment = angle_adjustment,  
                 use_body_part = USE_BODY_PART,
-                show_hip_reference_line = True
+                show_hip_reference_line = False
             )
 
         # Save this 3D pose image

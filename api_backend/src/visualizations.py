@@ -4,7 +4,19 @@ import boto3
 import tempfile
 
 
-# prompt: create a function get_info that gets the min, max, average values from a numpy array
+def time_warp_pro_video(amateur_data: np.ndarray, professional: np.ndarray):
+    valid, switch_point, max_y_pt, ankle_points = get_numpy_info(amateur_data)
+    print(valid, switch_point, max_y_pt)
+
+    # Match timings
+    professional_kpts = shift_data_time(professional, 200, 100, max_y_pt, switch_point - max_y_pt, len(amateur_data) - switch_point)
+    
+    # Create pose overlay
+    # Create_pose_overlay_video(amateur_data, professional, "pose_video.mp4", "pose_frames", fps=30)
+    return professional_kpts
+
+
+
 def get_numpy_info(arr):
   """
   Gets the minimum, maximum, and average values from a numpy array.
