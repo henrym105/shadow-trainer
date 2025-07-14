@@ -402,11 +402,11 @@ def create_3d_pose_images_from_array(
                 pro_angle = get_stance_angle(pro_keypoints_this_frame, USE_BODY_PART)
                 angle_adjustment = user_angle - pro_angle
                 if DEBUG:
-                    logger.info("user_3d_keypoints shape:", user_keypoints_this_frame.shape)
-                    logger.info("pro_keypoints_std shape:", pro_keypoints_this_frame.shape)
+                    logger.info(f"user_3d_keypoints shape: {user_keypoints_this_frame.shape}")
+                    logger.info(f"pro_keypoints_std shape: {pro_keypoints_this_frame.shape}")
                     logger.info(f"Angle between {USE_BODY_PART} in first frame of USER VIDEO: {user_angle:.2f} degrees")
                     logger.info(f"Angle between {USE_BODY_PART} in first frame of PROFESSIONAL VIDEO: {pro_angle:.2f} degrees")
-                    logger.info("Angle adjustment:", int(angle_adjustment))
+                    logger.info(f"Angle adjustment: {int(angle_adjustment)}")
             # Create the pose overlay image with the user and pro keypoints
             create_pose_overlay_image(
                 data1 = user_keypoints_this_frame, 
@@ -548,8 +548,7 @@ def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:
 def create_pose_overlay_image(
     data1: np.ndarray, data2: np.ndarray, ax: matplotlib.axis,
     angle_adjustment: float = 0.0, use_body_part: str = "feet",
-    show_hip_reference_line: bool = False,
-    view_angle: float = 0.0, camera_height: float = 15.0
+    show_hip_reference_line: bool = False
 ) -> str:
     """Create a single image with 3D pose keypoints from data1 and data2 overlaid on the same axis.
     Both data1 and data2 are standardized before plotting.
@@ -561,8 +560,10 @@ def create_pose_overlay_image(
         angle_adjustment (float): Angle adjustment in degrees to align the pro pose with the user pose.
         use_body_part (str): Which body part to use for angle calculation: "feet", "hips", or "shoulders".
         show_hip_reference_line (bool): Whether to draw reference lines for the hip angles. Default is False.
-        view_angle (float): Elevation angle for the camera view.
-        camera_height (float): Height of the camera view.
+    
+    Returns:
+        str: Path to the saved overlay image.
+        
     """
     # Rotate the pro pose to align with the user pose based on the angle adjustment from the first frame
     # logger.info(f"[ DEBUG create_pose_overlay_image() ], {data1.shape =}, {data2.shape =}, {angle_adjustment = }, {use_body_part = }, {data1.dtype = }, {data2.dtype = }")
