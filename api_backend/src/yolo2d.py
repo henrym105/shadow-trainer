@@ -113,12 +113,6 @@ class YOLOPoseEstimator:
             keypoints_array[0][i] = new_keypoints
         cap.release()
 
-        # keypoints_array = np.array(keypoints_list, dtype=object)
-        
-        # Add a new first dimension to keypoints for compatability (e.g., (num_frames, 17, 3) -> (1, num_frames, 17, 3))
-        # Previous code accounts for multiple people could be detected in each frame
-        # keypoints_array = keypoints_array[None, ...]
-
         return keypoints_array
 
 
@@ -140,7 +134,6 @@ if __name__ == "__main__":
     # Save the keypoints to a file or process them further as needed
     # For example, you can save them to a .npy file:
     output_file = os.path.join(BACKEND_ROOT, "tmp_api_output", "output_keypoints_2d_yolov11.npy")
-    
-    
+   
     np.save(output_file, keypoints)
     print(f"Keypoints saved to {output_file}")

@@ -137,19 +137,36 @@ def cleanup_old_files(retention_minutes: int = 60):
 
 # ==================== VIDEO PROCESSING ====================
 
-def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs", is_lefty: bool = False) -> str:
+def process_video_pipeline(job_id: str, input_video_path: str, model_size: str = "xs", is_lefty: bool = False) -> str:
     """
     Process video with pose estimation and keypoint overlays
     
     Args:
         job_id: Unique job identifier
-        input_path: Path to input video file
+        input_video_path: Path to input video file
         model_size: Model size to use for processing
         is_lefty: Whether the user is left-handed
     
     Returns:
         Path to output video file
     """
+    # Establish output directory constants for this job
+    DIR_OUTPUT_BASE = TMP_DIR / f"{job_id}_output"
+
+    DIR_POSE2D = DIR_OUTPUT_BASE / "pose2D"
+    DIR_POSE3D = DIR_OUTPUT_BASE / "pose3D"
+    DIR_COMBINED_FRAMES = DIR_OUTPUT_BASE / "combined_frames"
+    DIR_KEYPOINTS = DIR_OUTPUT_BASE / "raw_keypoints"
+
+    FILE_POSE2D = DIR_KEYPOINTS / "2D_keypoints.npy"
+    FILE_POSE3D = DIR_KEYPOINTS / "user_3D_keypoints.npy"
+
+    DIR_OUTPUT_BASE.mkdir(exist_ok=True)
+    DIR_POSE2D.mkdir(exist_ok=True)
+    DIR_POSE3D.mkdir(exist_ok=True)
+    DIR_COMBINED_FRAMES.mkdir(exist_ok=True)
+    DIR_KEYPOINTS.mkdir(exist_ok=True)
+
     try:
         logger.info(f"Starting video processing for job {job_id}")
         logger.info(f"User handedness preference: {'Left-handed' if is_lefty else 'Right-handed'}")
@@ -166,99 +183,57 @@ def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs",
         model_config_path = get_model_config_path(model_size)
         logger.info(f"Using model config: {model_config_path}")
         
-        # Set up output paths
-        # input_path_obj = Path(input_path)
-        # base_name = input_path_obj.stem
-        output_dir = TMP_DIR / f"{job_id}_output"
-        output_dir.mkdir(exist_ok=True)
-        
         # Step 1: Extract 2D poses (20% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=20, 
-                                    message="Extracting 2D poses...")
-        
-        pose2d_file = output_dir / "raw_keypoints" / "2D_keypoints.npy"
-        pose2d_file.parent.mkdir(exist_ok=True)
-        
-        get_pose2D(
-            video_path=input_path,
-            output_file=pose2d_file,
-            device=device
-        )
+        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=20, message="Extracting 2D poses...")
+        get_pose2D(video_path=input_video_path, output_file=FILE_POSE2D, device=device)
 
         # Step 2: Create 2D visualization frames (35% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=35,
-                                    message="Creating 2D visualization frames...")
-        
-        # Create 2D images from video and keypoints
-        cap = cv2.VideoCapture(input_path)
-        keypoints_2d = np.load(pose2d_file)
-        
-        frames_2d_dir = create_2D_images(
-            cap = cap, 
-            keypoints = keypoints_2d, 
-            output_dir = str(output_dir),
-            is_lefty = is_lefty
-        )
-
+        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=35, message="Creating 2D visualization frames...")
+        cap = cv2.VideoCapture(input_video_path)
+        keypoints_2d = np.load(FILE_POSE2D)
+        create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
         cap.release()
 
         # Step 3: Generate 3D poses (50% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=50,
-                                    message="Generating 3D poses...")
-        
-        pose3d_file = output_dir / "raw_keypoints" / "user_3D_keypoints.npy"
-        pose3d_file.parent.mkdir(exist_ok=True)
-        
+        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=50, message="Generating 3D poses...")
         get_pose3D_no_vis(
-            user_keypoints_path = pose2d_file,
-            output_keypoints_path = pose3d_file,
-            video_path=input_path,
-            device=str(device),
+            user_2d_kpts_filepath = FILE_POSE2D,
+            output_keypoints_path = FILE_POSE3D,
+            video_path=input_video_path,
+            device=device,
             model_size=model_size,
             yaml_path=model_config_path
         )
         
         # Step 4: Create 3D visualization frames (70% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=70,
-                                    message="Creating visualization frames...")
-        
-        frames_dir = output_dir / "pose"
-        frames_dir.mkdir(exist_ok=True)
-        
+        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=70, message="Creating visualization frames...")
         create_3d_pose_images_from_array(
-            user_3d_keypoints_filepath = str(pose3d_file),
-            output_dir = str(frames_dir),
+            user_3d_keypoints_filepath = FILE_POSE3D,
+            output_dir = DIR_POSE3D,
             pro_keypoints_filepath = TMP_PRO_KEYPOINTS_FILE,
             is_lefty = is_lefty
         )
         
         # Step 5: Generate combined frames (85% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85,
-                                    message="Combining frames with original video...")
-        
-        combined_frames_dir = output_dir / "combined_frames"
-        combined_frames_dir.mkdir(exist_ok=True)
-        
+        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85, message="Combining frames with original video...")
         generate_output_combined_frames(
-            output_dir_2D=frames_2d_dir,
-            output_dir_3D=str(frames_dir),
-            output_dir=str(combined_frames_dir)
+            output_dir_2D=DIR_POSE2D,
+            output_dir_3D=DIR_POSE3D,
+            output_dir_combined=DIR_COMBINED_FRAMES
         )
         
         # Step 6: Create final video (95% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=95,
-                                    message="Generating final video...")
-        
+        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=95, message="Generating final video...")
         output_video_path = img2video(
-            video_path=input_path,
-            output_dir=str(combined_frames_dir)
+            video_path=input_video_path,
+            input_frames_dir=DIR_COMBINED_FRAMES
         )
         
         # Complete job
-        job_manager.update_job_status(job_id, JobStatus.COMPLETED, progress=100,
-                                    message="Video processing completed successfully!",
-                                    output_path=output_video_path)
-        
+        job_manager.update_job_status(
+            job_id, JobStatus.COMPLETED, progress=100, 
+            message="Video processing completed successfully!", output_path=output_video_path
+        )
         logger.info(f"Video processing completed for job {job_id}: {output_video_path}")
 
         # Final garbage collection before completion

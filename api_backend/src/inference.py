@@ -186,16 +186,10 @@ def get_pose2D(video_path, output_file, device, yolo_version: str = "11") -> np.
         keypoints = estimator.get_keypoints_from_video(video_path)
 
     assert keypoints.ndim == 4, "Keypoints should have 4 dimensions for (num_ppl, num_frames, 17, 3). Received shape: {}".format(keypoints.shape)
-
-    # output_dir = pjoin(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
-    # output_2d_keypoints_filepath = pjoin(output_dir, KEYPOINTS_FILE_2D)
-    # os.makedirs(output_dir, exist_ok=True)
-    # np.save(output_2d_keypoints_filepath, keypoints)
     np.save(output_file, keypoints)
     if DEBUG: logger.info(f"2D keypoints (COCO format) saved to {output_file}, with shape {keypoints.shape}")
 
     return output_file
-
 
 
 def load_npy_file(npy_filepath: str) -> np.ndarray:
@@ -218,12 +212,12 @@ def load_npy_file(npy_filepath: str) -> np.ndarray:
 # --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 @torch.no_grad()
 def get_pose3D_no_vis(
-    user_keypoints_path: str, output_keypoints_path: str, video_path: str, device: str, model_size: str='xs', yaml_path: str=""
+    user_2d_kpts_filepath: str, output_keypoints_path: str, video_path: str, device: str, model_size: str='xs', yaml_path: str=""
     ):
     """Run 3D pose inference from 2D keypoints and save the output 3D keypoints as .npy. No visualization or pro comparison.
 
     Args:
-        user_keypoints_path (str): Path to the 2D keypoints .npy file.
+        user_2d_kpts_filepath (str): Path to the 2D keypoints .npy file.
         output_keypoints_path (str): Path to save the output 3D keypoints .npy file.
         video_path (str): Path to the input video file.
         device (str): PyTorch device.
@@ -263,16 +257,16 @@ def get_pose3D_no_vis(
     model.eval()
     if DEBUG: logger.info(f"MotionAGFormer model (version: {model_size}) sent to device: {device}, model object type: {type(model)}")
 
-    # Load 2D keypoints
-    if not os.path.exists(user_keypoints_path):
-        # Use glob to find all files in all subdirectories of BACKEND_API_DIR_ROOT that match the basename of user_keypoints_path
-        basename = os.path.basename(user_keypoints_path)
-        search_pattern = os.path.join(BACKEND_API_DIR_ROOT, "**", basename)
-        found_files = glob.glob(search_pattern, recursive=True)
-        logger.info(f"Searching for '{basename}' in '{BACKEND_API_DIR_ROOT}' (recursive): found {len(found_files)} file(s): {found_files}")
-        raise FileNotFoundError(f"2D keypoints file not found: {user_keypoints_path}")
+    # if not os.path.exists(user_2d_kpts_filepath):
+    #     # Use glob to find all files in all subdirectories of BACKEND_API_DIR_ROOT that match the basename of user_2d_kpts_filepath
+    #     basename = os.path.basename(user_2d_kpts_filepath)
+    #     search_pattern = os.path.join(BACKEND_API_DIR_ROOT, "**", basename)
+    #     found_files = glob.glob(search_pattern, recursive=True)
+    #     logger.info(f"Searching for '{basename}' in '{BACKEND_API_DIR_ROOT}' (recursive): found {len(found_files)} file(s): {found_files}")
+    #     raise FileNotFoundError(f"2D keypoints file not found: {user_2d_kpts_filepath}")
 
-    keypoints = np.load(user_keypoints_path, allow_pickle=True)
+    # Load 2D keypoints
+    keypoints = np.load(user_2d_kpts_filepath, allow_pickle=True)
     clips, downsample = turn_into_clips(keypoints=keypoints, target_frames=args['n_frames'])
 
     # Infer video length from keypoints shape
@@ -280,12 +274,9 @@ def get_pose3D_no_vis(
     cap = cv2.VideoCapture(video_path)
     img_size_h_w = get_frame_size(cap)
     num_frames = keypoints.shape[1]
-    user_output_3d_keypoints = np.empty((num_frames, 17, 3))
     cap.release()
 
-    # logger.info('\nGenerating 2D pose image...')
-    # create_2D_images(cap, keypoints, output_dir)
-
+    user_output_3d_keypoints = np.empty((num_frames, 17, 3))
     idx = 0
     for clip_idx in tqdm(range(len(clips)), desc="MotionAGFormer iterations", unit="clip"):
         clip = clips[clip_idx]
@@ -480,7 +471,7 @@ def find_motion_start(keypoints: np.ndarray, is_lefty: bool = True, min_pct_chan
     Returns:
         int: Index of the first frame where movement is detected.
     """
-    # right_ankle = 3, left_ankle = 6
+    # Right Ankle is 3, Left Ankle is 6
     front_foot_idx = 3 if is_lefty else 6 
     sacrum_idx = 0
 
@@ -498,9 +489,7 @@ def find_motion_start(keypoints: np.ndarray, is_lefty: bool = True, min_pct_chan
 
         curr_dist = abs(front_foot_z - sacrum_z)
         pct_change = ((initial_dist - curr_dist) / initial_dist) * 100
-        if DEBUG:
-            logger.info(f"Frame {i}: initial_dist = {initial_dist:.3f}, curr_dist = {curr_dist:.2f}, rel_decrease = {pct_change:.4f}")
-
+        # if DEBUG: logger.info(f"Frame {i}: initial_dist = {initial_dist:.3f}, curr_dist = {curr_dist:.2f}, rel_decrease = {pct_change:.4f}")
         if pct_change > min_pct_change:
             return i
     return 0  # fallback: no movement detected
@@ -525,9 +514,9 @@ def get_frame_size(cap: cv2.VideoCapture) -> tuple:
     return (height, width, 3)  # Assuming 3 channels (RGB)
 
 
-def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir: str, is_lefty: bool) -> str:
-    output_dir_2D = pjoin(output_dir, 'pose2D')
-    os.makedirs(output_dir_2D, exist_ok=True)
+def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir_2D: str, is_lefty: bool) -> str:
+    # output_dir_2D = pjoin(output_dir, 'pose2D')
+    # os.makedirs(output_dir_2D, exist_ok=True)
 
     n_frames = keypoints.shape[1]  
     logger.info(f"Total number of frames in the video: {n_frames} ({keypoints.shape = }")
@@ -690,7 +679,7 @@ def standardize_3d_keypoints(keypoints: np.ndarray, apply_rotation: bool = True)
     return keypoints
 
 
-def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir: str) -> None:
+def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir_combined: str) -> None:
     """Generate a demo video showing 2D input and 3D reconstruction side by side."""
     logger.info('\n\nGenerating demo video frames...')
     
@@ -707,8 +696,8 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         return
 
     logger.info('\n\nGenerating demo...')
-    output_dir_pose = pjoin(output_dir, 'pose')
-    os.makedirs(output_dir_pose, exist_ok=True)
+    # output_dir_pose = pjoin(output_dir, 'pose')
+    # os.makedirs(output_dir_pose, exist_ok=True)
 
     FONT_SIZE = 12
     for i in tqdm(range(n_frames), desc="Generating output video frames", unit="frame"):
@@ -738,18 +727,18 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         axs[1].set_title("Reconstruction", fontsize=FONT_SIZE)
         plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
         plt.margins(0, 0)
-        output_path_pose_thisimg = pjoin(output_dir_pose, f"{i:04d}_pose.png")
+        output_path_pose_thisimg = pjoin(output_dir_combined, f"{i:04d}_pose.png")
         fig.savefig(output_path_pose_thisimg, dpi=200, bbox_inches='tight')
         plt.close(fig)
 
 
 
-def img2video(video_path: str, output_dir: str) -> str:
+def img2video(video_path: str, input_frames_dir: str) -> str:
     """Converts a sequence of pose images into a video.
 
     Args:
         video_path (str): Path to the original input video (used for FPS and naming).
-        output_dir (str): Directory containing the 'pose' subdirectory with PNG frames.
+        input_frames_dir (str): Directory containing the 'pose' subdirectory with PNG frames.
 
     Raises:
         FileNotFoundError: If the 'pose' directory does not exist.
@@ -768,25 +757,23 @@ def img2video(video_path: str, output_dir: str) -> str:
         fps = 25  # fallback default
     cap.release()
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-
-    POSE_DIR = pjoin(output_dir, 'pose')
-    os.makedirs(POSE_DIR, exist_ok=True)
-    
-    pose_filenames = sorted(glob.glob(pjoin(POSE_DIR, '*.png')))
+    pose_filenames = sorted(glob.glob(pjoin(input_frames_dir, '*.png')))
     if not pose_filenames:
-        logger.error(f"No pose PNG frames found in {POSE_DIR}")
-        raise FileNotFoundError(f"No pose PNG frames found in {POSE_DIR}")
+        logger.error(f"No pose PNG frames found in {input_frames_dir}")
+        raise FileNotFoundError(f"No pose PNG frames found in {input_frames_dir}")
     
     img = cv2.imread(pose_filenames[0])
     if img is None:
         logger.error(f"Failed to read first pose image: {pose_filenames[0]}")
         raise ValueError(f"Failed to read first pose image: {pose_filenames[0]}")
-    
+    else:
+        size = (img.shape[1], img.shape[0])
+
     output_video_name = video_name.replace("input", "output")
-    output_path = pjoin(output_dir, output_video_name + '.mp4')
+    output_path = pjoin(input_frames_dir, output_video_name + '.mp4')
     logger.info(f"Writing output video to: {output_path}")
-    size = (img.shape[1], img.shape[0])
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     videoWrite = cv2.VideoWriter(output_path, fourcc, fps, size)
 
     for name in pose_filenames:
