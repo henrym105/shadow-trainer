@@ -4,7 +4,32 @@ import boto3
 import tempfile
 
 
-# prompt: create a function get_info that gets the min, max, average values from a numpy array
+def time_warp_pro_video(amateur_data: np.ndarray, professional: np.ndarray):
+    """    Time warps the professional data to align with the amateur data.
+    Args:
+        amateur_data (np.ndarray): The amateur data as a NumPy array.
+        professional (np.ndarray): The professional data as a NumPy array.
+    Returns:
+        np.ndarray: The time-warped professional data. Shape will match the amateur data.
+    """
+    valid, switch_point, max_y_pt, ankle_points = get_numpy_info(amateur_data)
+
+    # professional_kpts = shift_data_time(professional, 200, 100, max_y_pt, switch_point - max_y_pt, len(amateur_data) - switch_point)
+    professional_kpts = shift_data_time(
+        data=professional, 
+        switch=switch_point, 
+        max_y=max_y_pt, 
+        time_1=max_y_pt, 
+        time_2=switch_point - max_y_pt, 
+        time_3=len(amateur_data) - switch_point
+    )
+    
+    shapes_match = (professional_kpts.shape[0] == amateur_data.shape[0])
+    assert shapes_match, f"Professional keypoints array shape {professional_kpts.shape} does not match amateur data shape {amateur_data.shape}"
+    return professional_kpts
+
+
+
 def get_numpy_info(arr):
   """
   Gets the minimum, maximum, and average values from a numpy array.
@@ -213,8 +238,7 @@ def resample_pose_sequence(pose_seq: np.ndarray, target_len: int) -> np.ndarray:
 
 
 def recenter_on_left_ankle(pose_array, target_xyz=(0.0, 0.0, 0.0)):
-    """
-    Recenter each frame so that the left ankle (joint 6) moves to the given target coordinates.
+    """Recenter each frame so that the left ankle (joint 6) moves to the given target coordinates.
 
     Parameters:
     - pose_array (np.ndarray): Shape (n, 17, 3)
@@ -243,6 +267,7 @@ def recenter_on_right_ankle(pose_array):
 
 
 def shift_data_time(data, switch, max_y, time_1=100, time_2=100, time_3=150):
+    print(f"    [ shift_data_time ] input params: switch={switch}, max_y={max_y}, time_1={time_1}, time_2={time_2}, time_3={time_3}")
     segment_1 = data[:max_y,:,:]
     segment_2 = data[max_y: switch,:,:]
     segment_3 = data[switch-1:,:,:]
@@ -255,64 +280,106 @@ def shift_data_time(data, switch, max_y, time_1=100, time_2=100, time_3=150):
     return final_arr
 
 
-def list_and_play_mp4_from_s3(bucket_name, prefix, aws_access_key_id=None, aws_secret_access_key=None, region_name='us-east-2'):
+
+def get_s3_client(aws_access_key_id=None, aws_secret_access_key=None, region_name='us-east-2'):
     if aws_access_key_id and aws_secret_access_key:
-        s3 = boto3.client(
+        return boto3.client(
             's3',
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             region_name=region_name
         )
     else:
-        s3 = boto3.client('s3')
+        return boto3.client('s3')
 
+def list_s3_files(s3, bucket_name, prefix, filetype='.npy'):
     paginator = s3.get_paginator('list_objects_v2')
     pages = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
-    cleaned_list = []
-    count = 0
-    val_list = []
-    prev_frames = None
     for page in pages:
         if 'Contents' in page:
             for obj in page['Contents']:
                 key = obj['Key']
-                if key.endswith('.npy') and 'FF' not in key:
-                    print(f"\n[INFO] Processing: {key}")
+                if key.endswith(filetype) and 'FF' not in key:
+                    yield key
 
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".npy") as temp_file:
-                        temp_path = temp_file.name
-                    count += 1
-                    try:
-                        s3.download_file(bucket_name, key, temp_path)
-                        data = np.load(temp_path)
-                        print(data.shape)
-                        valid, switch_point, max_y_pt, ankle_points = get_numpy_info(data)
-                        angle = find_angle(ankle_points[0:2], ankle_points[2:4])
-                        val_list.append(valid)
-                        base_name = os.path.splitext(os.path.basename(key))[0]
-                        path_name = os.path.dirname(key)
-                        path_name = path_name.split('/')[1:]
-                        path_name = '/'.join(path_name)
-                        print(f"Path name: {path_name}")
-                        print(f"Base name: {base_name}")
-                        save_path = f"cleaned_numpy/{path_name}/{base_name}.npy"
-                        print(f"Save path: {save_path}")
-                        base_name = os.path.splitext(os.path.basename(key))[0]
-                        output_video_path = f"{base_name}_pose_video.mp4"
-                        if val_list[-1]:
-                            for i in range(len(data)):
-                                data[i] = rotate_along_z(data[i], 135 - angle)
-                            data = shift_data_time(data, switch_point, max_y_pt)
-                            cleaned_list.append(data)
-                            np.save(base_name, data)
-                            s3.upload_file(f"{base_name}.npy", bucket_name, save_path)
-                            if prev_frames is not None:
-                                #create_pose_video(data, output_video_path=output_video_path)
-                                print("next")
-                            prev_frames = data
 
-                    except:
-                        print("FAILED")
+def download_s3_file(s3, bucket_name, key, filetype):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=filetype) as temp_file:
+        temp_path = temp_file.name
+    s3.download_file(bucket_name, key, temp_path)
+    return temp_path
+
+def process_pose_file(data):
+    valid, switch_point, max_y_pt, ankle_points = get_numpy_info(data)
+    angle = find_angle(ankle_points[0:2], ankle_points[2:4])
+    if valid:
+        for i in range(len(data)):
+            data[i] = rotate_along_z(data[i], 135 - angle)
+        data = shift_data_time(data, switch_point, max_y_pt)
+    return valid, data, switch_point, max_y_pt, ankle_points, angle
+
+def build_save_path(key, filetype):
+    base_name = os.path.splitext(os.path.basename(key))[0]
+    path_name = os.path.dirname(key)
+    path_name = path_name.split('/')[1:]
+    path_name = '/'.join(path_name)
+    save_path = f"cleaned_numpy/{path_name}/{base_name}{filetype}"
+    return base_name, save_path
+
+def handle_pose_file(s3, bucket_name, key, filetype, dryrun, prev_frames, cleaned_list, val_list):
+    print(f"\n[INFO] Processing: {key}")
+    if dryrun:
+        print(f"[DRYRUN] Would download: {key}")
+        return prev_frames
+    try:
+        temp_path = download_s3_file(s3, bucket_name, key, filetype)
+        data = np.load(temp_path)
+        print(data.shape)
+        valid, data, switch_point, max_y_pt, ankle_points, angle = process_pose_file(data)
+        val_list.append(valid)
+        base_name, save_path = build_save_path(key, filetype)
+        print(f"Path name: {os.path.dirname(key)}")
+        print(f"Base name: {base_name}")
+        print(f"Save path: {save_path}")
+    except Exception as e:
+        print("FAILED", e)
+    return prev_frames
+
+
+def list_and_play_mp4_from_s3(
+    bucket_name, 
+    prefix, 
+    aws_access_key_id=None, 
+    aws_secret_access_key=None, 
+    region_name='us-east-2',
+    filetype='.npy',
+    dryrun=True
+):
+    s3 = get_s3_client(aws_access_key_id, aws_secret_access_key, region_name)
+    cleaned_list = []
+    val_list = []
+    prev_frames = None
+    for key in list_s3_files(s3, bucket_name, prefix, filetype):
+        if dryrun:
+            print(f"[DRYRUN] Would process: {key}")
+            continue
+        else:
+            prev_frames = handle_pose_file(
+                s3, bucket_name, key, filetype, dryrun, prev_frames, cleaned_list, val_list
+            )
     print(val_list)
-    print(np.sum(val_list)/len(val_list))
+    if len(val_list) > 0:
+        print(np.sum(val_list)/len(val_list))
     return cleaned_list
+
+
+# def find_all_pro_npy_files(download: bool = False):
+#     pass
+
+
+if __name__ == "__main__":
+    # Example usage
+    bucket_name = "shadow-trainer-prod"
+    prefix = "pro_3d_keypoints"
+    # cleaned_data = find_all_pro_npy_files(bucket_name, prefix, dryrun=True)
+    # print(f"Processed {len(cleaned_data)} valid pose sequences.")

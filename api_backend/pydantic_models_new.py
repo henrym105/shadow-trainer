@@ -37,7 +37,6 @@ class VideoJob(BaseModel):
     output_path: Optional[str] = None
     status: JobStatus = JobStatus.QUEUED
     progress: int = 0
-    message: Optional[str] = None
     error_message: Optional[str] = None
     
     @classmethod

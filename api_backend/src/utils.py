@@ -11,11 +11,78 @@ import yaml
 from easydict import EasyDict as edict
 
 
+# =============================================================================
+# YAML/Configuration utilities
+# =============================================================================
+
+def construct_include(loader: 'Loader', node: yaml.Node) -> Any:
+    """Include file referenced at node."""
+
+    filename = os.path.abspath(os.path.join(loader._root, loader.construct_scalar(node)))
+    extension = os.path.splitext(filename)[1].lstrip('.')
+
+    with open(filename, 'r') as f:
+        if extension in ('yaml', 'yml'):
+            return yaml.load(f, Loader)
+        elif extension in ('json',):
+            return json.load(f)
+        else:
+            return ''.join(f.readlines())
+
+
+class Loader(yaml.SafeLoader):
+    """YAML Loader with `!include` constructor."""
+
+    def __init__(self, stream: IO) -> None:
+        """Initialise Loader."""
+
+        try:
+            self._root = os.path.split(stream.name)[0]
+        except AttributeError:
+            self._root = os.path.curdir
+
+        super().__init__(stream)
+
+
+def get_config(config_path):
+    yaml.add_constructor('!include', construct_include, Loader)
+    with open(config_path, 'r') as stream:
+        config = yaml.load(stream, Loader=Loader)
+    config = edict(config)
+    _, config_filename = os.path.split(config_path)
+    config_name, _ = os.path.splitext(config_filename)
+    config.name = config_name
+    return config
+
+
+# =============================================================================
+# Mathematical/geometric utilities
+# =============================================================================
+
 def normalize_screen_coordinates(X, w, h):
     assert X.shape[-1] == 2 or X.shape[-1] == 3
     result = np.copy(X)
     result[..., :2] = X[..., :2] / w * 2 - [1, h / w]
     return result
+
+
+def qrot(q, v):
+    assert q.shape[-1] == 4
+    assert v.shape[-1] == 3
+    assert q.shape[:-1] == v.shape[:-1]
+    qvec = q[..., 1:]
+    uv = torch.cross(qvec, v, dim=len(q.shape)-1)
+    uuv = torch.cross(qvec, uv, dim=len(q.shape)-1)
+    return (v + 2 * (q[..., :1] * uv + uuv))
+
+
+def camera_to_world(X, R, t):
+    return wrap(qrot, np.tile(R, (*X.shape[:-1], 1)), X) + t
+
+
+# =============================================================================
+# Tensor/array utilities
+# =============================================================================
 
 def wrap(func, *args, unsqueeze=False):
     args = list(args)
@@ -40,79 +107,10 @@ def wrap(func, *args, unsqueeze=False):
     else:
         return result
 
-def qrot(q, v):
-    assert q.shape[-1] == 4
-    assert v.shape[-1] == 3
-    assert q.shape[:-1] == v.shape[:-1]
-    qvec = q[..., 1:]
-    uv = torch.cross(qvec, v, dim=len(q.shape)-1)
-    uuv = torch.cross(qvec, uv, dim=len(q.shape)-1)
-    return (v + 2 * (q[..., :1] * uv + uuv))
 
-def camera_to_world(X, R, t):
-    return wrap(qrot, np.tile(R, (*X.shape[:-1], 1)), X) + t
-
-
-
-class Loader(yaml.SafeLoader):
-    """YAML Loader with `!include` constructor."""
-
-    def __init__(self, stream: IO) -> None:
-        """Initialise Loader."""
-
-        try:
-            self._root = os.path.split(stream.name)[0]
-        except AttributeError:
-            self._root = os.path.curdir
-
-        super().__init__(stream)
-
-
-def construct_include(loader: Loader, node: yaml.Node) -> Any:
-    """Include file referenced at node."""
-
-    filename = os.path.abspath(os.path.join(loader._root, loader.construct_scalar(node)))
-    extension = os.path.splitext(filename)[1].lstrip('.')
-
-    with open(filename, 'r') as f:
-        if extension in ('yaml', 'yml'):
-            return yaml.load(f, Loader)
-        elif extension in ('json',):
-            return json.load(f)
-        else:
-            return ''.join(f.readlines())
-
-def get_config(config_path):
-    yaml.add_constructor('!include', construct_include, Loader)
-    with open(config_path, 'r') as stream:
-        config = yaml.load(stream, Loader=Loader)
-    config = edict(config)
-    _, config_filename = os.path.split(config_path)
-    config_name, _ = os.path.splitext(config_filename)
-    config.name = config_name
-    return config
-
-
-def print_args(args):
-    print("[INFO] Input arguments:")
-    for key, val in args.items():
-        print(f"[INFO]   {key}: {val}")
-        
-
-def set_random_seed(seed):
-    """Sets random seed for training reproducibility"""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-
-def count_param_numbers(model):
-    model_params = 0
-    for parameter in model.parameters():
-        model_params = model_params + parameter.numel()
-    return model_params
-
+# =============================================================================
+# File system utilities
+# =============================================================================
 
 def create_directory_if_not_exists(path):
     if not os.path.exists(path):
@@ -156,3 +154,28 @@ def download_file_if_not_exists(filename_pattern, local_dir, s3_bucket="shadow-t
                     return local_path
 
     raise FileNotFoundError(f"No checkpoint found matching pattern '{filename_pattern}' in {local_dir} or s3://{s3_bucket}/{s3_prefix}/")
+
+
+# =============================================================================
+# Development/debugging utilities
+# =============================================================================
+
+def print_args(args):
+    print("[INFO] Input arguments:")
+    for key, val in args.items():
+        print(f"[INFO]   {key}: {val}")
+        
+
+def set_random_seed(seed):
+    """Sets random seed for training reproducibility"""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
+def count_param_numbers(model):
+    model_params = 0
+    for parameter in model.parameters():
+        model_params = model_params + parameter.numel()
+    return model_params

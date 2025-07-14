@@ -1,8 +1,9 @@
 import argparse
 import copy
 import glob
+import logging
 import os
-from os.path import join
+from os.path import join as pjoin
 
 import cv2
 import matplotlib
@@ -19,7 +20,12 @@ from src.preprocess import h36m_coco_format
 from src.hrnet.gen_kpts import gen_video_kpts
 from src.utils import download_file_if_not_exists, normalize_screen_coordinates, camera_to_world, get_config
 from src.model.MotionAGFormer import MotionAGFormer
-from src.visualizations import get_numpy_info, resample_pose_sequence, shift_data_time
+from src.visualizations import resample_pose_sequence, time_warp_pro_video
+from src.yolo2d import YOLOPoseEstimator
+
+# logger = logging.getLogger("api_service")
+logger = logging.getLogger(__name__)
+
 
 plt.switch_backend('agg')
 matplotlib.rcParams['pdf.fonttype'] = 42
@@ -47,9 +53,9 @@ def get_joint_colors(color='R', use_0_255_range=False):
     """
     format_options = {
         'RB':  ((0.0, 0.0, 1.0), (1.0, 0.0, 0.0)),     # Blue, Red
-        'R':   ((0.6, 0.0, 0.0), (1.0, 0.0, 0.0)),     # Dark Red, Bright Red
+        'R':   ((0.4, 0.0, 0.0), (1.0, 0.0, 0.0)),     # Dark Red, Bright Red
         'G':   ((0.0, 0.6, 0.0), (0.0, 1.0, 0.0)),     # Dark Green, Bright Green
-        'blk': ((0.4, 0.4, 0.4), (0.2, 0.2, 0.2)),     # Light gray, Dark gray
+        'blk': ((0.4, 0.4, 0.4), (0.1, 0.1, 0.1)),     # Light gray, Dark gray
     }
 
     lcolor, rcolor = format_options.get(color, ((0,0,1),(1,0,0)))  # Default to Blue, Red
@@ -64,36 +70,50 @@ def get_joint_colors(color='R', use_0_255_range=False):
     return (lcolor, rcolor)
 
 
-
-def show2Dpose(kps: np.ndarray, img: np.ndarray, color = 'R') -> np.ndarray:
-    """
-    Draws a 2D human pose skeleton on the given image using the provided keypoints.
+def show2Dpose(kps: np.ndarray, img: np.ndarray, color='R', is_lefty: bool = False) -> np.ndarray:
+    """Draws a 2D human pose skeleton on the given image using the provided keypoints.
 
     Args:
-        kps (np.ndarray): An array of shape (N, 2) containing the 2D coordinates of keypoints.
+        kps (np.ndarray): An array of shape (17, 3) containing the 2D coordinates and confidence scores (x, y, conf) for all 17 keypoints in this image. 
         img (np.ndarray): The image (as a NumPy array) on which to draw the skeleton.
+        color (str): Color scheme to use for the skeleton.
+        is_lefty (bool): If True, mark left foot (index 6) as front foot; else right foot (index 3).
 
     Returns:
         np.ndarray: The image with the 2D pose skeleton drawn on it.
     """
+    # convert kps to int
+    kps = kps.astype(int)
+
     connections = [[0, 1], [1, 2], [2, 3], [0, 4], [4, 5],
-                   [5, 6], [0, 7], [7, 8], [8, 9], [9, 10],
-                   [8, 11], [11, 12], [12, 13], [8, 14], [14, 15], [15, 16]]
+                    [5, 6], [0, 7], [7, 8], [8, 9], [9, 10],
+                    [8, 11], [11, 12], [12, 13], [8, 14], [14, 15], [15, 16]]
 
     # 1 = left arm & leg, 0 = right arm/leg, torso, neck
     LR = np.array([0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0], dtype=bool)
 
     lcolor, rcolor = get_joint_colors(color, use_0_255_range=True)
     thickness = 3
+    assert kps.shape == (17,3), "Keypoints should be a 2D array with shape (n_person, n_frames, 17, 3). Received shape: {}".format(kps.shape)
+
+    # Determine front foot keypoint index based on is_lefty
+    front_foot_idx = 3 if is_lefty else 6
+    green_color = (0, 255, 0)  # Green color in BGR format
 
     for j,c in enumerate(connections):
-        start = map(int, kps[c[0]])
-        end = map(int, kps[c[1]])
-        start = list(start)
-        end = list(end)
+        # EXAMPLE: c = [5,6] --> connecting 5th keypoint (left knee) to 6th keypoint (left ankle)
+        #          kps[c[1]] = kps[6] = (x,y) coordinated of the left ankle
+
+        start = kps[c[0]]
+        end = kps[c[1]]
+
         cv2.line(img, (start[0], start[1]), (end[0], end[1]), lcolor if LR[j] else rcolor, thickness)
-        cv2.circle(img, (start[0], start[1]), thickness=-1, color=(0, 255, 0), radius=3)
-        cv2.circle(img, (end[0], end[1]), thickness=-1, color=(0, 255, 0), radius=3)
+        cv2.circle(img, (start[0], start[1]), thickness=-1, color=(0, 0, 0), radius=3)
+        cv2.circle(img, (end[0], end[1]), thickness=-1, color=(0, 0, 0), radius=3)
+
+    # Draw the front foot in green
+    front_foot = kps[front_foot_idx]
+    cv2.circle(img, (front_foot[0], front_foot[1]), thickness=-1, color=green_color, radius=5)
 
     return img
 
@@ -138,44 +158,38 @@ def show3Dpose(vals, ax, color='RB', camera_view_height = 15.0, camera_view_z_ro
 
 
 
-def get_pose2D(video_path, output_dir, device) -> np.ndarray:
+def get_pose2D(video_path, output_file, device, yolo_version: str = "11") -> np.ndarray:
     """ Generate 2D pose keypoints from a video file and save them as a .npy file.
     
     Args:
         video_path (str): Path to the input video file.
-        output_dir (str): Directory where the output will be saved.
+        output_file (str): Path to save the output 2D keypoints .npy file.
         device (str): Device to run the model on ('cpu', 'cuda', or 'mps').
 
     Returns:
         str: Path to the saved 2D keypoints .npy file.
     """
-    cap = cv2.VideoCapture(video_path)
-    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    logger.info('\n\nGenerating 2D pose...')
+    checkpoint_dir = pjoin(BACKEND_API_DIR_ROOT, "checkpoint")
 
-    print('\nGenerating 2D pose...')
+    if yolo_version == "3":
+        # Download hrnet and v3 weights from S3 if they don't exist locally
+        download_file_if_not_exists("pose_hrnet_w48_384x288.pth", checkpoint_dir)
+        download_file_if_not_exists("yolov3.weights", checkpoint_dir)
+        keypoints, scores = gen_video_kpts(video_path, det_dim=416, num_person=1, gen_output=True, device=device)
+        keypoints, scores, valid_frames = h36m_coco_format(keypoints, scores)
+        # Add conf score to the last dim
+        keypoints = np.concatenate((keypoints, scores[..., None]), axis=-1)
 
-    # Check if HRNet checkpoint exists, if not, download from S3
-    checkpoint_dir = join(BACKEND_API_DIR_ROOT, "checkpoint")
-    download_file_if_not_exists("pose_hrnet_w48_384x288.pth", checkpoint_dir)
-    download_file_if_not_exists("yolov3.weights", checkpoint_dir)
+    elif yolo_version == "11":
+        estimator = YOLOPoseEstimator("yolo11x-pose.pt", checkpoint_dir, device)
+        keypoints = estimator.get_keypoints_from_video(video_path)
 
-    keypoints, scores = gen_video_kpts(video_path, det_dim=416, num_person=2, gen_output=True, device=device)
+    assert keypoints.ndim == 4, "Keypoints should have 4 dimensions for (num_ppl, num_frames, 17, 3). Received shape: {}".format(keypoints.shape)
+    np.save(output_file, keypoints)
+    if DEBUG: logger.info(f"2D keypoints (COCO format) saved to {output_file}, with shape {keypoints.shape}")
 
-    keypoints, scores, valid_frames = h36m_coco_format(keypoints, scores)
-
-    # Add conf score to the last dim
-    keypoints = np.concatenate((keypoints, scores[..., None]), axis=-1)
-
-    output_dir = join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
-    os.makedirs(output_dir, exist_ok=True)
-
-    output_2d_keypoints_filepath = join(output_dir, KEYPOINTS_FILE_2D)
-    np.save(output_2d_keypoints_filepath, keypoints)
-    if DEBUG: print(f"2D keypoints saved to {output_2d_keypoints_filepath}, with shape {keypoints.shape}")
-
-    return output_2d_keypoints_filepath
-
+    return output_file
 
 
 def load_npy_file(npy_filepath: str) -> np.ndarray:
@@ -189,7 +203,7 @@ def load_npy_file(npy_filepath: str) -> np.ndarray:
     """
     keypoints_array: np.ndarray = np.load(npy_filepath)
     keypoints_array = keypoints_array.astype(np.float32)
-    if DEBUG: print(f"Loaded professional keypoints from {npy_filepath} with shape {keypoints_array.shape} and dype: {keypoints_array.dtype}")
+    if DEBUG: logger.info(f"Loaded professional keypoints from {npy_filepath} with shape {keypoints_array.shape} and dype: {keypoints_array.dtype}")
     return keypoints_array
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -198,14 +212,14 @@ def load_npy_file(npy_filepath: str) -> np.ndarray:
 # --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 @torch.no_grad()
 def get_pose3D_no_vis(
-    user_keypoints_path: str, video_path: str, output_dir: str, device: str, model_size: str='xs', yaml_path: str=None
+    user_2d_kpts_filepath: str, output_keypoints_path: str, video_path: str, device: str, model_size: str='xs', yaml_path: str=""
     ):
     """Run 3D pose inference from 2D keypoints and save the output 3D keypoints as .npy. No visualization or pro comparison.
 
     Args:
-        user_keypoints_path (str): Path to the 2D keypoints .npy file.
+        user_2d_kpts_filepath (str): Path to the 2D keypoints .npy file.
+        output_keypoints_path (str): Path to save the output 3D keypoints .npy file.
         video_path (str): Path to the input video file.
-        output_dir (str): Directory to save the output.
         device (str): PyTorch device.
         model_size (str): Model size string.
         yaml_path (str): Path to model config YAML.
@@ -213,8 +227,7 @@ def get_pose3D_no_vis(
     Returns:
         str: Path to saved 3D keypoints .npy file.
     """
-    
-    if yaml_path is not None:
+    if yaml_path:
         args = get_config(yaml_path)
         args = {k: v for k, v in args.items() if k in [
             'n_layers', 'dim_in', 'dim_feat', 'dim_rep', 'dim_out',
@@ -231,21 +244,29 @@ def get_pose3D_no_vis(
     else:
         raise ValueError("You must provide a YAML configuration file for the model via the 'yaml_path' argument.")
 
-    if DEBUG: print("\n[INFO] Using MotionAGFormer with the following configuration:")
+    if DEBUG: logger.info("\n[INFO] Using MotionAGFormer with the following configuration:")
     if DEBUG: pprint(args)
 
     # Load model and set to eval() mode to disable training-specific pytorch features
     model = nn.DataParallel(MotionAGFormer(**args)).to(device)
-    checkpoint_dir = join(BACKEND_API_DIR_ROOT, "checkpoint")
+    checkpoint_dir = pjoin(BACKEND_API_DIR_ROOT, "checkpoint")
     model_filename = f"motionagformer-{model_size}-h36m*.pth*"
     model_path = download_file_if_not_exists(model_filename, checkpoint_dir)
     pre_dict = torch.load(model_path, map_location=device)
     model.load_state_dict(pre_dict['model'], strict=True)
     model.eval()
-    if DEBUG: print(f"MotionAGFormer model (version: {model_size}) sent to device: {device}, model object type: {type(model)}")
+    if DEBUG: logger.info(f"MotionAGFormer model (version: {model_size}) sent to device: {device}, model object type: {type(model)}")
+
+    # if not os.path.exists(user_2d_kpts_filepath):
+    #     # Use glob to find all files in all subdirectories of BACKEND_API_DIR_ROOT that match the basename of user_2d_kpts_filepath
+    #     basename = os.path.basename(user_2d_kpts_filepath)
+    #     search_pattern = os.path.join(BACKEND_API_DIR_ROOT, "**", basename)
+    #     found_files = glob.glob(search_pattern, recursive=True)
+    #     logger.info(f"Searching for '{basename}' in '{BACKEND_API_DIR_ROOT}' (recursive): found {len(found_files)} file(s): {found_files}")
+    #     raise FileNotFoundError(f"2D keypoints file not found: {user_2d_kpts_filepath}")
 
     # Load 2D keypoints
-    keypoints = np.load(user_keypoints_path, allow_pickle=True)
+    keypoints = np.load(user_2d_kpts_filepath, allow_pickle=True)
     clips, downsample = turn_into_clips(keypoints=keypoints, target_frames=args['n_frames'])
 
     # Infer video length from keypoints shape
@@ -253,25 +274,24 @@ def get_pose3D_no_vis(
     cap = cv2.VideoCapture(video_path)
     img_size_h_w = get_frame_size(cap)
     num_frames = keypoints.shape[1]
+    cap.release()
+
     user_output_3d_keypoints = np.empty((num_frames, 17, 3))
-
-    # Dummy image size (should match normalization in training)
-    # If you have original image size, use it. Here we use 256x256 as fallback.
-    print('\nGenerating 2D pose image...')
-    create_2D_images(cap, keypoints, output_dir)
-
     idx = 0
-    for clip_idx in tqdm(range(len(clips)), desc="Running MotionAGFormer model to convert 2D keypoints to 3D", unit="clip"):
+    for clip_idx in tqdm(range(len(clips)), desc="MotionAGFormer iterations", unit="clip"):
         clip = clips[clip_idx]
         input_2D = normalize_screen_coordinates(clip, w=img_size_h_w[1], h=img_size_h_w[0])
         input_2D_aug = flip_data(input_2D)
         input_2D = torch.from_numpy(input_2D.astype('float32')).to(device)
         input_2D_aug = torch.from_numpy(input_2D_aug.astype('float32')).to(device)
+        
         output_3D_non_flip = model(input_2D)
         output_3D_flip = flip_data(model(input_2D_aug))
         output_3D = (output_3D_non_flip + output_3D_flip) / 2
+        
         if clip_idx == len(clips) - 1:
             output_3D = output_3D[:, downsample]
+
         output_3D[:, :, 0, :] = 0
         post_out_all = output_3D[0].cpu().detach().numpy()
         for j, post_out in enumerate(post_out_all):
@@ -279,38 +299,20 @@ def get_pose3D_no_vis(
                 user_output_3d_keypoints[idx] = standardize_3d_keypoints(post_out)
                 idx += 1
 
-    output_3D_npy = join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_USER)
-    np.save(output_3D_npy, user_output_3d_keypoints)
-    if DEBUG: print(f"3D keypoints saved to {output_3D_npy}, with shape {user_output_3d_keypoints.shape}")
+    # output_3D_npy = pjoin(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_USER)
+    # np.save(output_3D_npy, user_output_3d_keypoints)
+    np.save(output_keypoints_path, user_output_3d_keypoints)
 
-    cap.release()
-    return output_3D_npy
+    if DEBUG: logger.info(f"3D keypoints saved to {output_keypoints_path}, with shape {user_output_3d_keypoints.shape}")
 
-
-# def temporal_match_3D_keypoints(user_3D_keypoints, pro_3D_keypoints):
-#     # Robust version: only apply shift if valid, else return original
-#     valid, switch_point, max_y_pt, ankle_points = get_numpy_info(user_3D_keypoints)
-#     print("[temporal_match_3D_keypoints] valid:", valid, "switch_point:", switch_point, "max_y_pt:", max_y_pt)
-#     if not valid or switch_point == 0 or max_y_pt == 0:
-#         print("[temporal_match_3D_keypoints] Skipping temporal alignment: invalid or insufficient data.")
-#         return pro_3D_keypoints
-#     try:
-#         seg1 = 200
-#         seg2 = 100
-#         seg3 = len(user_3D_keypoints) - switch_point
-#         pro_3D_keypoints = shift_data_time(pro_3D_keypoints, seg1, seg2, max_y_pt, switch_point - max_y_pt, seg3)
-#         print(f"[temporal_match_3D_keypoints] Applied shift_data_time with seg1={seg1}, seg2={seg2}, seg3={seg3}")
-#         return pro_3D_keypoints
-#     except Exception as e:
-#         print(f"[temporal_match_3D_keypoints] Error in shift_data_time: {e}")
-#         return pro_3D_keypoints
-
+    return output_keypoints_path
 
 
 def create_3d_pose_images_from_array(
     user_3d_keypoints_filepath: str,
     output_dir: str,
-    pro_keypoints_filepath: str = None
+    pro_keypoints_filepath: str = None,
+    is_lefty: bool = False
 ) -> None:
     """
     Create 3D pose frame visualizations for each frame in the given 3D keypoints array.
@@ -318,37 +320,50 @@ def create_3d_pose_images_from_array(
     Args:
         user_3d_keypoints (str): Path to a numpy array of shape (N, 17, 3) containing the 3D keypoints for 17 body points and N frames of the user's input video.
         output_dir (str): Output directory to save the images.
-        pro_keypoints_npy (np.ndarray, optional): Path to a numpy array of professional 3D keypoints with shape (N, 17, 3)
         pro_keypoints_filepath (str, optional): Path to the professional keypoints file (for debug/logging).
+        is_lefty (bool): If True, flip the professional keypoints horizontally.
     """
     angle_adjustment = 0.0
-    USE_BODY_PART = "feet"
-    # USE_BODY_PART = "hips"
-    output_dir_3D = join(output_dir, 'pose3D')
+    # USE_BODY_PART = "feet"
+    # USE_BODY_PART = "shoulders"
+    USE_BODY_PART = "hips"
+    
+    # output_dir_3D = pjoin(output_dir, 'pose3D')
+    output_dir_3D = output_dir
     os.makedirs(output_dir_3D, exist_ok=True)
 
     # Load professional keypoints and prepare for alignment
     user_keypoints_npy = load_npy_file(user_3d_keypoints_filepath)
     pro_keypoints_npy = load_npy_file(pro_keypoints_filepath)
+
+    # Flip pro keypoints if is_lefty is True
+    if is_lefty:
+        pro_keypoints_npy = flip_data(pro_keypoints_npy)
+
     # Pro keypoints should already be standardized, but do it again here just in case
     pro_keypoints_npy = np.array([standardize_3d_keypoints(frame, apply_rotation=False) for frame in pro_keypoints_npy])
 
-    if DEBUG: print(f"User keypoints shape: {user_keypoints_npy.shape}")
-    if DEBUG: print(f"Professional keypoints shape: {pro_keypoints_npy.shape}")
-    if DEBUG: print(f"user_keypoints_npy dtype: {user_keypoints_npy.dtype}")
-    if DEBUG: print(f"pro_keypoints_npy dtype: {pro_keypoints_npy.dtype}")
+    if DEBUG: logger.info(f"User keypoints shape: {user_keypoints_npy.shape}")
+    if DEBUG: logger.info(f"Professional keypoints shape: {pro_keypoints_npy.shape}")
+    if DEBUG: logger.info(f"user_keypoints_npy dtype: {user_keypoints_npy.dtype}")
+    if DEBUG: logger.info(f"pro_keypoints_npy dtype: {pro_keypoints_npy.dtype}")
 
+    # ------------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------
     # --- Find motion start for both user and pro, then crop ---
-    user_start = find_motion_start(user_keypoints_npy)
-    pro_start = find_motion_start(pro_keypoints_npy)
+    MVMT_PCT_THRESHOLD = 4
+    user_start = find_motion_start(user_keypoints_npy, is_lefty=is_lefty, min_pct_change=MVMT_PCT_THRESHOLD)
+    pro_start = find_motion_start(pro_keypoints_npy, is_lefty=is_lefty, min_pct_change=MVMT_PCT_THRESHOLD)
     if DEBUG:
-        print(f"User motion starts at frame: {user_start}")
-        print(f"Pro motion starts at frame: {pro_start}")
+        logger.info(f"User motion starts at frame: {user_start}")
+        logger.info(f"Pro motion starts at frame: {pro_start}")
 
     user_keypoints_npy = user_keypoints_npy[user_start:]
     pro_keypoints_npy = pro_keypoints_npy[pro_start:]
-
-    remove_images_before_motion_start(os.path.join(output_dir, 'pose2D'), user_start)
+    # Note: output_dir points to the 'pose' directory, but pose2D is at the job root level
+    job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
+    pose2d_dir = pjoin(job_output_dir, 'pose2D')
+    remove_images_before_motion_start(pose2d_dir, user_start)
 
     # Set video_length to the minimum of number of frames between user and pro keypoints files
     num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
@@ -356,13 +371,29 @@ def create_3d_pose_images_from_array(
     # Resample the longer sequence to match the shorter one
     user_keypoints_npy = resample_pose_sequence(user_keypoints_npy, num_frames)
     pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, num_frames)
-    if DEBUG: print(f"\nUser keypoints shape after crop/resample: {user_keypoints_npy.shape}")
-    if DEBUG: print(f"Professional keypoints shape after crop/resample: {pro_keypoints_npy.shape}")
+    if DEBUG: logger.info(f"\nUser keypoints shape after crop/resample: {user_keypoints_npy.shape}")
+    if DEBUG: logger.info(f"Professional keypoints shape after crop/resample: {pro_keypoints_npy.shape}")
+
+
+    pro_keypoints_npy = time_warp_pro_video(user_keypoints_npy, pro_keypoints_npy)
+    if DEBUG: logger.info(f"User keypoints shape after time warp: {user_keypoints_npy.shape}")
+    if DEBUG: logger.info(f"Professional keypoints shape after time warp: {pro_keypoints_npy.shape}")
+
+    # ------------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------
+
+    assert (user_keypoints_npy.shape == pro_keypoints_npy.shape), \
+        f"User and professional keypoints must have the same shape after cropping & resampling. Got user: {user_keypoints_npy.shape}, pro: {pro_keypoints_npy.shape}"
+    num_frames = user_keypoints_npy.shape[0]
 
     # Save a copy of the professional keypoints for reference
-    output_pro_3D_npy_path = os.path.join(output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS, KEYPOINTS_FILE_3D_PRO)
+    # Note: output_dir points to the 'pose' directory, but we need to save to the job root's raw_keypoints directory
+    job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
+    raw_keypoints_dir = pjoin(job_output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
+    os.makedirs(raw_keypoints_dir, exist_ok=True)
+    output_pro_3D_npy_path = pjoin(raw_keypoints_dir, KEYPOINTS_FILE_3D_PRO)
     np.save(output_pro_3D_npy_path, pro_keypoints_npy)
-    if DEBUG: print(f"Professional 3D keypoints saved to {output_pro_3D_npy_path}, with shape {pro_keypoints_npy.shape}")
+    if DEBUG: logger.info(f"Professional 3D keypoints saved to {output_pro_3D_npy_path}, with shape {pro_keypoints_npy.shape}")
 
     for frame_id in tqdm(range(num_frames), desc="Creating 3D pose images", unit="frame"):
         # Create a new figure for this frame
@@ -383,16 +414,23 @@ def create_3d_pose_images_from_array(
                 pro_angle = get_stance_angle(pro_keypoints_this_frame, USE_BODY_PART)
                 angle_adjustment = user_angle - pro_angle
                 if DEBUG:
-                    print("user_3d_keypoints shape:", user_keypoints_this_frame.shape)
-                    print("pro_keypoints_std shape:", pro_keypoints_this_frame.shape)
-                    print(f"Angle between {USE_BODY_PART} in first frame of USER VIDEO: {user_angle:.2f} degrees")
-                    print(f"Angle between {USE_BODY_PART} in first frame of PROFESSIONAL VIDEO: {pro_angle:.2f} degrees")
-                    print("Angle adjustment:", int(angle_adjustment))
+                    logger.info(f"user_3d_keypoints shape: {user_keypoints_this_frame.shape}")
+                    logger.info(f"pro_keypoints_std shape: {pro_keypoints_this_frame.shape}")
+                    logger.info(f"Angle between {USE_BODY_PART} in first frame of USER VIDEO: {user_angle:.2f} degrees")
+                    logger.info(f"Angle between {USE_BODY_PART} in first frame of PROFESSIONAL VIDEO: {pro_angle:.2f} degrees")
+                    logger.info(f"Angle adjustment: {int(angle_adjustment)}")
             # Create the pose overlay image with the user and pro keypoints
-            create_pose_overlay_image(user_keypoints_this_frame, pro_keypoints_this_frame, ax, angle_adjustment, USE_BODY_PART)
+            create_pose_overlay_image(
+                data1 = user_keypoints_this_frame, 
+                data2 = pro_keypoints_this_frame, 
+                ax = ax, 
+                angle_adjustment = angle_adjustment,  
+                use_body_part = USE_BODY_PART,
+                show_hip_reference_line = False
+            )
 
         # Save this 3D pose image
-        output_path_3D_this_frame = join(output_dir_3D, f"{frame_id:04d}_3D.png")
+        output_path_3D_this_frame = pjoin(output_dir_3D, f"{frame_id:04d}_3D.png")
         plt.savefig(output_path_3D_this_frame, dpi=200, format='png', bbox_inches='tight')
         plt.close(fig)
 
@@ -405,55 +443,57 @@ def remove_images_before_motion_start(pose_img_dir, delete_before_idx = 0):
         dir_type (str): Type of directory to remove images from ('2D' or '3D').
         delete_before_idx (int): Index before which images should be deleted.
     """
-    # pose_img_dir = os.path.join(output_dir, f'pose{dir_type}')
-
+    print(f"Removing pose2D images before index {delete_before_idx} in directory: {pose_img_dir}")
     if os.path.exists(pose_img_dir):
         pose2d_imgs = sorted([f for f in os.listdir(pose_img_dir) if f.endswith('.png')])
         # Remove images before user_start
         for i, fname in enumerate(pose2d_imgs):
             if i < delete_before_idx:
                 try:
-                    os.remove(os.path.join(pose_img_dir, fname))
+                    os.remove(pjoin(pose_img_dir, fname))
                     if DEBUG:
-                        print(f"Removed pose2D frame: {fname}")
+                        logger.info(f"Removed pose2D frame: {fname}")
                 except Exception as e:
-                    print(f"Error removing {fname}: {e}")
+                    logger.info(f"Error removing {fname}: {e}")
+    else:
+        logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
 
 
-def find_motion_start(keypoints: np.ndarray, joint_names=("Left Knee", "Left Ankle"), z_threshold=0.01, min_delta=0.01) -> int:
-    """
-    Find the first frame where any of the specified joints' z-axis increases by at least min_delta
-    compared to the previous frame (i.e., start of upward movement).
+def find_motion_start(keypoints: np.ndarray, is_lefty: bool = True, min_pct_change: float = 3) -> int:
+    """Find the first frame where the distance between the front foot and sacrum (index 0)
+    changes by more than min_pct_change percent relative to the distance in the first frame, using only the z direction.
 
     Args:
-        keypoints (np.ndarray): Shape (N, 17, 3)
-        joint_names (tuple): Joints to check for motion start.
-        z_threshold (float): Minimum z value to consider as "moving".
-        min_delta (float): Minimum change in z to count as movement.
+        keypoints (np.ndarray): Shape (n_frames, 17, 3)
+        is_lefty (bool): If True, use left foot (index 6) as front foot; else right foot (index 3).
+        min_pct_change (float): Minimum relative decrease (as percent) to count as movement.
 
     Returns:
         int: Index of the first frame where movement is detected.
     """
-    joint_indices = []
-    all_joint_names = [
-        "Hip", "Right Hip", "Right Knee", "Right Ankle",
-        "Left Hip", "Left Knee", "Left Ankle", "Spine",
-        "Thorax", "Neck", "Head", "Left Shoulder",
-        "Left Elbow", "Left Wrist", "Right Shoulder",
-        "Right Elbow", "Right Wrist"
-    ]
-    for name in joint_names:
-        joint_indices.append(all_joint_names.index(name))
+    # Right Ankle is 3, Left Ankle is 6
+    front_foot_idx = 3 if is_lefty else 6 
+    sacrum_idx = 0
 
-    # Lower thresholds for higher sensitivity
-    for i in range(1, keypoints.shape[0]):
-        for idx in joint_indices:
-            prev_z = keypoints[i-1, idx, 2]
-            curr_z = keypoints[i, idx, 2]
-            # Use abs to detect any significant vertical change (up or down)
-            if abs(curr_z - prev_z) > min_delta and abs(curr_z) > z_threshold:
-                return i
+    if keypoints.ndim == 4:
+        keypoints = keypoints[0]
+
+    # Compute initial z distance in the first frame
+    initial_dist = abs(keypoints[0, front_foot_idx, 2] - keypoints[0, sacrum_idx, 2])
+    if initial_dist == 0:
+        return 0  # Avoid division by zero
+
+    for i in range(0, len(keypoints)):
+        front_foot_z = keypoints[i, front_foot_idx, 2]
+        sacrum_z = keypoints[i, sacrum_idx, 2]
+
+        curr_dist = abs(front_foot_z - sacrum_z)
+        pct_change = ((initial_dist - curr_dist) / initial_dist) * 100
+        # if DEBUG: logger.info(f"Frame {i}: initial_dist = {initial_dist:.3f}, curr_dist = {curr_dist:.2f}, rel_decrease = {pct_change:.4f}")
+        if pct_change > min_pct_change:
+            return i
     return 0  # fallback: no movement detected
+
 
 # -----------------------------------------------------------------------------------------------------------------------------
 # ---------------------------------------------------  END OF BIG REFACTOR  ---------------------------------------------------
@@ -474,22 +514,22 @@ def get_frame_size(cap: cv2.VideoCapture) -> tuple:
     return (height, width, 3)  # Assuming 3 channels (RGB)
 
 
-def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir: str) -> str:
-    output_dir_2D = join(output_dir, 'pose2D')
-    os.makedirs(output_dir_2D, exist_ok=True)
+def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir_2D: str, is_lefty: bool) -> str:
+    # output_dir_2D = pjoin(output_dir, 'pose2D')
+    # os.makedirs(output_dir_2D, exist_ok=True)
 
     n_frames = keypoints.shape[1]  
-    print(f"\nTotal number of frames in the video: {n_frames} ({keypoints.shape = }")
-    print('\nGenerating 2D pose images...')
+    logger.info(f"Total number of frames in the video: {n_frames} ({keypoints.shape = }")
+    logger.info('\n\nGenerating 2D pose images...')
     for i in tqdm(range(n_frames)):
         is_valid, img = cap.read()
         if not is_valid:
             continue
         keypoints_2D_this_frame = keypoints[0][i]
-        image_w_keypoints = show2Dpose(keypoints_2D_this_frame, copy.deepcopy(img))
-        output_path_img_2D = join(output_dir_2D, f"{i:04d}_2D.png")
+        image_w_keypoints = show2Dpose(keypoints_2D_this_frame, copy.deepcopy(img), is_lefty=is_lefty)
+        output_path_img_2D = pjoin(output_dir_2D, f"{i:04d}_2D.png")
         cv2.imwrite(output_path_img_2D, image_w_keypoints)
-    cap.release()
+
     return output_dir_2D
 
 
@@ -515,7 +555,7 @@ def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:
         left = data[6][:2]
         right = data[3][:2]
 
-    # print(f"\n[DEBUG] get_stance_angle() - left: {left}, right: {right}, use_body_part: {use_body_part}\n")
+    # logger.info(f"\n[DEBUG] get_stance_angle() - left: {left}, right: {right}, use_body_part: {use_body_part}\n")
     assert len(left) == 2 and len(right) == 2, f"Expected left and right to have length 2, got {len(left)} and {len(right)}"
 
     return find_angle(right, left)
@@ -524,8 +564,7 @@ def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:
 def create_pose_overlay_image(
     data1: np.ndarray, data2: np.ndarray, ax: matplotlib.axis,
     angle_adjustment: float = 0.0, use_body_part: str = "feet",
-    show_hip_reference_line: bool = False,
-    view_angle: float = 0.0, camera_height: float = 15.0
+    show_hip_reference_line: bool = False
 ) -> str:
     """Create a single image with 3D pose keypoints from data1 and data2 overlaid on the same axis.
     Both data1 and data2 are standardized before plotting.
@@ -537,11 +576,13 @@ def create_pose_overlay_image(
         angle_adjustment (float): Angle adjustment in degrees to align the pro pose with the user pose.
         use_body_part (str): Which body part to use for angle calculation: "feet", "hips", or "shoulders".
         show_hip_reference_line (bool): Whether to draw reference lines for the hip angles. Default is False.
-        view_angle (float): Elevation angle for the camera view.
-        camera_height (float): Height of the camera view.
+    
+    Returns:
+        str: Path to the saved overlay image.
+        
     """
     # Rotate the pro pose to align with the user pose based on the angle adjustment from the first frame
-    # print(f"[ DEBUG create_pose_overlay_image() ], {data1.shape =}, {data2.shape =}, {angle_adjustment = }, {use_body_part = }, {data1.dtype = }, {data2.dtype = }")
+    # logger.info(f"[ DEBUG create_pose_overlay_image() ], {data1.shape =}, {data2.shape =}, {angle_adjustment = }, {use_body_part = }, {data1.dtype = }, {data2.dtype = }")
     data2 = rotate_along_z(data2, angle_adjustment)
 
     # Recenter both poses on their left ankles
@@ -552,8 +593,8 @@ def create_pose_overlay_image(
     
     d1_angle = get_stance_angle(data1, use_body_part)
     d2_angle = get_stance_angle(data2, use_body_part)
-    # if DEBUG: print("\nuser stance angle =", int(d1_angle))
-    # if DEBUG: print("pro  stance angle =", int(d2_angle))
+    # if DEBUG: logger.info("\nuser stance angle =", int(d1_angle))
+    # if DEBUG: logger.info("pro  stance angle =", int(d2_angle))
 
     if show_hip_reference_line:
         draw_reference_angle_line(ax, d1_angle, color='blue', linewidth=2)
@@ -638,30 +679,28 @@ def standardize_3d_keypoints(keypoints: np.ndarray, apply_rotation: bool = True)
     return keypoints
 
 
-def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir: str) -> None:
+def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir_combined: str) -> None:
     """Generate a demo video showing 2D input and 3D reconstruction side by side."""
-    print('\nGenerating demo video frames...')
+    logger.info('\n\nGenerating demo video frames...')
     
     # Efficient batch processing for demo video generation
     # Accept both *_2D.png and *.png for 2D images (for compatibility)
-    image_2d_paths = sorted(glob.glob(join(output_dir_2D, '*_2D.png')))
+    image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*_2D.png')))
     if not image_2d_paths:
-        image_2d_paths = sorted(glob.glob(join(output_dir_2D, '*.png')))
-    image_3d_paths = sorted(glob.glob(join(output_dir_3D, '*.png')))
+        image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*.png')))
+    image_3d_paths = sorted(glob.glob(pjoin(output_dir_3D, '*.png')))
 
     n_frames = min(len(image_2d_paths), len(image_3d_paths))
     if n_frames == 0:
-        print("No frames found for demo video generation.")
+        logger.info("No frames found for demo video generation.")
         return
 
-    print('\nGenerating demo...')
-    output_dir_pose = join(output_dir, 'pose')
-    os.makedirs(output_dir_pose, exist_ok=True)
+    logger.info('\n\nGenerating demo...')
+    # output_dir_pose = pjoin(output_dir, 'pose')
+    # os.makedirs(output_dir_pose, exist_ok=True)
 
-    # Preload all images into memory for faster access (if memory allows)
-    images_2d = []
-    images_3d = []
-    for i in range(n_frames):
+    FONT_SIZE = 12
+    for i in tqdm(range(n_frames), desc="Generating output video frames", unit="frame"):
         img2d = plt.imread(image_2d_paths[i])
         img3d = plt.imread(image_3d_paths[i])
         # Only crop 2D if it is wider than tall (avoid empty images)
@@ -675,37 +714,31 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         edge3d = 130
         if img3d.shape[0] > 2 * edge3d and img3d.shape[1] > 2 * edge3d:
             img3d = img3d[edge3d:img3d.shape[0] - edge3d, edge3d:img3d.shape[1] - edge3d]
-        images_2d.append(img2d)
-        images_3d.append(img3d)
 
-    # Use Agg canvas directly for speed, avoid repeated plt.figure/close
-    from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-    font_size = 12
-    for i in tqdm(range(n_frames)):
         fig, axs = plt.subplots(1, 2, figsize=(15.0, 5.4))
         # Remove axes for both
         for ax in axs:
             ax.set_xticks([])
             ax.set_yticks([])
             ax.axis('off')
-        axs[0].imshow(images_2d[i])
-        axs[0].set_title("Input", fontsize=font_size)
-        axs[1].imshow(images_3d[i])
-        axs[1].set_title("Reconstruction", fontsize=font_size)
+        axs[0].imshow(img2d)
+        axs[0].set_title("Input", fontsize=FONT_SIZE)
+        axs[1].imshow(img3d)
+        axs[1].set_title("Reconstruction", fontsize=FONT_SIZE)
         plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
         plt.margins(0, 0)
-        output_path_pose_thisimg = join(output_dir_pose, f"{i:04d}_pose.png")
+        output_path_pose_thisimg = pjoin(output_dir_combined, f"{i:04d}_pose.png")
         fig.savefig(output_path_pose_thisimg, dpi=200, bbox_inches='tight')
         plt.close(fig)
 
 
 
-def img2video(video_path: str, output_dir: str) -> str:
+def img2video(video_path: str, input_frames_dir: str) -> str:
     """Converts a sequence of pose images into a video.
 
     Args:
         video_path (str): Path to the original input video (used for FPS and naming).
-        output_dir (str): Directory containing the 'pose' subdirectory with PNG frames.
+        input_frames_dir (str): Directory containing the 'pose' subdirectory with PNG frames.
 
     Raises:
         FileNotFoundError: If the 'pose' directory does not exist.
@@ -724,25 +757,23 @@ def img2video(video_path: str, output_dir: str) -> str:
         fps = 25  # fallback default
     cap.release()
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-
-    POSE_DIR = join(output_dir, 'pose')
-    os.makedirs(POSE_DIR, exist_ok=True)
-    
-    pose_filenames = sorted(glob.glob(join(POSE_DIR, '*.png')))
+    pose_filenames = sorted(glob.glob(pjoin(input_frames_dir, '*.png')))
     if not pose_filenames:
-        logger.error(f"No pose PNG frames found in {POSE_DIR}")
-        raise FileNotFoundError(f"No pose PNG frames found in {POSE_DIR}")
+        logger.error(f"No pose PNG frames found in {input_frames_dir}")
+        raise FileNotFoundError(f"No pose PNG frames found in {input_frames_dir}")
     
     img = cv2.imread(pose_filenames[0])
     if img is None:
         logger.error(f"Failed to read first pose image: {pose_filenames[0]}")
         raise ValueError(f"Failed to read first pose image: {pose_filenames[0]}")
-    
+    else:
+        size = (img.shape[1], img.shape[0])
+
     output_video_name = video_name.replace("input", "output")
-    output_path = join(output_dir, output_video_name + '.mp4')
+    output_path = pjoin(input_frames_dir, output_video_name + '.mp4')
     logger.info(f"Writing output video to: {output_path}")
-    size = (img.shape[1], img.shape[0])
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     videoWrite = cv2.VideoWriter(output_path, fourcc, fps, size)
 
     for name in pose_filenames:
@@ -898,12 +929,12 @@ def find_angle(coord1, coord2):
     Returns:
         float: The angle in degrees. Returns None if the points are the same.
     """
-    # print(f"[ DEBUG find_angle() ], {coord1 = }")
-    # print(f"[ DEBUG find_angle() ], {coord2 = }")
+    # logger.info(f"[ DEBUG find_angle() ], {coord1 = }")
+    # logger.info(f"[ DEBUG find_angle() ], {coord2 = }")
     x1, y1 = coord1
     x2, y2 = coord2
 
-    # if DEBUG: print(f"[ DEBUG find_angle() ], {x1 = }, {y1 = }, {x2 = }, {y2 = }")
+    # if DEBUG: logger.info(f"[ DEBUG find_angle() ], {x1 = }, {y1 = }, {x2 = }, {y2 = }")
     dx = x2 - x1
     dy = y2 - y1
 
@@ -936,14 +967,14 @@ if __name__ == "__main__":
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
-    video_path = join('.', 'demo', 'video', args.video)
+    video_path = pjoin('.', 'demo', 'video', args.video)
     video_name = os.path.splitext(os.path.basename(video_path))[0]
-    output_dir = join('.', 'demo', 'output', video_name)
+    output_dir = pjoin('.', 'demo', 'output', video_name)
 
     device = get_pytorch_device()
-    print(f"Using device: {device}")
+    logger.info(f"Using device: {device}")
     
-    get_pose2D(video_path, output_dir, device)
-    get_pose3D(video_path, output_dir, device, MODEL_SIZE, MODEL_CONFIG_PATH)
-    img2video(video_path, output_dir)
-    print('Generating demo successful!')
+    # get_pose2D(video_path, output_dir, device)
+    # get_pose3D(video_path, output_dir, device, MODEL_SIZE, MODEL_CONFIG_PATH)
+    # img2video(video_path, output_dir)
+    # logger.info('Generating demo successful!')
