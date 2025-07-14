@@ -7,6 +7,7 @@ import uuid
 import shutil
 from pathlib import Path
 from typing import Optional
+import gc
 import json
 import os
 import time
@@ -118,15 +119,20 @@ def cleanup_old_files(retention_minutes: int = 60):
     """Clean up old temporary files (older than retention_minutes)"""
     current_time = time.time()
     file_retention_cutoff_time = current_time - (retention_minutes * 60)
-
     for item in TMP_DIR.iterdir():
-        if item.is_dir():
-            if item.stat().st_mtime < file_retention_cutoff_time:
-                try:
-                    shutil.rmtree(item)
-                    logger.info(f"Cleaned up old directory: {item}")
-                except OSError as e:
-                    logger.warning(f"Failed to clean up directory {item}: {e}")
+        is_past_retention = (item.stat().st_mtime < file_retention_cutoff_time)
+        if item.is_file() and is_past_retention:
+            try:
+                item.unlink()
+                logger.info(f"Cleaned up old file: {item}")
+            except OSError as e:
+                logger.warning(f"Failed to clean up file {item}: {e}")
+        if item.is_dir() and is_past_retention:
+            try:
+                shutil.rmtree(item)
+                logger.info(f"Cleaned up old directory: {item}")
+            except OSError as e:
+                logger.warning(f"Failed to clean up directory {item}: {e}")
 
 
 # ==================== VIDEO PROCESSING ====================
@@ -249,6 +255,10 @@ def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs",
                                     output_path=output_video_path)
         
         logger.info(f"Video processing completed for job {job_id}: {output_video_path}")
+
+        # Final garbage collection before completion
+        gc.collect()
+
         return output_video_path
         
     except Exception as e:
@@ -408,29 +418,27 @@ async def download_processed_video(job_id: str):
 async def get_video_preview(job_id: str):
     """
     Stream video for preview in browser
-    
     Args:
         job_id: Job identifier
-    
     Returns:
         Video file for streaming
     """
     job = job_manager.get_job(job_id)
-    
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
     if job.status != JobStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Job not completed yet")
-    
     if not job.output_path or not Path(job.output_path).exists():
         raise HTTPException(status_code=404, detail="Output file not found")
-    
-    # Return file for streaming
+
+    # Ensure correct Content-Disposition for browser preview (do not force download)
     return FileResponse(
         path=job.output_path,
         media_type="video/mp4",
-        headers={"Accept-Ranges": "bytes"}
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Disposition": "inline; filename=preview.mp4"
+        }
     )
 
 
