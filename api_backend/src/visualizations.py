@@ -365,13 +365,13 @@ def list_and_play_mp4_from_s3(
     return cleaned_list
 
 
-def find_all_pro_npy_files(download: bool = False):
-
+# def find_all_pro_npy_files(download: bool = False):
+#     pass
 
 
 if __name__ == "__main__":
     # Example usage
     bucket_name = "shadow-trainer-prod"
     prefix = "pro_3d_keypoints"
-    cleaned_data = find_all_pro_npy_files(bucket_name, prefix, dryrun=True)
-    print(f"Processed {len(cleaned_data)} valid pose sequences.")
+    # cleaned_data = find_all_pro_npy_files(bucket_name, prefix, dryrun=True)
+    # print(f"Processed {len(cleaned_data)} valid pose sequences.")
