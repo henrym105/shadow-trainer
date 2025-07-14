@@ -18,6 +18,7 @@ function App() {
   const [jobStatus, setJobStatus] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [modelSize, setModelSize] = useState('xs');
+  const [isLefty, setIsLefty] = useState(false); // New state for handedness preference
 
   // Handle file selection from FileUpload component
   const handleFileSelect = useCallback((file, error) => {
@@ -59,7 +60,7 @@ function App() {
 
     try {
       console.log('Starting upload...', selectedFile.name);
-      const response = await VideoAPI.uploadVideo(selectedFile, modelSize);
+      const response = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty); // Pass isLefty parameter
       
       console.log('Upload successful:', response);
       setJobId(response.job_id);
@@ -95,6 +96,7 @@ function App() {
     setJobId(null);
     setJobStatus(null);
     setIsUploading(false);
+    setIsLefty(false); // Reset handedness preference
   };
 
   // Determine current application state
@@ -156,6 +158,23 @@ function App() {
                       <option value="s">Balanced (S) - 60-90 seconds</option>
                       <option value="m">High Quality (M) - 90-120 seconds</option>
                     </select>
+                  </div>
+
+                  <div className="handedness-selection">
+                    <label htmlFor="handedness-toggle">Dominant Hand:</label>
+                    <div className="toggle-container">
+                      <span className={`toggle-label ${!isLefty ? 'active' : ''}`}>Right</span>
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={isLefty}
+                          onChange={(e) => setIsLefty(e.target.checked)}
+                          disabled={isUploading}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                      <span className={`toggle-label ${isLefty ? 'active' : ''}`}>Left</span>
+                    </div>
                   </div>
 
                   <button

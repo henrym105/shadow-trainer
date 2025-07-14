@@ -114,23 +114,24 @@ def get_model_config_path(model_size: str = "xs") -> str:
         
 
 
-def cleanup_old_files():
-    """Clean up old temporary files (older than 1 hour)"""
+def cleanup_old_files(retention_minutes: int = 60):
+    """Clean up old temporary files (older than retention_minutes)"""
     current_time = time.time()
-    one_hour_ago = current_time - 3600
-    
-    for filepath in TMP_DIR.iterdir():
-        if filepath.is_file() and filepath.stat().st_mtime < one_hour_ago:
-            try:
-                filepath.unlink()
-                logger.info(f"Cleaned up old file: {filepath}")
-            except OSError as e:
-                logger.warning(f"Failed to clean up file {filepath}: {e}")
+    file_retention_cutoff_time = current_time - (retention_minutes * 60)
+
+    for item in TMP_DIR.iterdir():
+        if item.is_dir():
+            if item.stat().st_mtime < file_retention_cutoff_time:
+                try:
+                    shutil.rmtree(item)
+                    logger.info(f"Cleaned up old directory: {item}")
+                except OSError as e:
+                    logger.warning(f"Failed to clean up directory {item}: {e}")
 
 
 # ==================== VIDEO PROCESSING ====================
 
-def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs") -> str:
+def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs", is_lefty: bool = False) -> str:
     """
     Process video with pose estimation and keypoint overlays
     
@@ -138,12 +139,15 @@ def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs")
         job_id: Unique job identifier
         input_path: Path to input video file
         model_size: Model size to use for processing
+        is_lefty: Whether the user is left-handed
     
     Returns:
         Path to output video file
     """
     try:
         logger.info(f"Starting video processing for job {job_id}")
+        logger.info(f"User handedness preference: {'Left-handed' if is_lefty else 'Right-handed'}")
+        cleanup_old_files(retention_minutes = 20)
         
         # Get device for processing
         device = get_pytorch_device()
@@ -281,7 +285,8 @@ async def health_check():
 async def upload_video(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    model_size: str = Query("xs", description="Model size: xs, s, m, l")
+    model_size: str = Query("xs", description="Model size: xs, s, m, l"),
+    is_lefty: bool = Query(False, description="Whether the user is left-handed")
 ):
     """
     Upload a video file and start processing
@@ -289,6 +294,7 @@ async def upload_video(
     Args:
         file: Video file to process
         model_size: Model size to use for processing
+        is_lefty: Whether the user is left-handed
     
     Returns:
         Upload response with job_id
@@ -319,7 +325,8 @@ async def upload_video(
             process_video_pipeline,
             job.job_id,
             input_path,
-            model_size
+            model_size,
+            is_lefty,
         )
         
         logger.info(f"Started processing job {job.job_id} for file {file.filename}")

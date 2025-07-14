@@ -341,27 +341,28 @@ def create_3d_pose_images_from_array(
     # ------------------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
     # --- Find motion start for both user and pro, then crop ---
-    # user_start = find_motion_start(user_keypoints_npy, z_threshold=0.0, min_delta=.05)
-    # pro_start = find_motion_start(pro_keypoints_npy, z_threshold=0.0, min_delta=.05)
-    # if DEBUG:
-    #     logger.info(f"User motion starts at frame: {user_start}")
-    #     logger.info(f"Pro motion starts at frame: {pro_start}")
+    user_start = find_motion_start(user_keypoints_npy, z_threshold=0.0, min_delta=.1)
+    pro_start = find_motion_start(pro_keypoints_npy, z_threshold=0.0, min_delta=.1)
+    if DEBUG:
+        logger.info(f"User motion starts at frame: {user_start}")
+        logger.info(f"Pro motion starts at frame: {pro_start}")
 
-    # user_keypoints_npy = user_keypoints_npy[user_start:]
-    # pro_keypoints_npy = pro_keypoints_npy[pro_start:]
-    # # Note: output_dir points to the 'pose' directory, but pose2D is at the job root level
-    # job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
-    # pose2d_dir = pjoin(job_output_dir, 'pose2D')
-    # remove_images_before_motion_start(pose2d_dir, user_start)
+    user_keypoints_npy = user_keypoints_npy[user_start:]
+    pro_keypoints_npy = pro_keypoints_npy[pro_start:]
+    # Note: output_dir points to the 'pose' directory, but pose2D is at the job root level
+    job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
+    pose2d_dir = pjoin(job_output_dir, 'pose2D')
+    remove_images_before_motion_start(pose2d_dir, user_start)
 
-    # # Set video_length to the minimum of number of frames between user and pro keypoints files
-    # num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
+    # Set video_length to the minimum of number of frames between user and pro keypoints files
+    num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
 
-    # # Resample the longer sequence to match the shorter one
-    # user_keypoints_npy = resample_pose_sequence(user_keypoints_npy, num_frames)
-    # pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, num_frames)
-    # if DEBUG: logger.info(f"\nUser keypoints shape after crop/resample: {user_keypoints_npy.shape}")
-    # if DEBUG: logger.info(f"Professional keypoints shape after crop/resample: {pro_keypoints_npy.shape}")
+    # Resample the longer sequence to match the shorter one
+    user_keypoints_npy = resample_pose_sequence(user_keypoints_npy, num_frames)
+    pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, num_frames)
+    if DEBUG: logger.info(f"\nUser keypoints shape after crop/resample: {user_keypoints_npy.shape}")
+    if DEBUG: logger.info(f"Professional keypoints shape after crop/resample: {pro_keypoints_npy.shape}")
+
 
     pro_keypoints_npy = time_warp_pro_video(user_keypoints_npy, pro_keypoints_npy)
     if DEBUG: logger.info(f"User keypoints shape after time warp: {user_keypoints_npy.shape}")

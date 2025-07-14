@@ -13,9 +13,16 @@ def time_warp_pro_video(amateur_data: np.ndarray, professional: np.ndarray):
         np.ndarray: The time-warped professional data. Shape will match the amateur data.
     """
     valid, switch_point, max_y_pt, ankle_points = get_numpy_info(amateur_data)
-    print(valid, switch_point, max_y_pt)
 
-    professional_kpts = shift_data_time(professional, 200, 100, max_y_pt, switch_point - max_y_pt, len(amateur_data) - switch_point)
+    # professional_kpts = shift_data_time(professional, 200, 100, max_y_pt, switch_point - max_y_pt, len(amateur_data) - switch_point)
+    professional_kpts = shift_data_time(
+        data=professional, 
+        switch=switch_point, 
+        max_y=max_y_pt, 
+        time_1=max_y_pt, 
+        time_2=switch_point - max_y_pt, 
+        time_3=len(amateur_data) - switch_point
+    )
     
     shapes_match = (professional_kpts.shape[0] == amateur_data.shape[0])
     assert shapes_match, f"Professional keypoints array shape {professional_kpts.shape} does not match amateur data shape {amateur_data.shape}"
@@ -260,6 +267,7 @@ def recenter_on_right_ankle(pose_array):
 
 
 def shift_data_time(data, switch, max_y, time_1=100, time_2=100, time_3=150):
+    print(f"    [ shift_data_time ] input params: switch={switch}, max_y={max_y}, time_1={time_1}, time_2={time_2}, time_3={time_3}")
     segment_1 = data[:max_y,:,:]
     segment_2 = data[max_y: switch,:,:]
     segment_3 = data[switch-1:,:,:]
