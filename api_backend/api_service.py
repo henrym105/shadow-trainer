@@ -193,9 +193,6 @@ def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs")
         
 
         # ---------------------------
-        
-
-
 
         # Step 3: Create visualization frames (70% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=70,
@@ -218,7 +215,8 @@ def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs")
         cap = cv2.VideoCapture(input_path)
         keypoints_2d = np.load(pose2d_file)
         frames_2d_dir = create_2D_images(cap, keypoints_2d, str(output_dir))
-        
+        cap.release()
+
         # Step 5: Generate combined frames (85% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85,
                                     message="Combining frames with original video...")
@@ -432,8 +430,3 @@ async def get_video_preview(job_id: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8002)
-
-
-
-# /home/ec2-user/shadow-trainer/api_backend/tmp_api_output/72e08b0d-a0fc-4f1f-9ab5-bc4e3fe881eb_output/raw_keypoints/raw_keypoints/2D_keypoints.npy
-# /home/ec2-user/shadow-trainer/api_backend/tmp_api_output/72e08b0d-a0fc-4f1f-9ab5-bc4e3fe881eb_output/raw_keypoints/raw_keypoints/2D_keypoints.npy
