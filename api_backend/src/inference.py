@@ -268,6 +268,7 @@ def get_pose3D_no_vis(
     img_size_h_w = get_frame_size(cap)
     num_frames = keypoints.shape[1]
     user_output_3d_keypoints = np.empty((num_frames, 17, 3))
+    cap.release()
 
     # logger.info('\nGenerating 2D pose image...')
     # create_2D_images(cap, keypoints, output_dir)
@@ -300,7 +301,6 @@ def get_pose3D_no_vis(
 
     if DEBUG: logger.info(f"3D keypoints saved to {output_keypoints_path}, with shape {user_output_3d_keypoints.shape}")
 
-    cap.release()
     return output_keypoints_path
 
 
@@ -684,10 +684,8 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
     output_dir_pose = pjoin(output_dir, 'pose')
     os.makedirs(output_dir_pose, exist_ok=True)
 
-    # Preload all images into memory for faster access (if memory allows)
-    images_2d = []
-    images_3d = []
-    for i in tqdm(range(n_frames), desc="Loading images into memory", unit="frame"):
+    FONT_SIZE = 12
+    for i in tqdm(range(n_frames), desc="Generating output video frames", unit="frame"):
         img2d = plt.imread(image_2d_paths[i])
         img3d = plt.imread(image_3d_paths[i])
         # Only crop 2D if it is wider than tall (avoid empty images)
@@ -701,21 +699,17 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         edge3d = 130
         if img3d.shape[0] > 2 * edge3d and img3d.shape[1] > 2 * edge3d:
             img3d = img3d[edge3d:img3d.shape[0] - edge3d, edge3d:img3d.shape[1] - edge3d]
-        images_2d.append(img2d)
-        images_3d.append(img3d)
 
-    font_size = 12
-    for i in tqdm(range(n_frames), desc="Generating output video frames", unit="frame"):
         fig, axs = plt.subplots(1, 2, figsize=(15.0, 5.4))
         # Remove axes for both
         for ax in axs:
             ax.set_xticks([])
             ax.set_yticks([])
             ax.axis('off')
-        axs[0].imshow(images_2d[i])
-        axs[0].set_title("Input", fontsize=font_size)
-        axs[1].imshow(images_3d[i])
-        axs[1].set_title("Reconstruction", fontsize=font_size)
+        axs[0].imshow(img2d)
+        axs[0].set_title("Input", fontsize=FONT_SIZE)
+        axs[1].imshow(img3d)
+        axs[1].set_title("Reconstruction", fontsize=FONT_SIZE)
         plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
         plt.margins(0, 0)
         output_path_pose_thisimg = pjoin(output_dir_pose, f"{i:04d}_pose.png")
