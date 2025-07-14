@@ -1,97 +1,273 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+/**
+ * Shadow Trainer - Main Application Component
+ * AI-Powered Motion Analysis for Athletic Performance
+ */
+
+import React, { useState, useCallback } from "react";
+import { VideoAPI, useJobPolling, APIError } from "./services/videoApi";
+import FileUpload from "./components/FileUpload";
+import ProgressBar from "./components/ProgressBar";
+import VideoResult from "./components/VideoResult";
 import "./App.css";
 
-// Set default timeout for all axios requests
-axios.defaults.timeout = 300000; // 5 minutes
-
-const DEFAULT_S3 = "s3://shadow-trainer-prod/sample_input/henry-mini.mov";
-const API_PROCESS_URL = "/api/video/process"; // Back to real processing
-const LOCAL_TMP_OUTPUT = "/home/ec2-user/shadow-trainer/api_backend/tmp_api_output";
-
-// const API_URL = "http://www.shadow-trainer.com/api/video/process";
-
-
 function App() {
-  const [videoPath, setVideoPath] = useState(DEFAULT_S3);
-  const [loading, setLoading] = useState(false);
-  const [response, setResponse] = useState(null);
-  const [error, setError] = useState(null);
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setResponse(null);
+  // State management
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
+  const [jobId, setJobId] = useState(null);
+  const [jobStatus, setJobStatus] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [modelSize, setModelSize] = useState('xs');
+
+  // Handle file selection from FileUpload component
+  const handleFileSelect = useCallback((file, error) => {
+    setSelectedFile(file);
+    setUploadError(error);
     
+    // Clear previous job state when new file selected
+    if (file) {
+      setJobId(null);
+      setJobStatus(null);
+    }
+  }, []);
+
+  // Handle job status updates from polling
+  const handleStatusUpdate = useCallback((status) => {
+    setJobStatus(status);
+    console.log('Job status update:', status);
+  }, []);
+
+  // Use polling hook to automatically check job status
+  const { isPolling, error: pollingError } = useJobPolling(jobId, handleStatusUpdate);
+
+  // Handle video upload and processing
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      setUploadError('Please select a video file first');
+      return;
+    }
+
+    // Validate file before upload
+    const validation = VideoAPI.validateFile(selectedFile);
+    if (!validation.isValid) {
+      setUploadError(validation.error);
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
     try {
-      console.log("Sending request to:", API_PROCESS_URL);
-      console.log("With data:", { file: videoPath, model_size: "s" });
+      console.log('Starting upload...', selectedFile.name);
+      const response = await VideoAPI.uploadVideo(selectedFile, modelSize);
       
-      const res = await axios.post(API_PROCESS_URL, {
-        file: videoPath,
-        model_size: "s"
+      console.log('Upload successful:', response);
+      setJobId(response.job_id);
+      
+      // Initial status
+      setJobStatus({
+        job_id: response.job_id,
+        status: 'queued',
+        progress: 0,
+        message: 'Upload successful, processing queued...'
       });
+
+    } catch (error) {
+      console.error('Upload failed:', error);
+      let errorMessage = 'Upload failed. Please try again.';
       
-      console.log("Response received:", res.data);
-      setResponse(res.data);
+      if (error instanceof APIError) {
+        errorMessage = error.detail || error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
       
-    } catch (err) {
-      console.error("Request failed:", err);
-      setError(err.response?.data?.error || err.message || "Unknown error");
+      setUploadError(errorMessage);
     } finally {
-      setLoading(false);
+      setIsUploading(false);
     }
   };
 
+  // Reset to initial state
+  const handleReset = () => {
+    setSelectedFile(null);
+    setUploadError(null);
+    setJobId(null);
+    setJobStatus(null);
+    setIsUploading(false);
+  };
+
+  // Determine current application state
+  const getAppState = () => {
+    if (jobStatus?.status === 'completed') return 'completed';
+    if (jobStatus?.status === 'failed') return 'failed';
+    if (jobId && (jobStatus?.status === 'processing' || jobStatus?.status === 'queued')) return 'processing';
+    return 'upload';
+  };
+
+  const appState = getAppState();
+
   return (
-    <div className="container">
-      <div className="header">
-        <img src="/assets/Shadow Trainer Logo.png" alt="Shadow Trainer Logo" className="logo" />
-        <h3>AI-Powered Motion Analysis</h3>
-      </div>
+    <div className="app">
+      <div className="app-container">
+        {/* Header */}
+        <header className="app-header">
+          <div className="logo-section">
+            <img src="/assets/Shadow Trainer Logo.png" alt="Shadow Trainer" className="logo" />
+            <div className="logo-text">
+              <h1>Shadow Trainer</h1>
+              <p>AI-Powered Motion Analysis</p>
+            </div>
+          </div>
+        </header>
 
-      <form className="main-form" onSubmit={handleSubmit}>
-        <label htmlFor="videoPath">Video S3 Path</label>
-        <input
-          id="videoPath"
-          type="text"
-          value={videoPath}
-          onChange={(e) => setVideoPath(e.target.value)}
-          placeholder="Paste your S3 video path here"
-        />
-        <button type="submit" disabled={loading} className="cta-btn">
-          {loading ? "Processing..." : "Create Your Shadow"}
-        </button>
-      </form>
+        {/* Main Content */}
+        <main className="app-main">
+          {appState === 'upload' && (
+            <div className="upload-section">
+              <div className="section-header">
+                <h2>Upload Your Training Video</h2>
+                <p>Get detailed motion analysis and pose estimation for your athletic performance</p>
+              </div>
 
-      {error && <div className="error">{error}</div>}
-      {response && (
-        <div className="response">
-          <h4>API Response</h4>
-          <pre>{JSON.stringify(response, null, 2)}</pre>
-          {response.output_video_local_path ? (
-            <div>
-              <h5>Output Video Preview:</h5>
-              <video
-                controls
-                src={`/api/output/${response.output_video_local_path.replace(LOCAL_TMP_OUTPUT + '/', '')}`}
-                style={{ maxWidth: "100%" }}
+              <FileUpload
+                onFileSelect={handleFileSelect}
+                disabled={isUploading}
               />
-            </div>
-          ) : response.output_video_s3_url ? (
-            <div>
-              <h5>Output Video S3 URL:</h5>
-              <a href={response.output_video_s3_url} target="_blank" rel="noopener noreferrer">
-                {response.output_video_s3_url}
-              </a>
-            </div>
-          ) : null}
-        </div>
-      )}
 
-      <footer>
-        &copy; 2025 Shadow Trainer. All rights reserved.
-      </footer>
+              {(uploadError || pollingError) && (
+                <div className="error-message">
+                  <span className="error-icon">⚠️</span>
+                  {uploadError || pollingError}
+                </div>
+              )}
+
+              {selectedFile && (
+                <div className="upload-controls">
+                  <div className="model-selection">
+                    <label htmlFor="model-size">Analysis Quality:</label>
+                    <select
+                      id="model-size"
+                      value={modelSize}
+                      onChange={(e) => setModelSize(e.target.value)}
+                      disabled={isUploading}
+                    >
+                      <option value="xs">Fast (XS) - 30-60 seconds</option>
+                      <option value="s">Balanced (S) - 60-90 seconds</option>
+                      <option value="m">High Quality (M) - 90-120 seconds</option>
+                    </select>
+                  </div>
+
+                  <button
+                    className="upload-btn"
+                    onClick={handleUpload}
+                    disabled={isUploading || !selectedFile}
+                  >
+                    {isUploading ? (
+                      <>
+                        <span className="btn-spinner"></span>
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <span className="btn-icon">🚀</span>
+                        Start Analysis
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {appState === 'processing' && jobStatus && (
+            <div className="processing-section">
+              <div className="section-header">
+                <h2>Processing Your Video</h2>
+                <p>Our AI is analyzing your movement patterns and generating pose estimations</p>
+              </div>
+
+              <ProgressBar
+                progress={jobStatus.progress}
+                status={jobStatus.status}
+                message={jobStatus.message}
+                animated={true}
+              />
+
+              <div className="processing-info">
+                <div className="processing-steps">
+                  <div className={`step ${jobStatus.progress >= 20 ? 'completed' : 'pending'}`}>
+                    <span className="step-icon">👁️</span>
+                    <span className="step-text">2D Keypoint Detection</span>
+                  </div>
+                  <div className={`step ${jobStatus.progress >= 50 ? 'completed' : 'pending'}`}>
+                    <span className="step-icon">🎯</span>
+                    <span className="step-text">3D Pose Estimation</span>
+                  </div>
+                  <div className={`step ${jobStatus.progress >= 80 ? 'completed' : 'pending'}`}>
+                    <span className="step-icon">🎨</span>
+                    <span className="step-text">Visualization Generation</span>
+                  </div>
+                  <div className={`step ${jobStatus.progress >= 100 ? 'completed' : 'pending'}`}>
+                    <span className="step-icon">🎬</span>
+                    <span className="step-text">Video Compilation</span>
+                  </div>
+                </div>
+
+                <p className="job-id">Job ID: {jobStatus.job_id}</p>
+              </div>
+            </div>
+          )}
+
+          {appState === 'completed' && jobStatus && (
+            <VideoResult
+              jobId={jobStatus.job_id}
+              originalFilename={selectedFile?.name || 'video'}
+              previewUrl={VideoAPI.getPreviewUrl(jobStatus.job_id)}
+              downloadUrl={VideoAPI.getDownloadUrl(jobStatus.job_id)}
+            />
+          )}
+
+          {appState === 'failed' && jobStatus && (
+            <div className="error-section">
+              <div className="error-content">
+                <div className="error-icon">😞</div>
+                <h3>Processing Failed</h3>
+                <p>We encountered an issue while processing your video.</p>
+                {jobStatus.error && (
+                  <div className="error-details">
+                    <strong>Error:</strong> {jobStatus.error}
+                  </div>
+                )}
+                <button className="retry-btn" onClick={handleReset}>
+                  <span className="btn-icon">🔄</span>
+                  Try Again
+                </button>
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* Footer */}
+        <footer className="app-footer">
+          <div className="footer-content">
+            <p>&copy; 2025 Shadow Trainer. All rights reserved.</p>
+            <div className="footer-links">
+              <a href="#privacy">Privacy Policy</a>
+              <a href="#terms">Terms of Service</a>
+              <a href="#support">Support</a>
+            </div>
+          </div>
+        </footer>
+
+        {/* Reset Button - Always available */}
+        {(jobId || selectedFile) && (
+          <button className="reset-btn floating" onClick={handleReset}>
+            <span className="btn-icon">🏠</span>
+            Start Over
+          </button>
+        )}
+      </div>
     </div>
   );
 }

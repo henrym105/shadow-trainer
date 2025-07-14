@@ -59,8 +59,17 @@ echo "Writing reverse proxy config to $PROXY_CONF..."
 sudo tee "$PROXY_CONF" > /dev/null <<EOF
 server {
     listen 80;
-    server_name $DOMAIN www.$DOMAIN;
+    server_name $DOMAIN www.$DOMAIN $EXTERNAL_IP;
 
+    # Set client max body size for video uploads (100MB)
+    client_max_body_size 100M;
+    
+    # Timeout settings for video processing
+    proxy_connect_timeout 300s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
+
+    # Frontend - React app (served as static files)
     location / {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
@@ -70,18 +79,55 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # Enable gzip compression
+        gzip on;
+        gzip_types text/plain text/css application/javascript application/json;
     }
 
+    # API endpoints - FastAPI backend
     location /api/ {
-        proxy_pass http://127.0.0.1:8002/;
+        proxy_pass http://127.0.0.1:8002/api/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # Special handling for file uploads
+        proxy_request_buffering off;
+    }
+
+    # Health check endpoint (direct to backend)
+    location /health {
+        proxy_pass http://127.0.0.1:8002/health;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
+
+    # Static video output files (served directly by backend)
+    location /output/ {
+        proxy_pass http://127.0.0.1:8002/output/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # Enable range requests for video streaming
+        proxy_set_header Range \$http_range;
+        proxy_set_header If-Range \$http_if_range;
+        proxy_no_cache \$http_range \$http_if_range;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
 }
 EOF
 
