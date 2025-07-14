@@ -53,9 +53,9 @@ def get_joint_colors(color='R', use_0_255_range=False):
     """
     format_options = {
         'RB':  ((0.0, 0.0, 1.0), (1.0, 0.0, 0.0)),     # Blue, Red
-        'R':   ((0.6, 0.0, 0.0), (1.0, 0.0, 0.0)),     # Dark Red, Bright Red
+        'R':   ((0.4, 0.0, 0.0), (1.0, 0.0, 0.0)),     # Dark Red, Bright Red
         'G':   ((0.0, 0.6, 0.0), (0.0, 1.0, 0.0)),     # Dark Green, Bright Green
-        'blk': ((0.4, 0.4, 0.4), (0.2, 0.2, 0.2)),     # Light gray, Dark gray
+        'blk': ((0.4, 0.4, 0.4), (0.1, 0.1, 0.1)),     # Light gray, Dark gray
     }
 
     lcolor, rcolor = format_options.get(color, ((0,0,1),(1,0,0)))  # Default to Blue, Red
@@ -70,21 +70,24 @@ def get_joint_colors(color='R', use_0_255_range=False):
     return (lcolor, rcolor)
 
 
-
-def show2Dpose(kps: np.ndarray, img: np.ndarray, color = 'R') -> np.ndarray:
-    """
-    Draws a 2D human pose skeleton on the given image using the provided keypoints.
+def show2Dpose(kps: np.ndarray, img: np.ndarray, color='R', is_lefty: bool = False) -> np.ndarray:
+    """Draws a 2D human pose skeleton on the given image using the provided keypoints.
 
     Args:
         kps (np.ndarray): An array of shape (17, 3) containing the 2D coordinates and confidence scores (x, y, conf) for all 17 keypoints in this image. 
         img (np.ndarray): The image (as a NumPy array) on which to draw the skeleton.
+        color (str): Color scheme to use for the skeleton.
+        is_lefty (bool): If True, mark left foot (index 6) as front foot; else right foot (index 3).
 
     Returns:
         np.ndarray: The image with the 2D pose skeleton drawn on it.
     """
+    # convert kps to int
+    kps = kps.astype(int)
+
     connections = [[0, 1], [1, 2], [2, 3], [0, 4], [4, 5],
-                   [5, 6], [0, 7], [7, 8], [8, 9], [9, 10],
-                   [8, 11], [11, 12], [12, 13], [8, 14], [14, 15], [15, 16]]
+                    [5, 6], [0, 7], [7, 8], [8, 9], [9, 10],
+                    [8, 11], [11, 12], [12, 13], [8, 14], [14, 15], [15, 16]]
 
     # 1 = left arm & leg, 0 = right arm/leg, torso, neck
     LR = np.array([0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0], dtype=bool)
@@ -93,14 +96,24 @@ def show2Dpose(kps: np.ndarray, img: np.ndarray, color = 'R') -> np.ndarray:
     thickness = 3
     assert kps.shape == (17,3), "Keypoints should be a 2D array with shape (n_person, n_frames, 17, 3). Received shape: {}".format(kps.shape)
 
+    # Determine front foot keypoint index based on is_lefty
+    front_foot_idx = 3 if is_lefty else 6
+    green_color = (0, 255, 0)  # Green color in BGR format
+
     for j,c in enumerate(connections):
-        start = map(int, kps[c[0]])
-        end = map(int, kps[c[1]])
-        start = list(start)
-        end = list(end)
+        # EXAMPLE: c = [5,6] --> connecting 5th keypoint (left knee) to 6th keypoint (left ankle)
+        #          kps[c[1]] = kps[6] = (x,y) coordinated of the left ankle
+
+        start = kps[c[0]]
+        end = kps[c[1]]
+
         cv2.line(img, (start[0], start[1]), (end[0], end[1]), lcolor if LR[j] else rcolor, thickness)
         cv2.circle(img, (start[0], start[1]), thickness=-1, color=(0, 0, 0), radius=3)
         cv2.circle(img, (end[0], end[1]), thickness=-1, color=(0, 0, 0), radius=3)
+
+    # Draw the front foot in green
+    front_foot = kps[front_foot_idx]
+    cv2.circle(img, (front_foot[0], front_foot[1]), thickness=-1, color=green_color, radius=5)
 
     return img
 
@@ -307,7 +320,8 @@ def get_pose3D_no_vis(
 def create_3d_pose_images_from_array(
     user_3d_keypoints_filepath: str,
     output_dir: str,
-    pro_keypoints_filepath: str = None
+    pro_keypoints_filepath: str = None,
+    is_lefty: bool = False
 ) -> None:
     """
     Create 3D pose frame visualizations for each frame in the given 3D keypoints array.
@@ -315,8 +329,8 @@ def create_3d_pose_images_from_array(
     Args:
         user_3d_keypoints (str): Path to a numpy array of shape (N, 17, 3) containing the 3D keypoints for 17 body points and N frames of the user's input video.
         output_dir (str): Output directory to save the images.
-        pro_keypoints_npy (np.ndarray, optional): Path to a numpy array of professional 3D keypoints with shape (N, 17, 3)
         pro_keypoints_filepath (str, optional): Path to the professional keypoints file (for debug/logging).
+        is_lefty (bool): If True, flip the professional keypoints horizontally.
     """
     angle_adjustment = 0.0
     # USE_BODY_PART = "feet"
@@ -330,6 +344,11 @@ def create_3d_pose_images_from_array(
     # Load professional keypoints and prepare for alignment
     user_keypoints_npy = load_npy_file(user_3d_keypoints_filepath)
     pro_keypoints_npy = load_npy_file(pro_keypoints_filepath)
+
+    # Flip pro keypoints if is_lefty is True
+    if is_lefty:
+        pro_keypoints_npy = flip_data(pro_keypoints_npy)
+
     # Pro keypoints should already be standardized, but do it again here just in case
     pro_keypoints_npy = np.array([standardize_3d_keypoints(frame, apply_rotation=False) for frame in pro_keypoints_npy])
 
@@ -341,8 +360,9 @@ def create_3d_pose_images_from_array(
     # ------------------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
     # --- Find motion start for both user and pro, then crop ---
-    user_start = find_motion_start(user_keypoints_npy, z_threshold=0.0, min_delta=.1)
-    pro_start = find_motion_start(pro_keypoints_npy, z_threshold=0.0, min_delta=.1)
+    MVMT_PCT_THRESHOLD = 4
+    user_start = find_motion_start(user_keypoints_npy, is_lefty=is_lefty, min_pct_change=MVMT_PCT_THRESHOLD)
+    pro_start = find_motion_start(pro_keypoints_npy, is_lefty=is_lefty, min_pct_change=MVMT_PCT_THRESHOLD)
     if DEBUG:
         logger.info(f"User motion starts at frame: {user_start}")
         logger.info(f"Pro motion starts at frame: {pro_start}")
@@ -432,6 +452,7 @@ def remove_images_before_motion_start(pose_img_dir, delete_before_idx = 0):
         dir_type (str): Type of directory to remove images from ('2D' or '3D').
         delete_before_idx (int): Index before which images should be deleted.
     """
+    print(f"Removing pose2D images before index {delete_before_idx} in directory: {pose_img_dir}")
     if os.path.exists(pose_img_dir):
         pose2d_imgs = sorted([f for f in os.listdir(pose_img_dir) if f.endswith('.png')])
         # Remove images before user_start
@@ -443,42 +464,47 @@ def remove_images_before_motion_start(pose_img_dir, delete_before_idx = 0):
                         logger.info(f"Removed pose2D frame: {fname}")
                 except Exception as e:
                     logger.info(f"Error removing {fname}: {e}")
+    else:
+        logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
 
 
-def find_motion_start(keypoints: np.ndarray, joint_names=("Left Knee", "Left Ankle"), z_threshold=0.01, min_delta=0.005) -> int:
-    """
-    Find the first frame where any of the specified joints' z-axis increases by at least min_delta
-    compared to the previous frame (i.e., start of upward movement).
+def find_motion_start(keypoints: np.ndarray, is_lefty: bool = True, min_pct_change: float = 3) -> int:
+    """Find the first frame where the distance between the front foot and sacrum (index 0)
+    changes by more than min_pct_change percent relative to the distance in the first frame, using only the z direction.
 
     Args:
-        keypoints (np.ndarray): Shape (N, 17, 3)
-        joint_names (tuple): Joints to check for motion start.
-        z_threshold (float): Minimum z value to consider as "moving".
-        min_delta (float): Minimum change in z to count as movement.
+        keypoints (np.ndarray): Shape (n_frames, 17, 3)
+        is_lefty (bool): If True, use left foot (index 6) as front foot; else right foot (index 3).
+        min_pct_change (float): Minimum relative decrease (as percent) to count as movement.
 
     Returns:
         int: Index of the first frame where movement is detected.
     """
-    joint_indices = []
-    all_joint_names = [
-        "Hip", "Right Hip", "Right Knee", "Right Ankle",
-        "Left Hip", "Left Knee", "Left Ankle", "Spine",
-        "Thorax", "Neck", "Head", "Left Shoulder",
-        "Left Elbow", "Left Wrist", "Right Shoulder",
-        "Right Elbow", "Right Wrist"
-    ]
-    for name in joint_names:
-        joint_indices.append(all_joint_names.index(name))
+    # right_ankle = 3, left_ankle = 6
+    front_foot_idx = 3 if is_lefty else 6 
+    sacrum_idx = 0
 
-    # Lower thresholds for higher sensitivity
-    for i in range(1, keypoints.shape[0]):
-        for idx in joint_indices:
-            prev_z = keypoints[i-1, idx, 2]
-            curr_z = keypoints[i, idx, 2]
-            # Use abs to detect any significant vertical change (up or down)
-            if abs(curr_z - prev_z) > min_delta and abs(curr_z) > z_threshold:
-                return i
+    if keypoints.ndim == 4:
+        keypoints = keypoints[0]
+
+    # Compute initial z distance in the first frame
+    initial_dist = abs(keypoints[0, front_foot_idx, 2] - keypoints[0, sacrum_idx, 2])
+    if initial_dist == 0:
+        return 0  # Avoid division by zero
+
+    for i in range(0, len(keypoints)):
+        front_foot_z = keypoints[i, front_foot_idx, 2]
+        sacrum_z = keypoints[i, sacrum_idx, 2]
+
+        curr_dist = abs(front_foot_z - sacrum_z)
+        pct_change = ((initial_dist - curr_dist) / initial_dist) * 100
+        if DEBUG:
+            logger.info(f"Frame {i}: initial_dist = {initial_dist:.3f}, curr_dist = {curr_dist:.2f}, rel_decrease = {pct_change:.4f}")
+
+        if pct_change > min_pct_change:
+            return i
     return 0  # fallback: no movement detected
+
 
 # -----------------------------------------------------------------------------------------------------------------------------
 # ---------------------------------------------------  END OF BIG REFACTOR  ---------------------------------------------------
@@ -499,22 +525,22 @@ def get_frame_size(cap: cv2.VideoCapture) -> tuple:
     return (height, width, 3)  # Assuming 3 channels (RGB)
 
 
-def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir: str) -> str:
+def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir: str, is_lefty: bool) -> str:
     output_dir_2D = pjoin(output_dir, 'pose2D')
     os.makedirs(output_dir_2D, exist_ok=True)
 
     n_frames = keypoints.shape[1]  
-    logger.info(f"\nTotal number of frames in the video: {n_frames} ({keypoints.shape = }")
+    logger.info(f"Total number of frames in the video: {n_frames} ({keypoints.shape = }")
     logger.info('\n\nGenerating 2D pose images...')
     for i in tqdm(range(n_frames)):
         is_valid, img = cap.read()
         if not is_valid:
             continue
         keypoints_2D_this_frame = keypoints[0][i]
-        image_w_keypoints = show2Dpose(keypoints_2D_this_frame, copy.deepcopy(img))
+        image_w_keypoints = show2Dpose(keypoints_2D_this_frame, copy.deepcopy(img), is_lefty=is_lefty)
         output_path_img_2D = pjoin(output_dir_2D, f"{i:04d}_2D.png")
         cv2.imwrite(output_path_img_2D, image_w_keypoints)
-    cap.release()
+
     return output_dir_2D
 
 

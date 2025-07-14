@@ -167,8 +167,8 @@ def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs",
         logger.info(f"Using model config: {model_config_path}")
         
         # Set up output paths
-        input_path_obj = Path(input_path)
-        base_name = input_path_obj.stem
+        # input_path_obj = Path(input_path)
+        # base_name = input_path_obj.stem
         output_dir = TMP_DIR / f"{job_id}_output"
         output_dir.mkdir(exist_ok=True)
         
@@ -184,8 +184,25 @@ def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs",
             output_file=pose2d_file,
             device=device
         )
+
+        # Step 2: Create 2D visualization frames (35% progress)
+        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=35,
+                                    message="Creating 2D visualization frames...")
         
-        # Step 2: Generate 3D poses (50% progress)
+        # Create 2D images from video and keypoints
+        cap = cv2.VideoCapture(input_path)
+        keypoints_2d = np.load(pose2d_file)
+        
+        frames_2d_dir = create_2D_images(
+            cap = cap, 
+            keypoints = keypoints_2d, 
+            output_dir = str(output_dir),
+            is_lefty = is_lefty
+        )
+
+        cap.release()
+
+        # Step 3: Generate 3D poses (50% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=50,
                                     message="Generating 3D poses...")
         
@@ -201,10 +218,7 @@ def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs",
             yaml_path=model_config_path
         )
         
-
-        # ---------------------------
-
-        # Step 3: Create visualization frames (70% progress)
+        # Step 4: Create 3D visualization frames (70% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=70,
                                     message="Creating visualization frames...")
         
@@ -215,18 +229,9 @@ def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs",
             user_3d_keypoints_filepath = str(pose3d_file),
             output_dir = str(frames_dir),
             pro_keypoints_filepath = TMP_PRO_KEYPOINTS_FILE,
+            is_lefty = is_lefty
         )
         
-        # Step 4: Create 2D visualization frames (75% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=75,
-                                    message="Creating 2D visualization frames...")
-        
-        # Create 2D images from video and keypoints
-        cap = cv2.VideoCapture(input_path)
-        keypoints_2d = np.load(pose2d_file)
-        frames_2d_dir = create_2D_images(cap, keypoints_2d, str(output_dir))
-        cap.release()
-
         # Step 5: Generate combined frames (85% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85,
                                     message="Combining frames with original video...")
@@ -266,7 +271,6 @@ def process_video_pipeline(job_id: str, input_path: str, model_size: str = "xs",
         logger.error(f"Job {job_id} failed: {error_msg}")
         job_manager.update_job_status(job_id, JobStatus.FAILED, error=error_msg)
         raise
-
 
 # ==================== API ENDPOINTS ====================
 
