@@ -49,24 +49,6 @@ S3_BUCKET = "shadow-trainer-dev"
 S3_PRO_PREFIX = "test/professional/"
 
 TMP_PRO_KEYPOINTS_FILE = API_ROOT_DIR / "checkpoint" / "example_SnellBlake.npy"
-# ==================== UTILITY FUNCTIONS ====================
-
-def list_s3_pro_keypoints():
-    """List available professional keypoints files in S3."""
-    import boto3
-    s3 = boto3.client("s3")
-    response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_PRO_PREFIX)
-    files = [
-        obj["Key"].replace(S3_PRO_PREFIX, "")
-        for obj in response.get("Contents", [])
-        if obj["Key"].endswith(".npy")
-    ]
-    return files
-
-def download_pro_keypoints_from_s3(filename, dest_path):
-    import boto3
-    s3 = boto3.client("s3")
-    s3.download_file(S3_BUCKET, S3_PRO_PREFIX + filename, str(dest_path))
 
 # FastAPI app
 app = FastAPI(
@@ -89,6 +71,23 @@ app.mount("/output", StaticFiles(directory=str(TMP_DIR)), name="output")
 
 
 # ==================== UTILITY FUNCTIONS ====================
+def list_s3_pro_keypoints():
+    """List available professional keypoints files in S3."""
+    import boto3
+    s3 = boto3.client("s3")
+    response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_PRO_PREFIX)
+    files = [
+        obj["Key"].replace(S3_PRO_PREFIX, "")
+        for obj in response.get("Contents", [])
+        if obj["Key"].endswith(".npy")
+    ]
+    return files
+
+def download_pro_keypoints_from_s3(filename, dest_path):
+    import boto3
+    s3 = boto3.client("s3")
+    s3.download_file(S3_BUCKET, S3_PRO_PREFIX + filename, str(dest_path))
+
 
 def validate_video_file(file: UploadFile) -> bool:
     """Validate uploaded video file"""
@@ -244,19 +243,19 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
             is_lefty = is_lefty
         )
 
-        # Step 5: Generate combined frames (85% progress)
+        # # Step 5: Generate combined frames (85% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85, message="Combining frames with original video...")
-        generate_output_combined_frames(
-            output_dir_2D=DIR_POSE2D,
-            output_dir_3D=DIR_POSE3D,
-            output_dir_combined=DIR_COMBINED_FRAMES
-        )
+        # generate_output_combined_frames(
+        #     output_dir_2D=DIR_POSE2D,
+        #     output_dir_3D=DIR_POSE3D,
+        #     output_dir_combined=DIR_COMBINED_FRAMES
+        # )
 
         # Step 6: Create final video (95% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=95, message="Generating final video...")
         output_video_path = img2video(
             video_path=input_video_path,
-            input_frames_dir=DIR_COMBINED_FRAMES
+            input_frames_dir=DIR_POSE3D
         )
 
         # Complete job
@@ -268,7 +267,7 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
 
         # Final garbage collection before completion
         gc.collect()
-
+        
         return output_video_path
         
     except Exception as e:
@@ -276,15 +275,6 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
         logger.error(f"Job {job_id} failed: {error_msg}")
         job_manager.update_job_status(job_id, JobStatus.FAILED, error=error_msg)
         raise
-# ==================== API ENDPOINTS ====================
-
-# Endpoint to list available pro keypoints files from S3
-from fastapi import APIRouter
-
-@app.get("/api/pro_keypoints/list")
-async def list_pro_keypoints():
-    files = list_s3_pro_keypoints()
-    return {"files": files}
 
 # ==================== API ENDPOINTS ====================
 
@@ -307,6 +297,12 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=500, detail="Service unhealthy")
+
+
+@app.get("/api/pro_keypoints/list")
+async def list_pro_keypoints():
+    files = list_s3_pro_keypoints()
+    return {"files": files}
 
 
 @app.post("/api/videos/upload", response_model=VideoUploadResponse)

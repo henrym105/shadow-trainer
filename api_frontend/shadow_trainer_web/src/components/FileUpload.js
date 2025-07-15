@@ -119,7 +119,7 @@ const FileUpload = ({ onFileSelect, disabled = false, acceptedFormats = ['.mp4',
         onDragLeave={handleDragOut}
         onDragOver={handleDrag}
         onDrop={handleDrop}
-        onClick={handleClick}
+        onClick={!selectedFile ? handleClick : undefined}
       >
         <input
           ref={fileInputRef}
@@ -129,7 +129,6 @@ const FileUpload = ({ onFileSelect, disabled = false, acceptedFormats = ['.mp4',
           disabled={disabled}
           style={{ display: 'none' }}
         />
-        
         {selectedFile ? (
           <div className="file-selected">
             <div className="file-icon">🎥</div>
@@ -163,6 +162,16 @@ const FileUpload = ({ onFileSelect, disabled = false, acceptedFormats = ['.mp4',
           </div>
         )}
       </div>
+      {/* Video preview below the green box, outside the dropzone */}
+      {selectedFile && (
+        <div className="file-preview" style={{ marginTop: '1rem', width: '100%' }}>
+          <video
+            src={URL.createObjectURL(selectedFile)}
+            controls
+            style={{ width: '100%', maxHeight: '320px', borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
+          />
+        </div>
+      )}
     </div>
   );
 };
