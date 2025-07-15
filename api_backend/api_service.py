@@ -245,17 +245,17 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
 
         # # Step 5: Generate combined frames (85% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85, message="Combining frames with original video...")
-        # generate_output_combined_frames(
-        #     output_dir_2D=DIR_POSE2D,
-        #     output_dir_3D=DIR_POSE3D,
-        #     output_dir_combined=DIR_COMBINED_FRAMES
-        # )
+        generate_output_combined_frames(
+            output_dir_2D=DIR_POSE2D,
+            output_dir_3D=DIR_POSE3D,
+            output_dir_combined=DIR_COMBINED_FRAMES
+        )
 
         # Step 6: Create final video (95% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=95, message="Generating final video...")
         output_video_path = img2video(
             video_path=input_video_path,
-            input_frames_dir=DIR_POSE3D
+            input_frames_dir=DIR_COMBINED_FRAMES,
         )
 
         # Complete job

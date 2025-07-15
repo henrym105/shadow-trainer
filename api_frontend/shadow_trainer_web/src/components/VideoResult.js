@@ -31,8 +31,8 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
   };
 
   const copyLinkToClipboard = async () => {
+    const fullUrl = `http://www.shadow-trainer.com${downloadUrl}`;
     try {
-      const fullUrl = `http://www.shadow-trainer.com${downloadUrl}`;
       await navigator.clipboard.writeText(fullUrl);
       // You could add a toast notification here
       alert('Download link copied to clipboard!');
@@ -40,7 +40,7 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
       console.error('Failed to copy link:', err);
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
-      textArea.value = downloadUrl;
+      textArea.value = fullUrl;
       document.body.appendChild(textArea);
       textArea.select();
       document.execCommand('copy');
