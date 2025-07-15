@@ -17,17 +17,30 @@ function ProKeypointsSelector({ onSelect, disabled }) {
 
   return (
     <div className="model-selection pro-keypoints-selector">
-      <label htmlFor="pro-player-select">Choose a professional player:</label>
+      <label htmlFor="pro-player-select">Choose a professional player to shadow:</label>
       <select
         id="pro-player-select"
         value={selected}
         onChange={handleChange}
         disabled={disabled}
       >
-        <option value="">Default (SnellBlake)</option>
-        {proFiles.map(f => (
-          <option key={f} value={f}>{f.replace(".npy", "")}</option>
-        ))}
+        {proFiles.map(f => {
+          // Remove .npy, split into Lastname and Firstname, and display as "Firstname Lastname"
+          const name = f.replace('.npy', '');
+          let displayName = name;
+          if (name.match(/^[A-Za-z]+[A-Z][a-z]+$/)) {
+            // Try to split at the transition from lowercase to uppercase
+            const splitIdx = name.search(/[A-Z][a-z]+$/);
+            if (splitIdx > 0) {
+              const last = name.slice(0, splitIdx);
+              const first = name.slice(splitIdx);
+              displayName = `${first} ${last}`;
+            }
+          }
+          return (
+            <option key={f} value={f}>{displayName}</option>
+          );
+        })}
       </select>
     </div>
   );
