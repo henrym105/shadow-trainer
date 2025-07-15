@@ -462,6 +462,39 @@ async def get_video_preview(job_id: str):
     )
 
 
+
+# ==================== 3D KEYPOINTS API ENDPOINTS ====================
+
+@app.get("/api/videos/{job_id}/keypoints3d/user")
+async def get_user_3d_keypoints(job_id: str):
+    """
+    Return user 3D keypoints as JSON (for three.js rendering)
+    """
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    keypoints_path = Path(job.input_path).parent / f"{job_id}_output" / "raw_keypoints" / "user_3D_keypoints.npy"
+    if not keypoints_path.exists():
+        raise HTTPException(status_code=404, detail="User 3D keypoints not found")
+    arr = np.load(keypoints_path)
+    return JSONResponse(content=arr.tolist())
+
+
+@app.get("/api/videos/{job_id}/keypoints3d/pro")
+async def get_pro_3d_keypoints(job_id: str):
+    """
+    Return pro 3D keypoints as JSON (for three.js rendering)
+    """
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    keypoints_path = Path(job.input_path).parent / f"{job_id}_output" / "raw_keypoints" / "pro_3D_keypoints.npy"
+    if not keypoints_path.exists():
+        raise HTTPException(status_code=404, detail="Pro 3D keypoints not found")
+    arr = np.load(keypoints_path)
+    return JSONResponse(content=arr.tolist())
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8002)

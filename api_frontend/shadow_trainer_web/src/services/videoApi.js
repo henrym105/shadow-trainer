@@ -157,6 +157,30 @@ export class VideoAPI {
 
     return { isValid: true };
   }
+
+  /**
+   * Get user 3D keypoints for a job
+   * @param {string} jobId
+   * @returns {Promise<Array>} 3D keypoints array
+   */
+  static async getUser3DKeypoints(jobId) {
+    const url = `${API_BASE_URL}/videos/${jobId}/keypoints3d/user`;
+    const response = await fetch(url);
+    if (!response.ok) throw new APIError('Failed to fetch user 3D keypoints', response.status);
+    return await response.json();
+  }
+
+  /**
+   * Get pro 3D keypoints for a job
+   * @param {string} jobId
+   * @returns {Promise<Array>} 3D keypoints array
+   */
+  static async getPro3DKeypoints(jobId) {
+    const url = `${API_BASE_URL}/videos/${jobId}/keypoints3d/pro`;
+    const response = await fetch(url);
+    if (!response.ok) throw new APIError('Failed to fetch pro 3D keypoints', response.status);
+    return await response.json();
+  }
 }
 
 /**
@@ -226,9 +250,7 @@ export const useJobPolling = (jobId, onStatusUpdate, pollingInterval = 2000) => 
       if (interval) {
         clearInterval(interval);
       }
-      setIsPolling(false);
     };
-
   }, [jobId, pollStatus, pollingInterval]);
 
   return { isPolling, error };

@@ -3,12 +3,35 @@
  * Displays processed video with download options
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './VideoResult.css';
+import ThreeJSkeleton from './ThreeJSkeleton';
+import { VideoAPI } from '../services/videoApi';
 
 const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [userKeypoints, setUserKeypoints] = useState(null);
+  const [proKeypoints, setProKeypoints] = useState(null);
+  const [showUser, setShowUser] = useState(true);
+  const [showPro, setShowPro] = useState(false);
+  const [frameIdx, setFrameIdx] = useState(0);
+  const [maxFrames, setMaxFrames] = useState(0);
+
+  // Fetch keypoints on mount
+  useEffect(() => {
+    let isMounted = true;
+    VideoAPI.getUser3DKeypoints(jobId).then(arr => {
+      if (isMounted) {
+        setUserKeypoints(arr);
+        setMaxFrames(arr.length);
+      }
+    }).catch(() => setUserKeypoints(null));
+    VideoAPI.getPro3DKeypoints(jobId).then(arr => {
+      if (isMounted) setProKeypoints(arr);
+    }).catch(() => setProKeypoints(null));
+    return () => { isMounted = false; };
+  }, [jobId]);
 
   const handleVideoLoad = () => {
     setIsLoading(false);
@@ -83,6 +106,41 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
             Your browser does not support the video tag.
           </video>
         )}
+      </div>
+
+      {/* 3D Skeleton Viewer Section */}
+      <div className="skeleton-viewer-section">
+        <div className="skeleton-toggles">
+          <label>
+            <input type="checkbox" checked={showUser} onChange={e => setShowUser(e.target.checked)} />
+            Show User
+          </label>
+          <label>
+            <input type="checkbox" checked={showPro} onChange={e => setShowPro(e.target.checked)} />
+            Show Pro
+          </label>
+        </div>
+        <div className="skeleton-frame-slider">
+          <label>Frame: </label>
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, maxFrames - 1)}
+            value={frameIdx}
+            onChange={e => setFrameIdx(Number(e.target.value))}
+            disabled={maxFrames === 0}
+          />
+          <span>{frameIdx + 1} / {maxFrames}</span>
+        </div>
+        <div className="skeleton-canvas">
+          <ThreeJSkeleton
+            userKeypoints={userKeypoints}
+            proKeypoints={proKeypoints}
+            showUser={showUser}
+            showPro={showPro}
+            frameIdx={frameIdx}
+          />
+        </div>
       </div>
 
       <div className="action-buttons">

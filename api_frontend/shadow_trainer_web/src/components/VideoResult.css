@@ -157,6 +157,48 @@
   font-size: 0.9rem;
 }
 
+/* Skeleton Viewer Section */
+.skeleton-viewer-section {
+  margin: 2rem 0;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.skeleton-toggles {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1rem;
+}
+
+.skeleton-toggles label {
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.skeleton-frame-slider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.skeleton-canvas {
+  width: 500px;
+  height: 500px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .video-result-container {
