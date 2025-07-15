@@ -29,27 +29,22 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
     link.click();
     document.body.removeChild(link);
   };
- 
+
   const copyLinkToClipboard = async () => {
-    // Ensure the copied link is absolute, not relative
-    let absoluteUrl = downloadUrl;
-    if (downloadUrl.startsWith('/api/videos/')) {
-      absoluteUrl = `http://www.shadow-trainer.com${downloadUrl}`;
-    }
     try {
-      await navigator.clipboard.writeText(absoluteUrl);
+      await navigator.clipboard.writeText(downloadUrl);
       // You could add a toast notification here
-      alert('Download link copied to clipboard!\n\nNote: This link is only valid for 20 minutes.');
+      alert('Download link copied to clipboard!');
     } catch (err) {
       console.error('Failed to copy link:', err);
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
-      textArea.value = absoluteUrl;
+      textArea.value = downloadUrl;
       document.body.appendChild(textArea);
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-      alert('Download link copied to clipboard!\n\nNote: This link is only valid for 20 minutes.');
+      alert('Download link copied to clipboard!');
     }
   };
 

@@ -38,7 +38,7 @@ if run_clicked:
                     API_URL,
                     headers={"accept": "application/json", "Content-Type": "application/json"},
                     json=payload,
-                    timeout=1000
+                    timeout=900  # 15 minutes
                 )
                 print(f"RESPONSE: {response}") # Debugging line, print to terminal
                 if response.status_code == 200:
