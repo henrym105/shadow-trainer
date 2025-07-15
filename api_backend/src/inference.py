@@ -306,13 +306,16 @@ def get_pose3D_no_vis(
 
     return output_keypoints_path
 
+
+
 def create_3d_pose_images_from_array(
     user_3d_keypoints_filepath: str,
     output_dir: str,
     pro_keypoints_filepath: str = None,
     is_lefty: bool = False
 ) -> None:
-    """Create 3D pose frame visualizations comparing user and professional keypoints.
+    """
+    Create 3D pose frame visualizations for each frame in the given 3D keypoints array.
 
     Args:
         user_3d_keypoints (str): Path to a numpy array of shape (N, 17, 3) containing the 3D keypoints for 17 body points and N frames of the user's input video.
@@ -320,8 +323,6 @@ def create_3d_pose_images_from_array(
         pro_keypoints_filepath (str, optional): Path to the professional keypoints file (for debug/logging).
         is_lefty (bool): If True, flip the professional keypoints horizontally.
     """
-    USE_BODY_PART = "hips"  # Options: "feet", "shoulders", "hips"
-    MVMT_PCT_THRESHOLD = 4
     angle_adjustment = 0.0
     # USE_BODY_PART = "feet"
     # USE_BODY_PART = "shoulders"
@@ -359,14 +360,14 @@ def create_3d_pose_images_from_array(
 
     user_keypoints_npy = user_keypoints_npy[user_start:]
     pro_keypoints_npy = pro_keypoints_npy[pro_start:]
+
     # Note: output_dir points to the 'pose' directory, but pose2D is at the job root level
     job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
     pose2d_dir = pjoin(job_output_dir, 'pose2D')
     remove_images_before_motion_start(pose2d_dir, user_start)
 
-    # Verify shapes match
-    assert user_keypoints.shape == pro_keypoints.shape, \
-        f"Shape mismatch after processing: User {user_keypoints.shape}, Pro {pro_keypoints.shape}"
+    # Set video_length to the minimum of number of frames between user and pro keypoints files
+    num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
 
     # Resample the longer sequence to match the shorter one
     user_keypoints_npy = resample_pose_sequence(user_keypoints_npy, num_frames)
@@ -395,8 +396,8 @@ def create_3d_pose_images_from_array(
     np.save(output_pro_3D_npy_path, pro_keypoints_npy)
     if DEBUG: logger.info(f"Professional 3D keypoints saved to {output_pro_3D_npy_path}, with shape {pro_keypoints_npy.shape}")
 
-    # Generate visualizations for each frame
     for frame_id in tqdm(range(num_frames), desc="Creating 3D pose images", unit="frame"):
+        # Create a new figure for this frame
         fig = plt.figure(figsize=(9.6, 5.4))
         gs = gridspec.GridSpec(1, 1)
         gs.update(wspace=-0.00, hspace=0.05)

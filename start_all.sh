@@ -13,11 +13,6 @@ tmux split-window -h -t $SESSION:0
 tmux send-keys -t $SESSION:0.0 'cd api_backend && uv run python run_api.py' C-m
 
 # Run frontend in the right pane (pane 1)
-<<<<<<< Updated upstream
-tmux send-keys -t $SESSION:0.1 'uv run streamlit run api_frontend/adi_streamlit_app.py --server.port 8000' C-m
-=======
-tmux send-keys -t $SESSION:0.1 'cd api_frontend/shadow_trainer_web && npm run build && serve -s build -l 8000' C-m
->>>>>>> Stashed changes
 tmux send-keys -t $SESSION:0.1 'cd api_frontend/shadow_trainer_web && npm run build && serve -s build -l 8000' C-m
 # tmux send-keys -t $SESSION:0.1 'cd api_frontend/shadow_trainer_web && PORT=8000 npm start' C-m
 
