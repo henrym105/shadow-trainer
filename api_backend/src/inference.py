@@ -330,7 +330,6 @@ def create_3d_pose_images_from_array(
     
     # output_dir_3D = pjoin(output_dir, 'pose3D')
     output_dir_3D = output_dir
-    os.makedirs(output_dir_3D, exist_ok=True)
 
     # Load professional keypoints and prepare for alignment
     user_keypoints_npy = load_npy_file(user_3d_keypoints_filepath)
@@ -388,10 +387,8 @@ def create_3d_pose_images_from_array(
     num_frames = user_keypoints_npy.shape[0]
 
     # Save a copy of the professional keypoints for reference
-    # Note: output_dir points to the 'pose' directory, but we need to save to the job root's raw_keypoints directory
-    job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
+    job_output_dir = os.path.dirname(output_dir)  # Go up one level to job output root
     raw_keypoints_dir = pjoin(job_output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
-    os.makedirs(raw_keypoints_dir, exist_ok=True)
     output_pro_3D_npy_path = pjoin(raw_keypoints_dir, KEYPOINTS_FILE_3D_PRO)
     np.save(output_pro_3D_npy_path, pro_keypoints_npy)
     if DEBUG: logger.info(f"Professional 3D keypoints saved to {output_pro_3D_npy_path}, with shape {pro_keypoints_npy.shape}")
@@ -431,7 +428,7 @@ def create_3d_pose_images_from_array(
             )
 
         # Save this 3D pose image
-        output_path_3D_this_frame = pjoin(output_dir_3D, f"{frame_id:04d}_3D.png")
+        output_path_3D_this_frame = pjoin(output_dir, f"{frame_id:04d}_3D.png")
         plt.savefig(output_path_3D_this_frame, dpi=200, format='png', bbox_inches='tight')
         plt.close(fig)
 

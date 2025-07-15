@@ -44,7 +44,29 @@ API_ROOT_DIR = Path(__file__).parent.absolute()
 TMP_DIR = API_ROOT_DIR / "tmp_api_output"
 TMP_DIR.mkdir(exist_ok=True)
 
+# S3 config for pro keypoints
+S3_BUCKET = "shadow-trainer-dev"
+S3_PRO_PREFIX = "test/professional/"
+
 TMP_PRO_KEYPOINTS_FILE = API_ROOT_DIR / "checkpoint" / "example_SnellBlake.npy"
+# ==================== UTILITY FUNCTIONS ====================
+
+def list_s3_pro_keypoints():
+    """List available professional keypoints files in S3."""
+    import boto3
+    s3 = boto3.client("s3")
+    response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_PRO_PREFIX)
+    files = [
+        obj["Key"].replace(S3_PRO_PREFIX, "")
+        for obj in response.get("Contents", [])
+        if obj["Key"].endswith(".npy")
+    ]
+    return files
+
+def download_pro_keypoints_from_s3(filename, dest_path):
+    import boto3
+    s3 = boto3.client("s3")
+    s3.download_file(S3_BUCKET, S3_PRO_PREFIX + filename, str(dest_path))
 
 # FastAPI app
 app = FastAPI(
@@ -137,7 +159,7 @@ def cleanup_old_files(retention_minutes: int = 60):
 
 # ==================== VIDEO PROCESSING ====================
 
-def process_video_pipeline(job_id: str, input_video_path: str, model_size: str = "xs", is_lefty: bool = False) -> str:
+def process_video_pipeline(job_id: str, input_video_path: str, model_size: str = "xs", is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None) -> str:
     """
     Process video with pose estimation and keypoint overlays
     
@@ -160,6 +182,7 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
 
     FILE_POSE2D = DIR_KEYPOINTS / "2D_keypoints.npy"
     FILE_POSE3D = DIR_KEYPOINTS / "user_3D_keypoints.npy"
+    FILE_POSE3D_PRO = DIR_KEYPOINTS / "pro_3D_keypoints.npy"
 
     DIR_OUTPUT_BASE.mkdir(exist_ok=True)
     DIR_POSE2D.mkdir(exist_ok=True)
@@ -182,7 +205,7 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
         logger.info(f"Current working directory: {os.getcwd()}")
         model_config_path = get_model_config_path(model_size)
         logger.info(f"Using model config: {model_config_path}")
-        
+
         # Step 1: Extract 2D poses (20% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=20, message="Extracting 2D poses...")
         get_pose2D(video_path=input_video_path, output_file=FILE_POSE2D, device=device)
@@ -204,16 +227,23 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
             model_size=model_size,
             yaml_path=model_config_path
         )
-        
+
+        # Step 4: Download pro keypoints if specified
+        pro_keypoints_path = TMP_PRO_KEYPOINTS_FILE
+        if pro_keypoints_filename:
+            logger.info(f"Downloading pro keypoints file from S3: {pro_keypoints_filename}")
+            download_pro_keypoints_from_s3(pro_keypoints_filename, FILE_POSE3D_PRO)
+            pro_keypoints_path = FILE_POSE3D_PRO
+
         # Step 4: Create 3D visualization frames (70% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=70, message="Creating visualization frames...")
         create_3d_pose_images_from_array(
             user_3d_keypoints_filepath = FILE_POSE3D,
             output_dir = DIR_POSE3D,
-            pro_keypoints_filepath = TMP_PRO_KEYPOINTS_FILE,
+            pro_keypoints_filepath = pro_keypoints_path,
             is_lefty = is_lefty
         )
-        
+
         # Step 5: Generate combined frames (85% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85, message="Combining frames with original video...")
         generate_output_combined_frames(
@@ -221,14 +251,14 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
             output_dir_3D=DIR_POSE3D,
             output_dir_combined=DIR_COMBINED_FRAMES
         )
-        
+
         # Step 6: Create final video (95% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=95, message="Generating final video...")
         output_video_path = img2video(
             video_path=input_video_path,
             input_frames_dir=DIR_COMBINED_FRAMES
         )
-        
+
         # Complete job
         job_manager.update_job_status(
             job_id, JobStatus.COMPLETED, progress=100, 
@@ -246,6 +276,15 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
         logger.error(f"Job {job_id} failed: {error_msg}")
         job_manager.update_job_status(job_id, JobStatus.FAILED, error=error_msg)
         raise
+# ==================== API ENDPOINTS ====================
+
+# Endpoint to list available pro keypoints files from S3
+from fastapi import APIRouter
+
+@app.get("/api/pro_keypoints/list")
+async def list_pro_keypoints():
+    files = list_s3_pro_keypoints()
+    return {"files": files}
 
 # ==================== API ENDPOINTS ====================
 
@@ -275,7 +314,8 @@ async def upload_video(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
-    is_lefty: bool = Query(False, description="Whether the user is left-handed")
+    is_lefty: bool = Query(False, description="Whether the user is left-handed"),
+    pro_keypoints_filename: Optional[str] = Query(None, description="Professional keypoints filename from S3")
 ):
     """
     Upload a video file and start processing
@@ -316,6 +356,7 @@ async def upload_video(
             input_path,
             model_size,
             is_lefty,
+            pro_keypoints_filename,
         )
         
         logger.info(f"Started processing job {job.job_id} for file {file.filename}")

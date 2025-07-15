@@ -8,6 +8,7 @@ import { VideoAPI, useJobPolling, APIError } from "./services/videoApi";
 import FileUpload from "./components/FileUpload";
 import ProgressBar from "./components/ProgressBar";
 import VideoResult from "./components/VideoResult";
+import ProKeypointsSelector from "./components/ProKeypointsSelector";
 import "./App.css";
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [modelSize, setModelSize] = useState('xs');
   const [isLefty, setIsLefty] = useState(false); // New state for handedness preference
+  const [selectedProFile, setSelectedProFile] = useState(""); // New state for ProKeypoints file
 
   // Handle file selection from FileUpload component
   const handleFileSelect = useCallback((file, error) => {
@@ -60,7 +62,7 @@ function App() {
 
     try {
       console.log('Starting upload...', selectedFile.name);
-      const response = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty); // Pass isLefty parameter
+      const response = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty, selectedProFile); // Pass pro keypoints
       
       console.log('Upload successful:', response);
       setJobId(response.job_id);
@@ -97,6 +99,7 @@ function App() {
     setJobStatus(null);
     setIsUploading(false);
     setIsLefty(false); // Reset handedness preference
+    setSelectedProFile(""); // Reset ProKeypoints file
   };
 
   // Determine current application state
@@ -176,6 +179,11 @@ function App() {
                       <span className={`toggle-label ${isLefty ? 'active' : ''}`}>Left</span>
                     </div>
                   </div>
+
+                  <ProKeypointsSelector
+                    onSelect={setSelectedProFile}
+                    disabled={isUploading}
+                  />
 
                   <button
                     className="upload-btn"
