@@ -8,7 +8,7 @@ import './VideoResult.css';
 import ThreeJSkeleton from './ThreeJSkeleton';
 import { VideoAPI } from '../services/videoApi';
 
-const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
+const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl, resultView = 'both' }) => {
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userKeypoints, setUserKeypoints] = useState(null);
@@ -79,69 +79,73 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
         <p>Motion analysis completed for: <strong>{originalFilename}</strong></p>
       </div>
 
-      <div className="video-preview-section">
-        {isLoading && (
-          <div className="video-loading">
-            <div className="loading-spinner"></div>
-            <p>Loading preview...</p>
-          </div>
-        )}
-        
-        {videoError ? (
-          <div className="video-error">
-            <div className="error-icon">⚠️</div>
-            <p>Unable to load video preview</p>
-            <p className="error-message">But you can still download the processed video below</p>
-          </div>
-        ) : (
-          <video
-            controls
-            className="result-video"
-            onLoadedData={handleVideoLoad}
-            onError={handleVideoError}
-            onLoadStart={() => setIsLoading(true)}
-            poster="/assets/video-poster.png" // You can add a poster image
-          >
-            <source src={previewUrl} type="video/mp4" />
-            Your browser does not support the video tag.
-          </video>
-        )}
-      </div>
-
       {/* 3D Skeleton Viewer Section */}
-      <div className="skeleton-viewer-section">
-        <div className="skeleton-toggles">
-          <label>
-            <input type="checkbox" checked={showUser} onChange={e => setShowUser(e.target.checked)} />
-            Show User
-          </label>
-          <label>
-            <input type="checkbox" checked={showPro} onChange={e => setShowPro(e.target.checked)} />
-            Show Pro
-          </label>
+      {(resultView === 'threejs' || resultView === 'both') && (
+        <div className="skeleton-viewer-section">
+          <div className="skeleton-toggles">
+            <label>
+              <input type="checkbox" checked={showUser} onChange={e => setShowUser(e.target.checked)} />
+              Show User
+            </label>
+            <label>
+              <input type="checkbox" checked={showPro} onChange={e => setShowPro(e.target.checked)} />
+              Show Pro
+            </label>
+          </div>
+          <div className="skeleton-frame-slider">
+            <label>Frame: </label>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(0, maxFrames - 1)}
+              value={frameIdx}
+              onChange={e => setFrameIdx(Number(e.target.value))}
+              disabled={maxFrames === 0}
+            />
+            <span>{frameIdx + 1} / {maxFrames}</span>
+          </div>
+          <div className="skeleton-canvas">
+            <ThreeJSkeleton
+              userKeypoints={userKeypoints}
+              proKeypoints={proKeypoints}
+              showUser={showUser}
+              showPro={showPro}
+              frameIdx={frameIdx}
+            />
+          </div>
         </div>
-        <div className="skeleton-frame-slider">
-          <label>Frame: </label>
-          <input
-            type="range"
-            min={0}
-            max={Math.max(0, maxFrames - 1)}
-            value={frameIdx}
-            onChange={e => setFrameIdx(Number(e.target.value))}
-            disabled={maxFrames === 0}
-          />
-          <span>{frameIdx + 1} / {maxFrames}</span>
+      )}
+
+      {/* Video Preview Section */}
+      {(resultView === 'video' || resultView === 'both') && (
+        <div className="video-preview-section">
+          {isLoading && (
+            <div className="video-loading">
+              <div className="loading-spinner"></div>
+              <p>Loading preview...</p>
+            </div>
+          )}
+          {videoError ? (
+            <div className="video-error">
+              <div className="error-icon">⚠️</div>
+              <p>Unable to load video preview</p>
+              <p className="error-message">But you can still download the processed video below</p>
+            </div>
+          ) : (
+            <video
+              controls
+              className="result-video"
+              onLoadedData={handleVideoLoad}
+              onError={handleVideoError}
+              onLoadStart={() => setIsLoading(true)}
+              poster="/assets/video-poster.png"
+            >
+              <source src={previewUrl} type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          )}
         </div>
-        <div className="skeleton-canvas">
-          <ThreeJSkeleton
-            userKeypoints={userKeypoints}
-            proKeypoints={proKeypoints}
-            showUser={showUser}
-            showPro={showPro}
-            frameIdx={frameIdx}
-          />
-        </div>
-      </div>
+      )}
 
       <div className="action-buttons">
         <button 
@@ -151,7 +155,6 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
           <span className="btn-icon">⬇️</span>
           Download Video
         </button>
-        
         <button 
           className="copy-link-btn secondary"
           onClick={copyLinkToClipboard}

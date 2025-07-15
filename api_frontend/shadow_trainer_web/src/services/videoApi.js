@@ -29,14 +29,18 @@ export class VideoAPI {
    * @param {string} modelSize - Model size to use ('xs', 's', 'm', 'l')
    * @param {boolean} isLefty - Whether the user is left-handed
    * @param {string} proKeypointsFilename - Optional pro keypoints filename
+   * @param {string} resultView - Result view preference ('2d', '3d', 'both')
    * @returns {Promise<Object>} Upload response with job_id
    */
-  static async uploadVideo(file, modelSize = 'xs', isLefty = false, proKeypointsFilename = "") {
+  static async uploadVideo(file, modelSize = 'xs', isLefty = false, proKeypointsFilename = "", resultView = "both") {
     const formData = new FormData();
     formData.append('file', file);
     let url = `${API_BASE_URL}/videos/upload?model_size=${modelSize}&is_lefty=${isLefty}`;
     if (proKeypointsFilename) {
       url += `&pro_keypoints_filename=${encodeURIComponent(proKeypointsFilename)}`;
+    }
+    if (resultView) {
+      url += `&result_view=${encodeURIComponent(resultView)}`;
     }
     try {
       const response = await fetch(url, {

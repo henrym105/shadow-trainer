@@ -1,4 +1,5 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useState } from "react";
+import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from "three";
 
 // Example joint connections for a 17-joint skeleton (COCO order)
@@ -11,83 +12,91 @@ const SKELETON_EDGES = [
   [11, 15], [14, 16] // Legs (example)
 ];
 
-function drawSkeleton(scene, keypoints, color = 0x00ff00) {
-  // Remove previous skeleton
-  while (scene.children.length > 0) scene.remove(scene.children[0]);
-  // Draw joints
-  keypoints.forEach(([x, y, z]) => {
-    const sphere = new THREE.Mesh(
-      new THREE.SphereGeometry(0.03, 8, 8),
-      new THREE.MeshBasicMaterial({ color })
-    );
-    sphere.position.set(x, y, z);
-    scene.add(sphere);
-  });
-  // Draw bones
-  SKELETON_EDGES.forEach(([i, j]) => {
-    if (keypoints[i] && keypoints[j]) {
-      const geometry = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(...keypoints[i]),
-        new THREE.Vector3(...keypoints[j])
-      ]);
-      const line = new THREE.Line(
-        geometry,
-        new THREE.LineBasicMaterial({ color, linewidth: 2 })
-      );
-      scene.add(line);
+function SkeletonLines({ keypoints, color }) {
+  if (!keypoints) return null;
+  return (
+    <>
+      {/* Joints */}
+      {keypoints.map(([x, y, z], idx) => (
+        <mesh key={"joint-" + idx} position={[x, y, z]}>
+          <sphereGeometry args={[0.03, 8, 8]} />
+          <meshBasicMaterial color={color} />
+        </mesh>
+      ))}
+      {/* Bones */}
+      {SKELETON_EDGES.map(([i, j], idx) => (
+        (keypoints[i] && keypoints[j]) ? (
+          <line key={"bone-" + idx}>
+            <bufferGeometry attach="geometry">
+              <bufferAttribute
+                attach="attributes-position"
+                count={2}
+                array={new Float32Array([
+                  ...keypoints[i],
+                  ...keypoints[j]
+                ])}
+                itemSize={3}
+              />
+            </bufferGeometry>
+            <lineBasicMaterial color={color} linewidth={2} />
+          </line>
+        ) : null
+      ))}
+    </>
+  );
+}
+
+function TurntableGroup({ children }) {
+  const group = useRef();
+  const [dragging, setDragging] = useState(false);
+  const [lastX, setLastX] = useState(0);
+  const [rotationY, setRotationY] = useState(0);
+
+  useFrame(() => {
+    if (group.current) {
+      group.current.rotation.y = rotationY;
     }
   });
+
+  const onPointerDown = (e) => {
+    setDragging(true);
+    setLastX(e.clientX);
+  };
+  const onPointerUp = () => setDragging(false);
+  const onPointerMove = (e) => {
+    if (!dragging) return;
+    const deltaX = e.clientX - lastX;
+    setLastX(e.clientX);
+    setRotationY((r) => r + deltaX * 0.01);
+  };
+
+  return (
+    <group
+      ref={group}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerOut={onPointerUp}
+      onPointerMove={onPointerMove}
+    >
+      {children}
+    </group>
+  );
 }
 
 const ThreeJSkeleton = ({ userKeypoints, proKeypoints, showUser, showPro, frameIdx }) => {
-  const mountRef = useRef();
-  const sceneRef = useRef();
-  const rendererRef = useRef();
-  const cameraRef = useRef();
+  // Defensive: avoid rendering if no data
+  const userFrame = userKeypoints && userKeypoints[frameIdx];
+  const proFrame = proKeypoints && proKeypoints[frameIdx];
 
-  useEffect(() => {
-    // Init scene
-    const width = 500;
-    const height = 500;
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-    camera.position.set(0, 0, 2.5);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
-    mountRef.current.appendChild(renderer.domElement);
-    sceneRef.current = scene;
-    rendererRef.current = renderer;
-    cameraRef.current = camera;
-    // Light
-    const light = new THREE.AmbientLight(0xffffff, 1);
-    scene.add(light);
-    // Clean up
-    return () => {
-      renderer.dispose();
-      mountRef.current.removeChild(renderer.domElement);
-    };
-  }, []);
-
-  useEffect(() => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-    // Draw user skeleton
-    if (showUser && userKeypoints && userKeypoints[frameIdx]) {
-      drawSkeleton(scene, userKeypoints[frameIdx], 0x00ff00);
-    }
-    // Draw pro skeleton
-    if (showPro && proKeypoints && proKeypoints[frameIdx]) {
-      drawSkeleton(scene, proKeypoints[frameIdx], 0xff0000);
-    }
-    // If both, draw both (user on top)
-    if (showUser && showPro && userKeypoints && proKeypoints && userKeypoints[frameIdx] && proKeypoints[frameIdx]) {
-      drawSkeleton(scene, proKeypoints[frameIdx], 0xff0000);
-      drawSkeleton(scene, userKeypoints[frameIdx], 0x00ff00);
-    }
-    rendererRef.current.render(scene, cameraRef.current);
-  }, [userKeypoints, proKeypoints, showUser, showPro, frameIdx]);
-
-  return <div ref={mountRef} />;
+  return (
+    <Canvas style={{ width: 500, height: 500, background: '#fff', borderRadius: 8 }} camera={{ position: [0, 0, 2.5], fov: 75 }}>
+      <ambientLight intensity={1} />
+      <TurntableGroup>
+        {showPro && proFrame && <SkeletonLines keypoints={proFrame} color={0xff0000} />}
+        {showUser && userFrame && <SkeletonLines keypoints={userFrame} color={0x00ff00} />}
+      </TurntableGroup>
+    </Canvas>
+  );
 };
 
 export default ThreeJSkeleton;

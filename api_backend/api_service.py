@@ -159,7 +159,7 @@ def cleanup_old_files(retention_minutes: int = 60):
 
 # ==================== VIDEO PROCESSING ====================
 
-def process_video_pipeline(job_id: str, input_video_path: str, model_size: str = "xs", is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None) -> str:
+def process_video_pipeline(job_id: str, input_video_path: str, model_size: str = "xs", is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None, result_view: str = None) -> str:
     """
     Process video with pose estimation and keypoint overlays
     
@@ -168,9 +168,11 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
         input_video_path: Path to input video file
         model_size: Model size to use for processing
         is_lefty: Whether the user is left-handed
+        pro_keypoints_filename: Optional pro keypoints file
+        result_view: Optional result view mode ("3d_skeleton_only", "video_only", "both" or None)
     
     Returns:
-        Path to output video file
+        Path to output video file (or None if not generated)
     """
     # Establish output directory constants for this job
     DIR_OUTPUT_BASE = TMP_DIR / f"{job_id}_output"
@@ -211,11 +213,12 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
         get_pose2D(video_path=input_video_path, output_file=FILE_POSE2D, device=device)
 
         # Step 2: Create 2D visualization frames (35% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=35, message="Creating 2D visualization frames...")
-        cap = cv2.VideoCapture(input_video_path)
-        keypoints_2d = np.load(FILE_POSE2D)
-        create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
-        cap.release()
+        if result_view not in ("3d_skeleton_only", "threejs", "3d", "3d_only"):
+            job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=35, message="Creating 2D visualization frames...")
+            cap = cv2.VideoCapture(input_video_path)
+            keypoints_2d = np.load(FILE_POSE2D)
+            create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
+            cap.release()
 
         # Step 3: Generate 3D poses (50% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=50, message="Generating 3D poses...")
@@ -236,33 +239,39 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
             pro_keypoints_path = FILE_POSE3D_PRO
 
         # Step 4: Create 3D visualization frames (70% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=70, message="Creating visualization frames...")
-        create_3d_pose_images_from_array(
-            user_3d_keypoints_filepath = FILE_POSE3D,
-            output_dir = DIR_POSE3D,
-            pro_keypoints_filepath = pro_keypoints_path,
-            is_lefty = is_lefty
-        )
+        if result_view not in ("3d_skeleton_only", "threejs", "3d", "3d_only"):
+            job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=70, message="Creating visualization frames...")
+            create_3d_pose_images_from_array(
+                user_3d_keypoints_filepath = FILE_POSE3D,
+                output_dir = DIR_POSE3D,
+                pro_keypoints_filepath = pro_keypoints_path,
+                is_lefty = is_lefty
+            )
 
         # Step 5: Generate combined frames (85% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85, message="Combining frames with original video...")
-        generate_output_combined_frames(
-            output_dir_2D=DIR_POSE2D,
-            output_dir_3D=DIR_POSE3D,
-            output_dir_combined=DIR_COMBINED_FRAMES
-        )
+        if result_view not in ("3d_skeleton_only", "threejs", "3d", "3d_only"):
+            job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85, message="Combining frames with original video...")
+            generate_output_combined_frames(
+                output_dir_2D=DIR_POSE2D,
+                output_dir_3D=DIR_POSE3D,
+                output_dir_combined=DIR_COMBINED_FRAMES
+            )
 
         # Step 6: Create final video (95% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=95, message="Generating final video...")
-        output_video_path = img2video(
-            video_path=input_video_path,
-            input_frames_dir=DIR_COMBINED_FRAMES
-        )
+        if result_view not in ("3d_skeleton_only", "threejs", "3d", "3d_only"):
+            job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=95, message="Generating final video...")
+            output_video_path = img2video(
+                video_path=input_video_path,
+                input_frames_dir=DIR_COMBINED_FRAMES
+            )
+        else:
+            output_video_path = None
 
         # Complete job
         job_manager.update_job_status(
             job_id, JobStatus.COMPLETED, progress=100, 
-            message="Video processing completed successfully!", output_path=output_video_path
+            message="Video processing completed successfully!",
+            output_path=output_video_path
         )
         logger.info(f"Video processing completed for job {job_id}: {output_video_path}")
 
@@ -315,7 +324,8 @@ async def upload_video(
     file: UploadFile = File(...),
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
     is_lefty: bool = Query(False, description="Whether the user is left-handed"),
-    pro_keypoints_filename: Optional[str] = Query(None, description="Professional keypoints filename from S3")
+    pro_keypoints_filename: Optional[str] = Query(None, description="Professional keypoints filename from S3"),
+    result_view: Optional[str] = Query(None, description="Result view mode: 3d_skeleton_only, video_only, both")
 ):
     """
     Upload a video file and start processing
@@ -328,6 +338,7 @@ async def upload_video(
     Returns:
         Upload response with job_id
     """
+    logger.warning(f"\n\n\n{result_view=}\n\n\n")
     # Validate file
     if not validate_video_file(file):
         raise HTTPException(
@@ -357,6 +368,7 @@ async def upload_video(
             model_size,
             is_lefty,
             pro_keypoints_filename,
+            result_view
         )
         
         logger.info(f"Started processing job {job.job_id} for file {file.filename}")

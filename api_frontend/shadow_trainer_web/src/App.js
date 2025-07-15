@@ -9,6 +9,7 @@ import FileUpload from "./components/FileUpload";
 import ProgressBar from "./components/ProgressBar";
 import VideoResult from "./components/VideoResult";
 import ProKeypointsSelector from "./components/ProKeypointsSelector";
+import ThreeJSkeleton from "./components/ThreeJSkeleton";
 import "./App.css";
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
   const [modelSize, setModelSize] = useState('xs');
   const [isLefty, setIsLefty] = useState(false); // New state for handedness preference
   const [selectedProFile, setSelectedProFile] = useState(""); // New state for ProKeypoints file
+  const [resultView, setResultView] = useState('both'); // 'threejs', 'video', 'both'
 
   // Handle file selection from FileUpload component
   const handleFileSelect = useCallback((file, error) => {
@@ -62,7 +64,7 @@ function App() {
 
     try {
       console.log('Starting upload...', selectedFile.name);
-      const response = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty, selectedProFile); // Pass pro keypoints
+      const response = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty, selectedProFile, resultView); // Pass resultView
       
       console.log('Upload successful:', response);
       setJobId(response.job_id);
@@ -133,6 +135,23 @@ function App() {
               <div className="section-header">
                 <h2>Upload Your Training Video</h2>
                 <p>Get detailed motion analysis and pose estimation for your athletic performance</p>
+              </div>
+
+              {/* New: Result view selection */}
+              <div className="result-view-selection" style={{ marginBottom: '1rem' }}>
+                <label style={{ marginRight: '1rem' }}><strong>Result View:</strong></label>
+                <label style={{ marginRight: '1rem' }}>
+                  <input type="radio" name="resultView" value="threejs" checked={resultView === 'threejs'} onChange={() => setResultView('threejs')} />
+                  3D Skeleton Only
+                </label>
+                <label style={{ marginRight: '1rem' }}>
+                  <input type="radio" name="resultView" value="video" checked={resultView === 'video'} onChange={() => setResultView('video')} />
+                  2D/3D Video Only
+                </label>
+                <label>
+                  <input type="radio" name="resultView" value="both" checked={resultView === 'both'} onChange={() => setResultView('both')} />
+                  Both
+                </label>
               </div>
 
               <FileUpload
@@ -252,6 +271,7 @@ function App() {
               originalFilename={selectedFile?.name || 'video'}
               previewUrl={VideoAPI.getPreviewUrl(jobStatus.job_id)}
               downloadUrl={VideoAPI.getDownloadUrl(jobStatus.job_id)}
+              resultView={resultView}
             />
           )}
 
