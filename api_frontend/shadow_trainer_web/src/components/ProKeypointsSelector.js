@@ -16,9 +16,14 @@ function ProKeypointsSelector({ onSelect, disabled }) {
   };
 
   return (
-    <div className="pro-keypoints-selector">
-      <label>Choose a professional player:</label>
-      <select value={selected} onChange={handleChange} disabled={disabled}>
+    <div className="model-selection pro-keypoints-selector">
+      <label htmlFor="pro-player-select">Choose a professional player:</label>
+      <select
+        id="pro-player-select"
+        value={selected}
+        onChange={handleChange}
+        disabled={disabled}
+      >
         <option value="">Default (SnellBlake)</option>
         {proFiles.map(f => (
           <option key={f} value={f}>{f.replace(".npy", "")}</option>
