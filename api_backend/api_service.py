@@ -63,7 +63,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your domain
+    allow_origins=["https://shadow-trainer.com", "https://www.shadow-trainer.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

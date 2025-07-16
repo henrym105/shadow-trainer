@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+
 function ProKeypointsSelector({ onSelect, disabled }) {
   const [proFiles, setProFiles] = useState([]);
   const [selected, setSelected] = useState("");
 
   useEffect(() => {
-    fetch("/api/pro_keypoints/list")
+    fetch(`${API_BASE_URL}/pro_keypoints/list`)
       .then(res => res.json())
       .then(data => setProFiles(data.files || []));
   }, []);
