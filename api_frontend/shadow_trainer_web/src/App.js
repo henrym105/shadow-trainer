@@ -91,6 +91,45 @@ function App() {
     }
   };
 
+  // Handle sample lefty video processing
+  const handleSampleVideo = async () => {
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      console.log('Starting sample lefty video processing...');
+      const response = await VideoAPI.processSampleLeftyVideo(modelSize, selectedProFile);
+      
+      console.log('Sample video processing started:', response);
+      setJobId(response.job_id);
+      
+      // Clear any selected file since we're using the sample
+      setSelectedFile(null);
+      
+      // Initial status
+      setJobStatus({
+        job_id: response.job_id,
+        status: 'queued',
+        progress: 0,
+        message: 'Sample lefty video processing started...'
+      });
+
+    } catch (error) {
+      console.error('Sample video processing failed:', error);
+      let errorMessage = 'Sample video processing failed. Please try again.';
+      
+      if (error instanceof APIError) {
+        errorMessage = error.detail || error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setUploadError(errorMessage);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Reset to initial state
   const handleReset = () => {
     setSelectedFile(null);
@@ -139,6 +178,34 @@ function App() {
                 onFileSelect={handleFileSelect}
                 disabled={isUploading}
               />
+
+              {/* Sample Video Button */}
+              <div className="sample-video-section">
+                <div className="divider">
+                  <span>or</span>
+                </div>
+                
+                <button
+                  className="sample-video-btn"
+                  onClick={handleSampleVideo}
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <>
+                      <span className="btn-spinner"></span>
+                      Processing Sample...
+                    </>
+                  ) : (
+                    <>
+                      <span className="btn-icon">🎯</span>
+                      Use Sample Video
+                    </>
+                  )}
+                </button>
+                <p className="sample-video-description">
+                  Try our sample left-handed baseball pitch for a quick demo
+                </p>
+              </div>
 
               {(uploadError || pollingError) && (
                 <div className="error-message">

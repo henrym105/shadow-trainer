@@ -40,6 +40,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 # Configuration
+INCLUDE_2D_IMAGES = True
+
 API_ROOT_DIR = Path(__file__).parent.absolute()
 TMP_DIR = API_ROOT_DIR / "tmp_api_output"
 TMP_DIR.mkdir(exist_ok=True)
@@ -49,6 +51,7 @@ S3_BUCKET = "shadow-trainer-dev"
 S3_PRO_PREFIX = "test/professional/"
 
 TMP_PRO_KEYPOINTS_FILE = API_ROOT_DIR / "checkpoint" / "example_SnellBlake.npy"
+SAMPLE_VIDEO_PATH = API_ROOT_DIR / "sample_videos" / "Left_Hand_Friend_Side.MOV"
 
 # FastAPI app
 app = FastAPI(
@@ -158,7 +161,9 @@ def cleanup_old_files(retention_minutes: int = 60):
 
 # ==================== VIDEO PROCESSING ====================
 
-def process_video_pipeline(job_id: str, input_video_path: str, model_size: str = "xs", is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None) -> str:
+def process_video_pipeline(
+        job_id: str, input_video_path: str, model_size: str = "xs", 
+        is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None) -> str:
     """
     Process video with pose estimation and keypoint overlays
     
@@ -211,10 +216,11 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
 
         # Step 2: Create 2D visualization frames (35% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=35, message="Creating 2D visualization frames...")
-        cap = cv2.VideoCapture(input_video_path)
-        keypoints_2d = np.load(FILE_POSE2D)
-        create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
-        cap.release()
+        if INCLUDE_2D_IMAGES:
+            cap = cv2.VideoCapture(input_video_path)
+            keypoints_2d = np.load(FILE_POSE2D)
+            create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
+            cap.release()
 
         # Step 3: Generate 3D poses (50% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=50, message="Generating 3D poses...")
@@ -245,17 +251,18 @@ def process_video_pipeline(job_id: str, input_video_path: str, model_size: str =
 
         # # Step 5: Generate combined frames (85% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85, message="Combining frames with original video...")
-        generate_output_combined_frames(
-            output_dir_2D=DIR_POSE2D,
-            output_dir_3D=DIR_POSE3D,
-            output_dir_combined=DIR_COMBINED_FRAMES
-        )
+        if INCLUDE_2D_IMAGES:
+            generate_output_combined_frames(
+                output_dir_2D=DIR_POSE2D,
+                output_dir_3D=DIR_POSE3D,
+                output_dir_combined=DIR_COMBINED_FRAMES
+            )
 
         # Step 6: Create final video (95% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=95, message="Generating final video...")
         output_video_path = img2video(
-            video_path=input_video_path,
-            input_frames_dir=DIR_COMBINED_FRAMES,
+            video_path = input_video_path,
+            input_frames_dir = DIR_COMBINED_FRAMES if INCLUDE_2D_IMAGES else DIR_POSE3D,
         )
 
         # Complete job
@@ -303,6 +310,72 @@ async def health_check():
 async def list_pro_keypoints():
     files = list_s3_pro_keypoints()
     return {"files": files}
+
+
+@app.post("/api/videos/sample-lefty", response_model=VideoUploadResponse)
+async def process_sample_lefty_video(
+    background_tasks: BackgroundTasks,
+    model_size: str = Query("xs", description="Model size: xs, s, m, l"),
+    pro_keypoints_filename: Optional[str] = Query(None, description="Professional keypoints filename from S3")
+):
+    """Process the sample lefty video (Left_Hand_Friend_Side.MOV)
+    
+    Args:
+        model_size: Model size to use for processing
+        pro_keypoints_filename: Professional keypoints filename from S3
+    
+    Returns:
+        Upload response with job_id
+    """
+    # Path to the sample lefty video
+
+    if not SAMPLE_VIDEO_PATH.exists():
+        raise HTTPException(
+            status_code=404, 
+            detail="Sample lefty video not found"
+        )
+
+    try:
+        # Create a copy of the sample video in tmp directory for processing
+        job_id = str(uuid.uuid4())
+        input_filename = f"{job_id}_sample_lefty.mov"
+        input_path = TMP_DIR / input_filename
+        
+        # Copy the sample video to tmp directory
+        with open(SAMPLE_VIDEO_PATH, "rb") as src_file:
+            with open(input_path, "wb") as dest_file:
+                shutil.copyfileobj(src_file, dest_file)
+        
+        if not input_path.exists() and not input_path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail="Error copying sample video to backend api directory"
+            )
+
+        # Create processing job
+        job = job_manager.create_job("Left_Hand_Friend_Side.MOV (Sample)", str(input_path))
+        
+        # Start background processing with lefty=True since it's the lefty sample
+        background_tasks.add_task(
+            process_video_pipeline,
+            job.job_id,
+            str(input_path),
+            model_size,
+            True,  # is_lefty=True for the lefty sample
+            pro_keypoints_filename,
+        )
+        
+        logger.info(f"Started processing sample lefty video job {job.job_id}")
+        
+        return VideoUploadResponse(
+            job_id=job.job_id,
+            message="Sample lefty video processing started.",
+            estimated_time=120  # 2 minutes estimate
+        )
+        
+    except Exception as e:
+        logger.error(f"Sample video processing failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Sample video processing failed: {str(e)}")
 
 
 @app.post("/api/videos/upload", response_model=VideoUploadResponse)

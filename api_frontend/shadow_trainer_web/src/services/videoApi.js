@@ -66,6 +66,44 @@ export class VideoAPI {
   }
 
   /**
+   * Process the sample lefty video
+   * @param {string} modelSize - Model size to use ('xs', 's', 'm', 'l')
+   * @param {string} proKeypointsFilename - Optional pro keypoints filename
+   * @returns {Promise<Object>} Upload response with job_id
+   */
+  static async processSampleLeftyVideo(modelSize = 'xs', proKeypointsFilename = "") {
+    let url = `${API_BASE_URL}/videos/sample-lefty?model_size=${modelSize}`;
+    if (proKeypointsFilename) {
+      url += `&pro_keypoints_filename=${encodeURIComponent(proKeypointsFilename)}`;
+    }
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ 
+          detail: `Sample video processing failed with status ${response.status}` 
+        }));
+        throw new APIError(
+          errorData.detail || 'Sample video processing failed',
+          response.status,
+          errorData.detail
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+      console.error('Sample video processing failed:', error);
+      throw new APIError('Network error during sample video processing');
+    }
+  }
+
+  /**
    * Get processing status for a job
    * @param {string} jobId - The job ID to check
    * @returns {Promise<Object>} Job status response

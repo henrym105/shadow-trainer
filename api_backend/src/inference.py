@@ -213,19 +213,19 @@ def load_npy_file(npy_filepath: str) -> np.ndarray:
 @torch.no_grad()
 def get_pose3D_no_vis(
     user_2d_kpts_filepath: str, output_keypoints_path: str, video_path: str, device: str, model_size: str='xs', yaml_path: str=""
-    ):
-    """Run 3D pose inference from 2D keypoints and save the output 3D keypoints as .npy. No visualization or pro comparison.
-
+):
+    """Run 3D pose inference from 2D keypoints using a sliding window (convolutional) approach.
+    
     Args:
-        user_2d_kpts_filepath (str): Path to the 2D keypoints .npy file.
+        user_2d_kpts_filepath (str): Path to the user's 2D keypoints .npy file.
         output_keypoints_path (str): Path to save the output 3D keypoints .npy file.
         video_path (str): Path to the input video file.
-        device (str): PyTorch device.
-        model_size (str): Model size string.
-        yaml_path (str): Path to model config YAML.
+        device (str): Device to run the model on ('cpu', 'cuda', or 'mps').
+        model_size (str): Size of the MotionAGFormer model ('xs', 's', 'm', 'l').
+        yaml_path (str): Path to the YAML configuration file for the model.
 
     Returns:
-        str: Path to saved 3D keypoints .npy file.
+        str: Path to the saved 3D keypoints .npy file.
     """
     if yaml_path:
         args = get_config(yaml_path)
@@ -258,37 +258,39 @@ def get_pose3D_no_vis(
     if DEBUG: logger.info(f"MotionAGFormer model (version: {model_size}) sent to device: {device}, model object type: {type(model)}")
 
     # Load 2D keypoints
-    keypoints = np.load(user_2d_kpts_filepath, allow_pickle=True)
-    clips, downsample = turn_into_clips(keypoints=keypoints, target_frames=args['n_frames'])
+    keypoints = np.load(user_2d_kpts_filepath, allow_pickle=True)  # shape: (1, n_frames, 17, 3)
+    n_frames = keypoints.shape[1]
+    window_size = args['n_frames']
+    half_window = window_size // 2
 
-    # Infer video length from keypoints shape
+    # Get video frame size
     cap = cv2.VideoCapture(video_path)
     img_size_h_w = get_frame_size(cap)
-    num_frames = keypoints.shape[1]
     cap.release()
 
-    user_output_3d_keypoints = np.empty((num_frames, 17, 3))
-    idx = 0
-    for clip_idx in tqdm(range(len(clips)), desc="MotionAGFormer iterations", unit="clip"):
-        clip = clips[clip_idx]
-        input_2D = normalize_screen_coordinates(clip, w=img_size_h_w[1], h=img_size_h_w[0])
+    user_output_3d_keypoints = np.empty((n_frames, 17, 3))
+
+    # Pad keypoints at start/end for edge cases
+    pad_left = np.repeat(keypoints[:, 0:1, :, :], half_window, axis=1)
+    pad_right = np.repeat(keypoints[:, -1:, :, :], half_window, axis=1)
+    padded_keypoints = np.concatenate([pad_left, keypoints, pad_right], axis=1)  # shape: (1, n_frames + 2*half_window, 17, 3)
+
+    for i in tqdm(range(n_frames), desc="MotionAGFormer sliding window", unit="frame"):
+        window = padded_keypoints[:, i:i+window_size, :, :]  # shape: (1, window_size, 17, 3)
+        input_2D = normalize_screen_coordinates(window, w=img_size_h_w[1], h=img_size_h_w[0])
         input_2D_aug = flip_data(input_2D)
         input_2D = torch.from_numpy(input_2D.astype('float32')).to(device)
         input_2D_aug = torch.from_numpy(input_2D_aug.astype('float32')).to(device)
-        
+
         output_3D_non_flip = model(input_2D)
         output_3D_flip = flip_data(model(input_2D_aug))
         output_3D = (output_3D_non_flip + output_3D_flip) / 2
-        
-        if clip_idx == len(clips) - 1:
-            output_3D = output_3D[:, downsample]
 
+        # Only keep the center frame's prediction
+        center_idx = window_size // 2
         output_3D[:, :, 0, :] = 0
-        post_out_all = output_3D[0].cpu().detach().numpy()
-        for j, post_out in enumerate(post_out_all):
-            if idx < num_frames:
-                user_output_3d_keypoints[idx] = standardize_3d_keypoints(post_out)
-                idx += 1
+        post_out = output_3D[0, center_idx].cpu().detach().numpy()
+        user_output_3d_keypoints[i] = standardize_3d_keypoints(post_out)
 
     np.save(output_keypoints_path, user_output_3d_keypoints)
 
@@ -318,8 +320,6 @@ def create_3d_pose_images_from_array(
     # USE_BODY_PART = "shoulders"
     USE_BODY_PART = "hips"
     
-    # output_dir_3D = pjoin(output_dir, 'pose3D')
-    output_dir_3D = output_dir
 
     # Load professional keypoints and prepare for alignment
     user_keypoints_npy = load_npy_file(user_3d_keypoints_filepath)
@@ -337,13 +337,7 @@ def create_3d_pose_images_from_array(
     if DEBUG: logger.info(f"user_keypoints_npy dtype: {user_keypoints_npy.dtype}")
     if DEBUG: logger.info(f"pro_keypoints_npy dtype: {pro_keypoints_npy.dtype}")
 
-    # ------------------------------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------
-    # --- Find motion start for both user and pro, then crop ---
-    # MVMT_PCT_THRESHOLD = 4
-    # user_start = find_motion_start(user_keypoints_npy, is_lefty=is_lefty, min_pct_change=MVMT_PCT_THRESHOLD)
-    # pro_start = find_motion_start(pro_keypoints_npy, is_lefty=is_lefty, min_pct_change=MVMT_PCT_THRESHOLD)
-
+    # ------------------ Find motion start for both user and pro, then crop ------------------
     user_start, user_end = get_start_end_info(user_keypoints_npy, is_lefty=is_lefty, output_dir = pjoin(output_dir, "user"))
     pro_start, pro_end = get_start_end_info(pro_keypoints_npy, is_lefty=is_lefty, output_dir = pjoin(output_dir, "pro"))
 
@@ -367,12 +361,6 @@ def create_3d_pose_images_from_array(
     pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, num_frames)
     if DEBUG: logger.info(f"\nUser keypoints shape after crop/resample: {user_keypoints_npy.shape}")
     if DEBUG: logger.info(f"Professional keypoints shape after crop/resample: {pro_keypoints_npy.shape}")
-
-    # pro_keypoints_npy = time_warp_pro_video(user_keypoints_npy, pro_keypoints_npy)
-    # if DEBUG: logger.info(f"User keypoints shape after time warp: {user_keypoints_npy.shape}")
-    # if DEBUG: logger.info(f"Professional keypoints shape after time warp: {pro_keypoints_npy.shape}")
-
-    # ------------------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------
 
     assert (user_keypoints_npy.shape == pro_keypoints_npy.shape), \
