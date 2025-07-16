@@ -179,33 +179,35 @@ function App() {
                 disabled={isUploading}
               />
 
-              {/* Sample Video Button */}
-              <div className="sample-video-section">
-                <div className="divider">
-                  <span>or</span>
+              {/* Sample Video Button - Only show when no file is selected */}
+              {!selectedFile && (
+                <div className="sample-video-section">
+                  <div className="divider">
+                    <span>or</span>
+                  </div>
+                  
+                  <button
+                    className="sample-video-btn"
+                    onClick={handleSampleVideo}
+                    disabled={isUploading}
+                  >
+                    {isUploading ? (
+                      <>
+                        <span className="btn-spinner"></span>
+                        Processing Sample...
+                      </>
+                    ) : (
+                      <>
+                        <span className="btn-icon">🎯</span>
+                        Use Sample Video
+                      </>
+                    )}
+                  </button>
+                  <p className="sample-video-description">
+                    Try our sample left-handed baseball pitch for a quick demo
+                  </p>
                 </div>
-                
-                <button
-                  className="sample-video-btn"
-                  onClick={handleSampleVideo}
-                  disabled={isUploading}
-                >
-                  {isUploading ? (
-                    <>
-                      <span className="btn-spinner"></span>
-                      Processing Sample...
-                    </>
-                  ) : (
-                    <>
-                      <span className="btn-icon">🎯</span>
-                      Use Sample Video
-                    </>
-                  )}
-                </button>
-                <p className="sample-video-description">
-                  Try our sample left-handed baseball pitch for a quick demo
-                </p>
-              </div>
+              )}
 
               {(uploadError || pollingError) && (
                 <div className="error-message">

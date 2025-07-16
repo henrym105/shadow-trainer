@@ -163,9 +163,9 @@ def cleanup_old_files(retention_minutes: int = 60):
 
 def process_video_pipeline(
         job_id: str, input_video_path: str, model_size: str = "xs", 
-        is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None) -> str:
-    """
-    Process video with pose estimation and keypoint overlays
+        is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None
+    ) -> str:
+    """Process video with pose estimation and keypoint overlays
     
     Args:
         job_id: Unique job identifier
@@ -328,7 +328,6 @@ async def process_sample_lefty_video(
         Upload response with job_id
     """
     # Path to the sample lefty video
-
     if not SAMPLE_VIDEO_PATH.exists():
         raise HTTPException(
             status_code=404, 
