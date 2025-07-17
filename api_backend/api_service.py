@@ -34,6 +34,7 @@ from src.inference import (
     create_2D_images,
 )
 from src.utils import get_pytorch_device
+from src.yolo2d import rotate_video_until_upright
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
@@ -197,7 +198,7 @@ def process_video_pipeline(
     try:
         logger.info(f"Starting video processing for job {job_id}")
         logger.info(f"User handedness preference: {'Left-handed' if is_lefty else 'Right-handed'}")
-        cleanup_old_files(retention_minutes = 20)
+        cleanup_old_files(retention_minutes = 60)
         
         # Get device for processing
         device = get_pytorch_device()
@@ -210,8 +211,8 @@ def process_video_pipeline(
         model_config_path = get_model_config_path(model_size)
         logger.info(f"Using model config: {model_config_path}")
 
+        # First, ensure the user uploaded video is upright
         rotate_video_until_upright(input_video_path)
-
 
         # Step 1: Extract 2D poses (20% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=20, message="Extracting 2D poses...")

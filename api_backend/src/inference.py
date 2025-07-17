@@ -184,8 +184,6 @@ def get_pose2D(video_path, output_file, device, yolo_version: str = "11") -> np.
 
     elif yolo_version == "11":
         estimator = YOLOPoseEstimator("yolo11x-pose.pt", CHECKPOINT_DIR, device)
-        # Detect person orientation, overwrite video_path with properly oriented video if needed
-        video_path = rotate_video_until_upright(video_path)
         keypoints = estimator.get_keypoints_from_video(video_path)
 
     assert keypoints.ndim == 4, "Keypoints should have 4 dimensions for (num_ppl, num_frames, 17, 3). Received shape: {}".format(keypoints.shape)
