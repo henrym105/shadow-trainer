@@ -26,7 +26,7 @@ echo "   Checking ML pipeline dependencies..."
 uv run python -c "
 import sys
 try:
-    from src.inference import get_pytorch_device
+    from src.utils import get_pytorch_device
     device = get_pytorch_device()
     print(f'   ✅ ML pipeline available, device: {device}')
 except ImportError as e:

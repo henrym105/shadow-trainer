@@ -2,7 +2,10 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import logging
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
+logger = logging.getLogger(__name__)
 
 def get_start_end_info(arr, is_lefty: bool = False) -> tuple:
     """Determine the start and end points of the motion based on the ankle positions in the 3D keypoints array.

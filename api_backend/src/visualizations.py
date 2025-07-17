@@ -1,8 +1,11 @@
+import logging
 import os
 import numpy as np
 import boto3
 import tempfile
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
+logger = logging.getLogger(__name__)
 
 def time_warp_pro_video(amateur_data: np.ndarray, professional: np.ndarray):
     """    Time warps the professional data to align with the amateur data.
@@ -45,7 +48,7 @@ def get_numpy_info(arr):
   n_frames = len(arr)
   if n_frames < 15:
       # Not enough frames for smoothing or switch logic
-      print("[get_numpy_info] Too few frames for robust analysis, skipping temporal alignment.")
+      logger.info("[get_numpy_info] Too few frames for robust analysis, skipping temporal alignment.")
       return (False, 0, 0, [0,0,0,0])
 
   left_ankle_arr = []
@@ -58,7 +61,7 @@ def get_numpy_info(arr):
   try:
       prev_arm_position = get_frame_info(arr[0])["Right Wrist"]
   except Exception as e:
-      print(f"[get_numpy_info] Error extracting Right Wrist: {e}")
+      logger.info(f"[get_numpy_info] Error extracting Right Wrist: {e}")
       return (False, 0, 0, [0,0,0,0])
 
   is_valid = True
@@ -77,7 +80,7 @@ def get_numpy_info(arr):
           right_ankle_arr.append(right_ankle_z)
           head_arr.append(head_z)
       except Exception as e:
-          print(f"[get_numpy_info] Error at frame {i}: {e}")
+          logger.info(f"[get_numpy_info] Error at frame {i}: {e}")
           return (False, 0, 0, [0,0,0,0])
 
   # Smoothing
@@ -87,7 +90,7 @@ def get_numpy_info(arr):
       left_ankle_arr = np.convolve(left_ankle_arr, np.ones(10)/10, mode='valid')
       right_ankle_arr = np.convolve(right_ankle_arr, np.ones(10)/10, mode='valid')
   except Exception as e:
-      print(f"[get_numpy_info] Error in smoothing: {e}")
+      logger.info(f"[get_numpy_info] Error in smoothing: {e}")
       return (False, 0, 0, [0,0,0,0])
 
   for i in range(len(left_ankle_arr)):
@@ -104,7 +107,7 @@ def get_numpy_info(arr):
           break
   # Validity checks
   if switch_point == 0 or switch_point >= len(higher_ankle_arr):
-      print("[get_numpy_info] No valid switch point found.")
+      logger.info("[get_numpy_info] No valid switch point found.")
       return (False, 0, max_left_index, [0,0,0,0])
   if np.sum(higher_ankle_arr[:switch_point]) < len(higher_ankle_arr[:switch_point])*0.8:
       is_valid = False
@@ -121,29 +124,38 @@ def get_numpy_info(arr):
       ankle_points[2] = switch_joints["Left Ankle"][0]
       ankle_points[3] = switch_joints["Left Ankle"][1]
   except Exception as e:
-      print(f"[get_numpy_info] Error extracting ankle points: {e}")
+      logger.info(f"[get_numpy_info] Error extracting ankle points: {e}")
       return (False, switch_point, max_left_index, [0,0,0,0])
 
   if np.linalg.norm(np.array(ankle_points[:2]) - np.array(ankle_points[2:])) <= 0.1:
       is_valid = False
 
-  print(f"[get_numpy_info] is_valid={is_valid}, switch_point={switch_point}, max_left_index={max_left_index}, ankle_points={ankle_points}")
+  logger.info(f"[get_numpy_info] is_valid={is_valid}, switch_point={switch_point}, max_left_index={max_left_index}, ankle_points={ankle_points}")
   return (is_valid, switch_point, max_left_index, ankle_points)
 
-def get_frame_info(frame):
-  joint_names = [
-    "Hip", "Right Hip", "Right Knee", "Right Ankle",
-    "Left Hip", "Left Knee", "Left Ankle", "Spine",
-    "Thorax", "Neck", "Head", "Left Shoulder",
-    "Left Elbow", "Left Wrist", "Right Shoulder",
-    "Right Elbow", "Right Wrist"
+
+def get_frame_info(frame: np.ndarray) -> dict:
+    """Get the joint names and their corresponding coordinates from a single frame of 3D key points.
+    Args:
+        frame (np.ndarray): A single frame of 3D key points, expected shape (17, 3), 
+        where each row corresponds to a joint and each column corresponds to x, y, z coordinates.
+
+    Returns:
+        dict: A dictionary mapping joint names to their coordinates. Like {'Hip': [x, y, z], ...}
+    """
+    joint_names = [
+        "Hip", "Right Hip", "Right Knee", "Right Ankle",
+        "Left Hip", "Left Knee", "Left Ankle", "Spine",
+        "Thorax", "Neck", "Head", "Left Shoulder",
+        "Left Elbow", "Left Wrist", "Right Shoulder",
+        "Right Elbow", "Right Wrist"
     ]
-  #frame is of shape 17, 3 for each joint print the x, y and z coordinates
-  joints = {}
-  for i in range(len(frame)):
-    #print(f"{joint_names[i]}: {frame[i]}")
-    joints[joint_names[i]] = frame[i]
-  return joints
+    #frame is of shape 17, 3 for each joint print the x, y and z coordinates
+    joints = {}
+    for i in range(len(frame)):
+        #logger.info(f"{joint_names[i]}: {frame[i]}")
+        joints[joint_names[i]] = frame[i]
+    return joints
 
 
 
@@ -193,7 +205,7 @@ def find_angle(coord1, coord2):
   x1, y1 = coord1
   x2, y2 = coord2
 
-  print(f"x1: {x1}, y1: {y1}, x2: {x2}, y2: {y2}")
+  logger.info(f"x1: {x1}, y1: {y1}, x2: {x2}, y2: {y2}")
 
   dx = x2 - x1
   dy = y2 - y1
@@ -204,7 +216,7 @@ def find_angle(coord1, coord2):
   angle = np.degrees(np.arctan2(dy, dx))
   if angle < 0:
     angle += 360
-  print(f"Angle: {angle}")
+  logger.info(f"Angle: {angle}")
   return angle
 
 
@@ -249,7 +261,7 @@ def recenter_on_left_ankle(pose_array, target_xyz=(0.0, 0.0, 0.0)):
     """
     left_ankle = pose_array[:, 6:7, :]  # shape (n, 1, 3)
     target = np.array(target_xyz).reshape(1, 1, 3)  # shape (1, 1, 3) for broadcasting
-    print(target)
+    logger.info(target)
     return (pose_array - left_ankle + target)
 
 
@@ -267,7 +279,7 @@ def recenter_on_right_ankle(pose_array):
 
 
 def shift_data_time(data, switch, max_y, time_1=100, time_2=100, time_3=150):
-    print(f"    [ shift_data_time ] input params: switch={switch}, max_y={max_y}, time_1={time_1}, time_2={time_2}, time_3={time_3}")
+    logger.info(f"    [ shift_data_time ] input params: switch={switch}, max_y={max_y}, time_1={time_1}, time_2={time_2}, time_3={time_3}")
     segment_1 = data[:max_y,:,:]
     segment_2 = data[max_y: switch,:,:]
     segment_3 = data[switch-1:,:,:]
@@ -276,7 +288,7 @@ def shift_data_time(data, switch, max_y, time_1=100, time_2=100, time_3=150):
     left_ankle_last = segment_2[-1,6]
     segment_3 = resample_pose_sequence(segment_3, time_3)
     final_arr = np.concatenate([segment_1,segment_2,segment_3], axis=0)
-    print(final_arr.shape)
+    logger.info(final_arr.shape)
     return final_arr
 
 
@@ -327,22 +339,22 @@ def build_save_path(key, filetype):
     return base_name, save_path
 
 def handle_pose_file(s3, bucket_name, key, filetype, dryrun, prev_frames, cleaned_list, val_list):
-    print(f"\n[INFO] Processing: {key}")
+    logger.info(f"\n[INFO] Processing: {key}")
     if dryrun:
-        print(f"[DRYRUN] Would download: {key}")
+        logger.info(f"[DRYRUN] Would download: {key}")
         return prev_frames
     try:
         temp_path = download_s3_file(s3, bucket_name, key, filetype)
         data = np.load(temp_path)
-        print(data.shape)
+        logger.info(data.shape)
         valid, data, switch_point, max_y_pt, ankle_points, angle = process_pose_file(data)
         val_list.append(valid)
         base_name, save_path = build_save_path(key, filetype)
-        print(f"Path name: {os.path.dirname(key)}")
-        print(f"Base name: {base_name}")
-        print(f"Save path: {save_path}")
+        logger.info(f"Path name: {os.path.dirname(key)}")
+        logger.info(f"Base name: {base_name}")
+        logger.info(f"Save path: {save_path}")
     except Exception as e:
-        print("FAILED", e)
+        logger.info("FAILED", e)
     return prev_frames
 
 
@@ -361,15 +373,15 @@ def list_and_play_mp4_from_s3(
     prev_frames = None
     for key in list_s3_files(s3, bucket_name, prefix, filetype):
         if dryrun:
-            print(f"[DRYRUN] Would process: {key}")
+            logger.info(f"[DRYRUN] Would process: {key}")
             continue
         else:
             prev_frames = handle_pose_file(
                 s3, bucket_name, key, filetype, dryrun, prev_frames, cleaned_list, val_list
             )
-    print(val_list)
+    logger.info(val_list)
     if len(val_list) > 0:
-        print(np.sum(val_list)/len(val_list))
+        logger.info(np.sum(val_list)/len(val_list))
     return cleaned_list
 
 
@@ -382,4 +394,4 @@ if __name__ == "__main__":
     bucket_name = "shadow-trainer-prod"
     prefix = "pro_3d_keypoints"
     # cleaned_data = find_all_pro_npy_files(bucket_name, prefix, dryrun=True)
-    # print(f"Processed {len(cleaned_data)} valid pose sequences.")
+    # logger.info(f"Processed {len(cleaned_data)} valid pose sequences.")

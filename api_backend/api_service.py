@@ -31,13 +31,14 @@ from src.inference import (
     get_pose2D, 
     get_pose3D_no_vis, 
     img2video, 
-    get_pytorch_device,
     create_2D_images,
 )
+from src.utils import get_pytorch_device
+from src.yolo2d import rotate_video_until_upright
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
+logger = logging.getLogger()
 
 # Configuration
 INCLUDE_2D_IMAGES = True
@@ -63,7 +64,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your domain
+    allow_origins=["https://shadow-trainer.com", "https://www.shadow-trainer.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -197,7 +198,7 @@ def process_video_pipeline(
     try:
         logger.info(f"Starting video processing for job {job_id}")
         logger.info(f"User handedness preference: {'Left-handed' if is_lefty else 'Right-handed'}")
-        cleanup_old_files(retention_minutes = 20)
+        cleanup_old_files(retention_minutes = 60)
         
         # Get device for processing
         device = get_pytorch_device()
@@ -209,6 +210,9 @@ def process_video_pipeline(
         logger.info(f"Current working directory: {os.getcwd()}")
         model_config_path = get_model_config_path(model_size)
         logger.info(f"Using model config: {model_config_path}")
+
+        # First, ensure the user uploaded video is upright
+        rotate_video_until_upright(input_video_path)
 
         # Step 1: Extract 2D poses (20% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=20, message="Extracting 2D poses...")
@@ -306,13 +310,13 @@ async def health_check():
         raise HTTPException(status_code=500, detail="Service unhealthy")
 
 
-@app.get("/api/pro_keypoints/list")
+@app.get("/pro_keypoints/list")
 async def list_pro_keypoints():
     files = list_s3_pro_keypoints()
     return {"files": files}
 
 
-@app.post("/api/videos/sample-lefty", response_model=VideoUploadResponse)
+@app.post("/videos/sample-lefty", response_model=VideoUploadResponse)
 async def process_sample_lefty_video(
     background_tasks: BackgroundTasks,
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
@@ -377,7 +381,7 @@ async def process_sample_lefty_video(
         raise HTTPException(status_code=500, detail=f"Sample video processing failed: {str(e)}")
 
 
-@app.post("/api/videos/upload", response_model=VideoUploadResponse)
+@app.post("/videos/upload", response_model=VideoUploadResponse)
 async def upload_video(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -440,7 +444,7 @@ async def upload_video(
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-@app.get("/api/videos/{job_id}/status", response_model=ProcessingStatusResponse)
+@app.get("/videos/{job_id}/status", response_model=ProcessingStatusResponse)
 async def get_processing_status(job_id: str):
     """
     Get processing status for a job
@@ -459,7 +463,7 @@ async def get_processing_status(job_id: str):
     # Build result URL if job is completed
     result_url = None
     if job.status == JobStatus.COMPLETED and job.output_path:
-        result_url = f"/api/videos/{job_id}/download"
+        result_url = f"/videos/{job_id}/download"
 
     return ProcessingStatusResponse(
         job_id=job.job_id,
@@ -471,7 +475,7 @@ async def get_processing_status(job_id: str):
     )
 
 
-@app.get("/api/videos/{job_id}/download")
+@app.get("/videos/{job_id}/download")
 async def download_processed_video(job_id: str):
     """
     Download the processed video file
@@ -502,7 +506,7 @@ async def download_processed_video(job_id: str):
     )
 
 
-@app.get("/api/videos/{job_id}/preview")
+@app.get("/videos/{job_id}/preview")
 async def get_video_preview(job_id: str):
     """
     Stream video for preview in browser

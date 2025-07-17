@@ -31,7 +31,7 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
   };
 
   const copyLinkToClipboard = async () => {
-    const fullUrl = `http://www.shadow-trainer.com${downloadUrl}`;
+    const fullUrl = `${downloadUrl}`;
     try {
       await navigator.clipboard.writeText(fullUrl);
       // You could add a toast notification here

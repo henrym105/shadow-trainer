@@ -114,7 +114,7 @@ export class VideoAPI {
    */
   static async healthCheck() {
     try {
-      const response = await fetch('/health');
+      const response = await fetch(`${API_BASE_URL}/health`);
       if (response.ok) {
         return await response.json();
       }

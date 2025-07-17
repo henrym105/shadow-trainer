@@ -26,7 +26,7 @@ A modern React web app for Shadow Trainer: AI-Powered Motion Analysis.
    ```
 
 ## API Endpoint
-- The app expects the backend API to be available at `/api/video/process` (reverse-proxied by Nginx or similar).
+- The app uses the API at `https://api.shadow-trainer.com` (configured via environment variable).
 
 ## Assets
 - Place your logo at `public/assets/Shadow Trainer Logo.png`.
