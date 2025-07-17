@@ -12,9 +12,9 @@ import numpy as np
 from celery import Task
 from celery.exceptions import Retry
 
-from celery_app import celery_app
-from pydantic_models import JobStatus
-from src.inference import (
+from api_backend.celery_app import celery_app
+from api_backend.pydantic_models import JobStatus
+from api_backend.src.inference import (
     create_3d_pose_images_from_array,
     generate_output_combined_frames,
     get_pose2D,
@@ -22,8 +22,8 @@ from src.inference import (
     img2video,
     create_2D_images,
 )
-from src.utils import get_pytorch_device
-from src.yolo2d import rotate_video_until_upright
+from api_backend.src.utils import get_pytorch_device
+from api_backend.src.yolo2d import rotate_video_until_upright
 
 logger = logging.getLogger(__name__)
 

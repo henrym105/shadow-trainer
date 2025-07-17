@@ -309,6 +309,12 @@ def process_video_pipeline(
 
 # ==================== API ENDPOINTS ====================
 
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {"message": "Hello, welcome to the Shadow Trainer API"}
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""

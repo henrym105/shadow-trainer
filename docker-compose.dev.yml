@@ -1,0 +1,19 @@
+# Development override for docker-compose.celery.yml
+# Usage: docker-compose -f docker-compose.celery.yml -f docker-compose.dev.yml up
+
+services:
+  api:
+    volumes:
+      # Mount source code for development
+      - ./api_backend:/app/api_backend
+    environment:
+      # Enable debug mode
+      - DEBUG=true
+    command: ["uv", "run", "uvicorn", "api_backend.api_service:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  celery-worker:
+    volumes:
+      # Mount source code for development
+      - ./api_backend:/app/api_backend
+    environment:
+      - DEBUG=true

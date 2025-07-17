@@ -1,6 +1,3 @@
-"""
-Celery application configuration for Shadow Trainer video processing.
-"""
 import os
 from celery import Celery
 from kombu import Queue
@@ -18,11 +15,16 @@ else:
     redis_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
 # Create Celery application
+# Include tasks when running as worker, use send_task for API
+includes = []
+if os.environ.get('CELERY_WORKER', '').lower() == 'true':
+    includes = ['api_backend.tasks.video_processing']
+
 celery_app = Celery(
     'shadow_trainer',
     broker=redis_url,
     backend=redis_url,
-    include=['tasks.video_processing']
+    include=includes
 )
 
 # Celery configuration
@@ -50,8 +52,8 @@ celery_app.conf.update(
     
     # Task routing
     task_routes={
-        'tasks.video_processing.*': {'queue': 'video_processing'},
-        'tasks.cleanup.*': {'queue': 'cleanup'},
+        'api_backend.tasks.video_processing.*': {'queue': 'video_processing'},
+        'api_backend.tasks.cleanup.*': {'queue': 'cleanup'},
     },
     
     # Queues

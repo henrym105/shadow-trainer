@@ -143,9 +143,12 @@ class CeleryJobManager:
         }
         
         try:
-            # Submit task to Celery
-            from tasks.video_processing import process_video_task
-            task_result = process_video_task.delay(task_data)
+            # Submit task to Celery using the celery app
+            from celery_app import celery_app
+            task_result = celery_app.send_task(
+                'api_backend.tasks.video_processing.process_video_task',
+                args=[task_data]
+            )
             
             # Update job with Celery task ID
             self.update_job_with_celery_task(job_id, task_result.id)

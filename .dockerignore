@@ -45,9 +45,6 @@ Thumbs.db
 # Ignore output directories
 output/
 demo/
-
-# Ignore shell scripts and other non-essential files
-scripts/
 run_docker_container.sh
 
 # Ignore SageMaker config and temp files

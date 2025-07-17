@@ -1,0 +1,75 @@
+# Multi-stage Dockerfile for Shadow Trainer with Celery
+FROM python:3.9-slim AS base
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/app:/app/api_backend"
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender-dev \
+        libgomp1 \
+        ffmpeg \
+        wget \
+        ca-certificates \
+        redis-tools && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install uv for faster dependency management
+RUN pip install --upgrade pip && pip install --no-cache-dir uv
+
+# Set work directory
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml uv.lock* ./
+
+# Install Python dependencies
+RUN uv pip install --system --no-cache-dir -e .
+
+# Copy application code
+COPY api_backend ./api_backend
+COPY scripts ./scripts
+
+# Create necessary directories
+RUN mkdir -p /app/api_backend/tmp_api_output && \
+    mkdir -p /app/api_backend/checkpoint && \
+    mkdir -p /app/api_backend/sample_videos
+
+# Make scripts executable
+RUN chmod +x /app/scripts/celery/*.sh
+
+# Default environment variables
+ENV USE_CELERY=true \
+    REDIS_HOST=redis \
+    REDIS_PORT=6379 \
+    REDIS_DB=0 \
+    CELERY_WORKER_CONCURRENCY=2
+
+# Expose ports
+EXPOSE 8000 5555
+
+# API service stage
+FROM base AS api
+CMD ["uv", "run", "uvicorn", "api_backend.api_service:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Celery worker stage
+FROM base AS worker
+ENV CELERY_WORKER=true
+CMD ["uv", "run", "celery", "-A", "api_backend.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+
+# Celery beat stage
+FROM base AS beat
+ENV CELERY_WORKER=true
+CMD ["uv", "run", "celery", "-A", "api_backend.celery_app", "beat", "--loglevel=info"]
+
+# Flower monitoring stage
+FROM base AS flower
+ENV CELERY_WORKER=true
+CMD ["uv", "run", "celery", "-A", "api_backend.celery_app", "flower", "--port=5555", "--address=0.0.0.0"]
