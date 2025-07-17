@@ -21,7 +21,7 @@ services:
       dockerfile: Dockerfile.celery
       target: api
     ports:
-      - "8000:8000"
+      - "8002:8002"
     environment:
       - USE_CELERY=true
       - REDIS_HOST=redis
@@ -37,6 +37,13 @@ services:
       - ./api_backend/checkpoint:/app/api_backend/checkpoint:ro
       - ./api_backend/sample_videos:/app/api_backend/sample_videos:ro
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     networks:
       - shadow-trainer-network
 
@@ -64,6 +71,12 @@ services:
       - shadow-trainer-network
     deploy:
       replicas: 2
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   celery-beat:
     build:

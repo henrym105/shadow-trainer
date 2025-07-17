@@ -1,15 +1,21 @@
 # Multi-stage Dockerfile for Shadow Trainer with Celery
-FROM python:3.9-slim AS base
+FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-devel AS base
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH="/app:/app/api_backend"
+    PYTHONPATH="/app:/app/api_backend" \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-# Install system dependencies
+# Install system dependencies (Ubuntu 20.04 base)
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
+        python3-pip
+
+# Install system dependencies
+RUN apt-get install -y --no-install-recommends \
         libglib2.0-0 \
         libsm6 \
         libxext6 \
@@ -18,7 +24,8 @@ RUN apt-get update && \
         ffmpeg \
         wget \
         ca-certificates \
-        redis-tools && \
+        redis-tools \
+        curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Install uv for faster dependency management
