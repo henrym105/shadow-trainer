@@ -306,13 +306,13 @@ async def health_check():
         raise HTTPException(status_code=500, detail="Service unhealthy")
 
 
-@app.get("/api/pro_keypoints/list")
+@app.get("/pro_keypoints/list")
 async def list_pro_keypoints():
     files = list_s3_pro_keypoints()
     return {"files": files}
 
 
-@app.post("/api/videos/sample-lefty", response_model=VideoUploadResponse)
+@app.post("/videos/sample-lefty", response_model=VideoUploadResponse)
 async def process_sample_lefty_video(
     background_tasks: BackgroundTasks,
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
@@ -377,7 +377,7 @@ async def process_sample_lefty_video(
         raise HTTPException(status_code=500, detail=f"Sample video processing failed: {str(e)}")
 
 
-@app.post("/api/videos/upload", response_model=VideoUploadResponse)
+@app.post("/videos/upload", response_model=VideoUploadResponse)
 async def upload_video(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -440,7 +440,7 @@ async def upload_video(
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-@app.get("/api/videos/{job_id}/status", response_model=ProcessingStatusResponse)
+@app.get("/videos/{job_id}/status", response_model=ProcessingStatusResponse)
 async def get_processing_status(job_id: str):
     """
     Get processing status for a job
@@ -459,7 +459,7 @@ async def get_processing_status(job_id: str):
     # Build result URL if job is completed
     result_url = None
     if job.status == JobStatus.COMPLETED and job.output_path:
-        result_url = f"/api/videos/{job_id}/download"
+        result_url = f"/videos/{job_id}/download"
 
     return ProcessingStatusResponse(
         job_id=job.job_id,
@@ -471,7 +471,7 @@ async def get_processing_status(job_id: str):
     )
 
 
-@app.get("/api/videos/{job_id}/download")
+@app.get("/videos/{job_id}/download")
 async def download_processed_video(job_id: str):
     """
     Download the processed video file
@@ -502,7 +502,7 @@ async def download_processed_video(job_id: str):
     )
 
 
-@app.get("/api/videos/{job_id}/preview")
+@app.get("/videos/{job_id}/preview")
 async def get_video_preview(job_id: str):
     """
     Stream video for preview in browser
