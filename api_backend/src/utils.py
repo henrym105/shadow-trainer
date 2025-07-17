@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import pickle
 import random
@@ -10,6 +11,8 @@ import torch
 import yaml
 from easydict import EasyDict as edict
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # YAML/Configuration utilities
@@ -154,6 +157,38 @@ def download_file_if_not_exists(filename_pattern, local_dir, s3_bucket="shadow-t
                     return local_path
 
     raise FileNotFoundError(f"No checkpoint found matching pattern '{filename_pattern}' in {local_dir} or s3://{s3_bucket}/{s3_prefix}/")
+
+
+def get_pytorch_device():
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
+
+
+def get_frame_info(frame: np.ndarray) -> dict:
+    """Get the joint names and their corresponding coordinates from a single frame of 3D key points.
+
+    Args:
+        frame (np.ndarray): A single frame of 3D key points, expected shape (
+            17, 3), where each row corresponds to a joint and each column corresponds to x, y, z coordinates.
+
+    Returns:
+        dict: A dictionary mapping joint names to their coordinates. Like {'Hip': [x, y, z], 'Right Hip': [x, y, z], ...}
+    """
+    assert frame.shape == (17, 3), f"Expected frame shape (17, 3), got {frame.shape}. Ensure the input is a single frame of 3D key points."
+    joint_names = [
+        "Hip", "Right Hip", "Right Knee", "Right Ankle",
+        "Left Hip", "Left Knee", "Left Ankle", "Spine",
+        "Thorax", "Neck", "Head", "Left Shoulder",
+        "Left Elbow", "Left Wrist", "Right Shoulder",
+        "Right Elbow", "Right Wrist"
+        ]
+    joints = {joint_names[i]: frame[i] for i in range(len(frame))}
+    return joints
+
 
 
 # =============================================================================

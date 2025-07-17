@@ -2,6 +2,7 @@ import argparse
 import copy
 import glob
 import logging
+import shutil
 import os
 from os.path import join as pjoin
 
@@ -18,12 +19,12 @@ from tqdm import tqdm
 
 from src.preprocess import h36m_coco_format
 from src.hrnet.gen_kpts import gen_video_kpts
-from src.utils import download_file_if_not_exists, normalize_screen_coordinates, camera_to_world, get_config
+from src.utils import download_file_if_not_exists, get_frame_info, normalize_screen_coordinates, camera_to_world, get_config, get_pytorch_device
 from src.model.MotionAGFormer import MotionAGFormer
 from src.visualizations import resample_pose_sequence, time_warp_pro_video
-from src.yolo2d import YOLOPoseEstimator
+from src.yolo2d import YOLOPoseEstimator, rotate_video_until_upright
 
-# logger = logging.getLogger("api_service")
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -33,6 +34,7 @@ matplotlib.rcParams['ps.fonttype'] = 42
 
 # ---------------------- CONSTANTS ----------------------
 BACKEND_API_DIR_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CHECKPOINT_DIR = pjoin(BACKEND_API_DIR_ROOT, "checkpoint")
 OUTPUT_FOLDER_RAW_KEYPOINTS = "raw_keypoints"
 KEYPOINTS_FILE_2D = "2D_keypoints.npy"
 KEYPOINTS_FILE_3D_USER = "user_3D_keypoints.npy"
@@ -170,19 +172,20 @@ def get_pose2D(video_path, output_file, device, yolo_version: str = "11") -> np.
         str: Path to the saved 2D keypoints .npy file.
     """
     logger.info('\n\nGenerating 2D pose...')
-    checkpoint_dir = pjoin(BACKEND_API_DIR_ROOT, "checkpoint")
 
     if yolo_version == "3":
         # Download hrnet and v3 weights from S3 if they don't exist locally
-        download_file_if_not_exists("pose_hrnet_w48_384x288.pth", checkpoint_dir)
-        download_file_if_not_exists("yolov3.weights", checkpoint_dir)
+        download_file_if_not_exists("pose_hrnet_w48_384x288.pth", CHECKPOINT_DIR)
+        download_file_if_not_exists("yolov3.weights", CHECKPOINT_DIR)
         keypoints, scores = gen_video_kpts(video_path, det_dim=416, num_person=1, gen_output=True, device=device)
         keypoints, scores, valid_frames = h36m_coco_format(keypoints, scores)
         # Add conf score to the last dim
         keypoints = np.concatenate((keypoints, scores[..., None]), axis=-1)
 
     elif yolo_version == "11":
-        estimator = YOLOPoseEstimator("yolo11x-pose.pt", checkpoint_dir, device)
+        estimator = YOLOPoseEstimator("yolo11x-pose.pt", CHECKPOINT_DIR, device)
+        # Detect person orientation, overwrite video_path with properly oriented video if needed
+        video_path = rotate_video_until_upright(video_path)
         keypoints = estimator.get_keypoints_from_video(video_path)
 
     assert keypoints.ndim == 4, "Keypoints should have 4 dimensions for (num_ppl, num_frames, 17, 3). Received shape: {}".format(keypoints.shape)
@@ -249,9 +252,8 @@ def get_pose3D_no_vis(
 
     # Load model and set to eval() mode to disable training-specific pytorch features
     model = nn.DataParallel(MotionAGFormer(**args)).to(device)
-    checkpoint_dir = pjoin(BACKEND_API_DIR_ROOT, "checkpoint")
     model_filename = f"motionagformer-{model_size}-h36m*.pth*"
-    model_path = download_file_if_not_exists(model_filename, checkpoint_dir)
+    model_path = download_file_if_not_exists(model_filename, CHECKPOINT_DIR)
     pre_dict = torch.load(model_path, map_location=device)
     model.load_state_dict(pre_dict['model'], strict=True)
     model.eval()
@@ -562,28 +564,28 @@ def get_start_end_info(arr, is_lefty: bool = False, output_dir: str = ".'") -> t
     return (starting_point, end_point)
 
 
-def get_frame_info(frame: np.ndarray) -> dict:
-    """Get the joint names and their corresponding coordinates from a single frame of 3D key points.
+# def get_frame_info(frame: np.ndarray) -> dict:
+#     """Get the joint names and their corresponding coordinates from a single frame of 3D key points.
 
-    Args:
-        frame (np.ndarray): A single frame of 3D key points, expected shape (
-            17, 3), where each row corresponds to a joint and each column corresponds to x, y, z coordinates.
+#     Args:
+#         frame (np.ndarray): A single frame of 3D key points, expected shape (
+#             17, 3), where each row corresponds to a joint and each column corresponds to x, y, z coordinates.
 
-    Returns:
-        dict: A dictionary mapping joint names to their coordinates.
-    """
-    assert frame.shape == (17, 3), f"Expected frame shape (17, 3), got {frame.shape}. Ensure the input is a single frame of 3D key points."
-    joint_names = [
-        "Hip", "Right Hip", "Right Knee", "Right Ankle",
-        "Left Hip", "Left Knee", "Left Ankle", "Spine",
-        "Thorax", "Neck", "Head", "Left Shoulder",
-        "Left Elbow", "Left Wrist", "Right Shoulder",
-        "Right Elbow", "Right Wrist"
-        ]
-    joints = {joint_names[i]: frame[i] for i in range(len(frame))}
-    # print(f"\n[DEBUG] get_frame_info() - Extracted joints from frame: {joints.keys()}")
-    # pprint(joints)
-    return joints
+#     Returns:
+#         dict: A dictionary mapping joint names to their coordinates. Like {'Hip': [x, y, z], 'Right Hip': [x, y, z], ...}
+#     """
+#     assert frame.shape == (17, 3), f"Expected frame shape (17, 3), got {frame.shape}. Ensure the input is a single frame of 3D key points."
+#     joint_names = [
+#         "Hip", "Right Hip", "Right Knee", "Right Ankle",
+#         "Left Hip", "Left Knee", "Left Ankle", "Spine",
+#         "Thorax", "Neck", "Head", "Left Shoulder",
+#         "Left Elbow", "Left Wrist", "Right Shoulder",
+#         "Right Elbow", "Right Wrist"
+#         ]
+#     joints = {joint_names[i]: frame[i] for i in range(len(frame))}
+#     # print(f"\n[DEBUG] get_frame_info() - Extracted joints from frame: {joints.keys()}")
+#     # pprint(joints)
+#     return joints
 
 
 
@@ -955,15 +957,6 @@ def flip_data(data, left_joints=[1, 2, 3, 14, 15, 16], right_joints=[4, 5, 6, 11
     flipped_data[..., 0] *= -1  # flip x of all joints
     flipped_data[..., left_joints + right_joints, :] = flipped_data[..., right_joints + left_joints, :]  # Change orders
     return flipped_data
-
-
-def get_pytorch_device():
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    elif torch.backends.mps.is_available():
-        return torch.device("mps")
-    else:
-        return torch.device("cpu")
     
 
 def rotate_along_z(kpts: np.ndarray, degrees: float) -> np.ndarray:

@@ -31,13 +31,13 @@ from src.inference import (
     get_pose2D, 
     get_pose3D_no_vis, 
     img2video, 
-    get_pytorch_device,
     create_2D_images,
 )
+from src.utils import get_pytorch_device
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
+logger = logging.getLogger()
 
 # Configuration
 INCLUDE_2D_IMAGES = True
@@ -209,6 +209,9 @@ def process_video_pipeline(
         logger.info(f"Current working directory: {os.getcwd()}")
         model_config_path = get_model_config_path(model_size)
         logger.info(f"Using model config: {model_config_path}")
+
+        rotate_video_until_upright(input_video_path)
+
 
         # Step 1: Extract 2D poses (20% progress)
         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=20, message="Extracting 2D poses...")
