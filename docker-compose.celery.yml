@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - USE_CELERY=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - CELERY_WORKER_CONCURRENCY=2
+      - INCLUDE_2D_IMAGES=true
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api_backend:/app/api_backend
+      - api_tmp:/app/api_backend/tmp_api_output
+    restart: unless-stopped
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A api_backend.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - USE_CELERY=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - CELERY_WORKER_CONCURRENCY=2
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api_backend:/app/api_backend
+      - api_tmp:/app/api_backend/tmp_api_output
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A api_backend.celery_app beat --loglevel=info
+    environment:
+      - USE_CELERY=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api_backend:/app/api_backend
+    restart: unless-stopped
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A api_backend.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - USE_CELERY=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  api_tmp:
+
+networks:
+  default:
+    name: shadow-trainer-network

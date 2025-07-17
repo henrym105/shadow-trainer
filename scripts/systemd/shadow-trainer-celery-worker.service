@@ -1,0 +1,25 @@
+[Unit]
+Description=Shadow Trainer Celery Worker
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=exec
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/home/ec2-user/shadow-trainer
+Environment=PATH=/home/ec2-user/shadow-trainer/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONPATH=/home/ec2-user/shadow-trainer
+Environment=USE_CELERY=true
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
+Environment=REDIS_DB=0
+Environment=CELERY_WORKER_CONCURRENCY=2
+ExecStart=/home/ec2-user/shadow-trainer/.venv/bin/celery -A api_backend.celery_app worker --loglevel=info --concurrency=2
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

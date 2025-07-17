@@ -39,6 +39,7 @@ class VideoJob(BaseModel):
     progress: int = 0
     message: Optional[str] = None
     error_message: Optional[str] = None
+    celery_task_id: Optional[str] = None  # Add Celery task ID
     
     @classmethod
     def create_new_job(cls, filename: str, input_path: str) -> 'VideoJob':

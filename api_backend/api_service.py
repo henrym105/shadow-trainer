@@ -14,7 +14,7 @@ import time
 import numpy as np
 import cv2
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -24,7 +24,8 @@ from pydantic_models import (
     ProcessingStatusResponse, 
     JobStatus,
 )
-from job_manager import job_manager
+from job_manager_interface import job_manager
+from config import config
 from src.inference import (
     create_3d_pose_images_from_array,
     generate_output_combined_frames, 
@@ -41,15 +42,15 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %
 logger = logging.getLogger()
 
 # Configuration
-INCLUDE_2D_IMAGES = True
+INCLUDE_2D_IMAGES = config.INCLUDE_2D_IMAGES
 
 API_ROOT_DIR = Path(__file__).parent.absolute()
 TMP_DIR = API_ROOT_DIR / "tmp_api_output"
 TMP_DIR.mkdir(exist_ok=True)
 
 # S3 config for pro keypoints
-S3_BUCKET = "shadow-trainer-dev"
-S3_PRO_PREFIX = "test/professional/"
+S3_BUCKET = config.S3_BUCKET
+S3_PRO_PREFIX = config.S3_PRO_PREFIX
 
 TMP_PRO_KEYPOINTS_FILE = API_ROOT_DIR / "checkpoint" / "example_SnellBlake.npy"
 SAMPLE_VIDEO_PATH = API_ROOT_DIR / "sample_videos" / "Left_Hand_Friend_Side.MOV"
@@ -161,6 +162,25 @@ def cleanup_old_files(retention_minutes: int = 60):
 
 
 # ==================== VIDEO PROCESSING ====================
+
+def process_video_job(job_id: str, model_size: str = "xs", 
+                     is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None):
+    """
+    Wrapper function for video processing that works with the legacy job manager.
+    This function maintains compatibility with the ThreadPoolExecutor-based system.
+    """
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise ValueError(f"Job {job_id} not found")
+    
+    return process_video_pipeline(
+        job_id=job_id,
+        input_video_path=job.input_path,
+        model_size=model_size,
+        is_lefty=is_lefty,
+        pro_keypoints_filename=pro_keypoints_filename
+    )
+
 
 def process_video_pipeline(
         job_id: str, input_video_path: str, model_size: str = "xs", 
@@ -303,7 +323,10 @@ async def health_check():
             "status": "healthy",
             "timestamp": time.time(),
             "device": str(device),
-            "active_jobs": len(job_manager.jobs)
+            "active_jobs": len(job_manager.get_all_jobs()),
+            "job_manager_type": job_manager.manager_type,
+            "celery_enabled": job_manager.is_celery_enabled,
+            "config": config.get_config_dict()
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -318,7 +341,6 @@ async def list_pro_keypoints():
 
 @app.post("/videos/sample-lefty", response_model=VideoUploadResponse)
 async def process_sample_lefty_video(
-    background_tasks: BackgroundTasks,
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
     pro_keypoints_filename: Optional[str] = Query(None, description="Professional keypoints filename from S3")
 ):
@@ -358,14 +380,13 @@ async def process_sample_lefty_video(
         # Create processing job
         job = job_manager.create_job("Left_Hand_Friend_Side.MOV (Sample)", str(input_path))
         
-        # Start background processing with lefty=True since it's the lefty sample
-        background_tasks.add_task(
-            process_video_pipeline,
-            job.job_id,
-            str(input_path),
-            model_size,
-            True,  # is_lefty=True for the lefty sample
-            pro_keypoints_filename,
+        # Submit job for processing (handles both Celery and legacy systems)
+        job_manager.submit_job(
+            job_id=job.job_id,
+            model_size=model_size,
+            is_lefty=True,  # is_lefty=True for the lefty sample
+            pro_keypoints_filename=pro_keypoints_filename,
+            include_2d_images=config.INCLUDE_2D_IMAGES
         )
         
         logger.info(f"Started processing sample lefty video job {job.job_id}")
@@ -383,7 +404,6 @@ async def process_sample_lefty_video(
 
 @app.post("/videos/upload", response_model=VideoUploadResponse)
 async def upload_video(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
     is_lefty: bool = Query(False, description="Whether the user is left-handed"),
@@ -421,14 +441,13 @@ async def upload_video(
         # Create processing job
         job = job_manager.create_job(file.filename, input_path)
         
-        # Start background processing
-        background_tasks.add_task(
-            process_video_pipeline,
-            job.job_id,
-            input_path,
-            model_size,
-            is_lefty,
-            pro_keypoints_filename,
+        # Submit job for processing (handles both Celery and legacy systems)
+        job_manager.submit_job(
+            job_id=job.job_id,
+            model_size=model_size,
+            is_lefty=is_lefty,
+            pro_keypoints_filename=pro_keypoints_filename,
+            include_2d_images=config.INCLUDE_2D_IMAGES
         )
         
         logger.info(f"Started processing job {job.job_id} for file {file.filename}")
@@ -455,23 +474,23 @@ async def get_processing_status(job_id: str):
     Returns:
         Processing status response
     """
-    job = job_manager.get_job(job_id)
+    job_status = job_manager.get_job_status_with_details(job_id)
     
-    if not job:
+    if 'error' in job_status and job_status['error'] == 'Job not found':
         raise HTTPException(status_code=404, detail="Job not found")
     
     # Build result URL if job is completed
     result_url = None
-    if job.status == JobStatus.COMPLETED and job.output_path:
+    if job_status.get('status') == JobStatus.COMPLETED and job_status.get('output_path'):
         result_url = f"/videos/{job_id}/download"
 
     return ProcessingStatusResponse(
-        job_id=job.job_id,
-        status=job.status,
-        progress=job.progress,
-        message=job.message or (job.error_message if job.status == JobStatus.FAILED else f"Job is {job.status.value}"),
+        job_id=job_id,
+        status=job_status.get('status', JobStatus.FAILED),
+        progress=job_status.get('progress', 0),
+        message=job_status.get('message') or (job_status.get('error') if job_status.get('status') == JobStatus.FAILED else f"Job is {job_status.get('status', 'unknown')}"),
         result_url=result_url,
-        error=job.error_message if job.status == JobStatus.FAILED else None
+        error=job_status.get('error') if job_status.get('status') == JobStatus.FAILED else None
     )
 
 
