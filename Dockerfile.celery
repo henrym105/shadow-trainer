@@ -64,7 +64,7 @@ EXPOSE 8000 5555
 
 # API service stage
 FROM base AS api
-CMD ["uv", "run", "uvicorn", "api_backend.api_service:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "api_backend.api_service:app", "--host", "0.0.0.0", "--port", "8002"]
 
 # Celery worker stage
 FROM base AS worker
