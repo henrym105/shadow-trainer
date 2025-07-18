@@ -18,7 +18,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile.celery
+      dockerfile: Dockerfile
       target: api
       cache_from:
         - shadow-trainer-api:latest
@@ -52,7 +52,7 @@ services:
   celery-worker:
     build:
       context: .
-      dockerfile: Dockerfile.celery
+      dockerfile: Dockerfile
       target: worker
       cache_from:
         - shadow-trainer-worker:latest
@@ -85,7 +85,7 @@ services:
   celery-beat:
     build:
       context: .
-      dockerfile: Dockerfile.celery
+      dockerfile: Dockerfile
       target: beat
       cache_from:
         - shadow-trainer-beat:latest
@@ -107,7 +107,7 @@ services:
   flower:
     build:
       context: .
-      dockerfile: Dockerfile.celery
+      dockerfile: Dockerfile
       target: flower
       cache_from:
         - shadow-trainer-flower:latest

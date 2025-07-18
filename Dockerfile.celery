@@ -68,8 +68,7 @@ RUN mkdir -p /app/api_backend/tmp_api_output \
     find /app/scripts -name "*.sh" -type f -exec chmod +x {} \;
 
 # Default environment variables
-ENV USE_CELERY=true \
-    REDIS_HOST=redis \
+ENV REDIS_HOST=redis \
     REDIS_PORT=6379 \
     REDIS_DB=0 \
     CELERY_WORKER_CONCURRENCY=2

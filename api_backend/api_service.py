@@ -166,8 +166,7 @@ def cleanup_old_files(retention_minutes: int = 60):
 def process_video_job(job_id: str, model_size: str = "xs", 
                      is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None):
     """
-    Wrapper function for video processing that works with the legacy job manager.
-    This function maintains compatibility with the ThreadPoolExecutor-based system.
+    Video processing job function for Celery workers.
     """
     job = job_manager.get_job(job_id)
     if not job:
@@ -330,8 +329,7 @@ async def health_check():
             "timestamp": time.time(),
             "device": str(device),
             "active_jobs": len(job_manager.get_all_jobs()),
-            "job_manager_type": job_manager.manager_type,
-            "celery_enabled": job_manager.is_celery_enabled,
+            "job_manager": "celery",
             "config": config.get_config_dict()
         }
     except Exception as e:
@@ -386,7 +384,7 @@ async def process_sample_lefty_video(
         # Create processing job
         job = job_manager.create_job("Left_Hand_Friend_Side.MOV (Sample)", str(input_path))
         
-        # Submit job for processing (handles both Celery and legacy systems)
+        # Submit job for Celery processing
         job_manager.submit_job(
             job_id=job.job_id,
             model_size=model_size,
@@ -447,7 +445,7 @@ async def upload_video(
         # Create processing job
         job = job_manager.create_job(file.filename, input_path)
         
-        # Submit job for processing (handles both Celery and legacy systems)
+        # Submit job for Celery processing
         job_manager.submit_job(
             job_id=job.job_id,
             model_size=model_size,

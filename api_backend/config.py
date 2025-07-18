@@ -1,15 +1,12 @@
 """
-Configuration and feature flags for Shadow Trainer API.
+Configuration for Shadow Trainer API with Celery.
 """
 import os
 from typing import Dict, Any
 
 
 class Config:
-    """Application configuration with feature flags."""
-    
-    # Feature flags
-    USE_CELERY = os.getenv('USE_CELERY', 'true').lower() == 'true'
+    """Application configuration for Celery-based job processing."""
     
     # Redis configuration
     REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
@@ -35,7 +32,6 @@ class Config:
     def get_config_dict(cls) -> Dict[str, Any]:
         """Get all configuration as a dictionary."""
         return {
-            'USE_CELERY': cls.USE_CELERY,
             'REDIS_HOST': cls.REDIS_HOST,
             'REDIS_PORT': cls.REDIS_PORT,
             'CELERY_WORKER_CONCURRENCY': cls.CELERY_WORKER_CONCURRENCY,
