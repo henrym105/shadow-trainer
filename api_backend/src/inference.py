@@ -183,6 +183,7 @@ def get_pose2D(video_path, output_file, device, yolo_version: str = "11") -> np.
         keypoints = np.concatenate((keypoints, scores[..., None]), axis=-1)
 
     elif yolo_version == "11":
+        logger.info(f"{CHECKPOINT_DIR = }")
         estimator = YOLOPoseEstimator("yolo11x-pose.pt", CHECKPOINT_DIR, device)
         keypoints = estimator.get_keypoints_from_video(video_path)
 
@@ -319,7 +320,6 @@ def create_3d_pose_images_from_array(
     # USE_BODY_PART = "feet"
     # USE_BODY_PART = "shoulders"
     USE_BODY_PART = "hips"
-    
 
     # Load professional keypoints and prepare for alignment
     user_keypoints_npy = load_npy_file(user_3d_keypoints_filepath)
@@ -357,8 +357,7 @@ def create_3d_pose_images_from_array(
     num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
 
     # Resample the longer sequence to match the shorter one
-    user_keypoints_npy = resample_pose_sequence(user_keypoints_npy, num_frames)
-    pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, num_frames)
+    pro_keypoints_npy = time_warp_pro_video(amateur_data=user_keypoints_npy, professional=pro_keypoints_npy)
     if DEBUG: logger.info(f"\nUser keypoints shape after crop/resample: {user_keypoints_npy.shape}")
     if DEBUG: logger.info(f"Professional keypoints shape after crop/resample: {pro_keypoints_npy.shape}")
     # ------------------------------------------------------------------------------------------------
@@ -368,11 +367,12 @@ def create_3d_pose_images_from_array(
     num_frames = user_keypoints_npy.shape[0]
 
     # Save a copy of the professional keypoints for reference
-    job_output_dir = os.path.dirname(output_dir)  # Go up one level to job output root
-    raw_keypoints_dir = pjoin(job_output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
-    output_pro_3D_npy_path = pjoin(raw_keypoints_dir, KEYPOINTS_FILE_3D_PRO)
-    np.save(output_pro_3D_npy_path, pro_keypoints_npy)
-    if DEBUG: logger.info(f"Professional 3D keypoints saved to {output_pro_3D_npy_path}, with shape {pro_keypoints_npy.shape}")
+    # job_output_dir = os.path.dirname(output_dir)  # Go up one level to job output root
+    # raw_keypoints_dir = pjoin(job_output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
+    # output_pro_3D_npy_path = pjoin(raw_keypoints_dir, KEYPOINTS_FILE_3D_PRO)
+    # if DEBUG: logger.info(f"Professional 3D keypoints saved to {output_pro_3D_npy_path}, with shape {pro_keypoints_npy.shape}")
+    np.save(pro_keypoints_filepath, pro_keypoints_npy)
+    if DEBUG: logger.info(f"Professional 3D keypoints saved to {pro_keypoints_filepath}, with shape {pro_keypoints_npy.shape}")
 
     for frame_id in tqdm(range(num_frames), desc="Creating 3D pose images", unit="frame"):
         # Create a new figure for this frame
@@ -607,7 +607,7 @@ def get_frame_size(cap: cv2.VideoCapture) -> tuple:
     return (height, width, 3)  # Assuming 3 channels (RGB)
 
 
-def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir_2D: str, is_lefty: bool) -> str:
+def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir_2D: str, is_lefty: bool = False) -> str:
     # output_dir_2D = pjoin(output_dir, 'pose2D')
     # os.makedirs(output_dir_2D, exist_ok=True)
     """Create 2D pose images from keypoints and save them to the specified directory.

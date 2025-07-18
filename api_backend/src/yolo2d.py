@@ -239,24 +239,75 @@ def is_person_upright(keypoints: np.ndarray) -> bool:
     return (head_y < shoulders_y < hips_y < knees_y < feet_y)
 
 
+
+def mirror_video_for_lefty(video_path: str, debug: bool = False) -> str:
+    """Mirrors the video horizontally to simulate a left-handed view.
+
+    Args:
+        video_path (str): Path to the input video file.
+        debug (bool): If True, saves a debug copy of the mirrored video.
+
+    Returns:
+        str: Path to the mirrored video file.
+    """
+    logger.info(f"Mirroring video for left-handed view: {video_path}")
+    
+    cap = cv2.VideoCapture(video_path)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    # Always use a temporary file to avoid overwriting the input while reading
+    temp_output_path = os.path.join(os.path.dirname(video_path), "temp_mirrored_" + os.path.basename(video_path))
+    
+    output_cap = cv2.VideoWriter(filename=temp_output_path, fourcc=fourcc, fps=fps, frameSize=(original_width, original_height))
+
+    for _ in tqdm(range(frame_count), desc="Mirroring Video"):
+        ret, frame = cap.read()
+        if not ret:
+            break
+        mirrored_frame = cv2.flip(frame, 1)  # Flip horizontally
+        output_cap.write(mirrored_frame)
+
+    cap.release()
+    output_cap.release()
+    
+    # Determine final output path
+    if debug:
+        final_output_path = os.path.join(os.path.dirname(video_path), "mirrored_" + os.path.basename(video_path))
+        os.rename(temp_output_path, final_output_path)
+    else:
+        final_output_path = video_path
+        os.replace(temp_output_path, video_path)
+    
+    logger.info(f"Video mirrored for left-handed view. Saved to: {final_output_path}")
+    
+    return final_output_path
+
+
 if __name__ == "__main__":    
-    # Example usage
-    import torch
-    estimator = YOLOPoseEstimator(
-        checkpoint_dir=os.path.join(BACKEND_ROOT, "checkpoint"),
-        model_name="yolo11n-pose.pt",
-        device= "mps" if torch.backends.mps.is_available() else "cpu"
-    )
-    test_video = "/Users/Henry/github/shadow-trainer/api_backend/tmp_api_output/henry-mini.mov"
-    keypoints = estimator.get_keypoints_from_video(test_video)
-    logger.info(f"Number of frames processed: {len(keypoints)}")
-    logger.info(f"Keypoints shape first frame: {keypoints[0].shape if keypoints[0] is not None else 'No keypoints detected'}")
+    # # Example usage
+    # import torch
+    # estimator = YOLOPoseEstimator(
+    #     checkpoint_dir=os.path.join(BACKEND_ROOT, "checkpoint"),
+    #     model_name="yolo11n-pose.pt",
+    #     device= "mps" if torch.backends.mps.is_available() else "cpu"
+    # )
+    # test_video = "/Users/Henry/github/shadow-trainer/api_backend/tmp_api_output/henry-mini.mov"
+    # keypoints = estimator.get_keypoints_from_video(test_video)
+    # logger.info(f"Number of frames processed: {len(keypoints)}")
+    # logger.info(f"Keypoints shape first frame: {keypoints[0].shape if keypoints[0] is not None else 'No keypoints detected'}")
 
-    logger.info(f"Keypoints shape: {keypoints.shape}")
+    # logger.info(f"Keypoints shape: {keypoints.shape}")
 
-    # Save the keypoints to a file or process them further as needed
-    # For example, you can save them to a .npy file:
-    output_file = os.path.join(BACKEND_ROOT, "tmp_api_output", "output_keypoints_2d_yolov11.npy")
+    # # Save the keypoints to a file or process them further as needed
+    # # For example, you can save them to a .npy file:
+    # output_file = os.path.join(BACKEND_ROOT, "tmp_api_output", "output_keypoints_2d_yolov11.npy")
    
-    np.save(output_file, keypoints)
-    logger.info(f"Keypoints saved to {output_file}")
+    # np.save(output_file, keypoints)
+    # logger.info(f"Keypoints saved to {output_file}")
+
+    pass
