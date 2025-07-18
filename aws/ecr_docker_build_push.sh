@@ -5,9 +5,8 @@ set -e
 # Configurable variables
 REGION="us-east-2"
 ACCOUNT_ID="381491870028"
-REPO_NAME="shadow-trainer"
-IMAGE_TAG="latest"
-# IMAGE_TAG="v3"
+REPO_NAME="shadow-trainer-celery"
+IMAGE_TAG=$(git rev-parse --short HEAD)
 LOCAL_IMAGE="${REPO_NAME}:${IMAGE_TAG}"
 ECR_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${REPO_NAME}:${IMAGE_TAG}"
 

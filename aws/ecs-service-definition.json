@@ -1,0 +1,39 @@
+{
+  "serviceName": "shadow-trainer-api-service",
+  "cluster": "shadow-trainer-cluster",
+  "taskDefinition": "shadow-trainer-api:1",
+  "desiredCount": 2,
+  "launchType": "EC2",
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": ["subnet-xxx", "subnet-yyy"],
+      "securityGroups": ["sg-xxxxxxxxx"],
+      "assignPublicIp": "ENABLED"
+    }
+  },
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-2:381491870028:targetgroup/shadow-trainer-tg/xxxxxxxxx",
+      "containerName": "shadow-trainer-api",
+      "containerPort": 8002
+    }
+  ],
+  "serviceRegistries": [],
+  "placementConstraints": [
+    {
+      "type": "memberOf",
+      "expression": "attribute:ecs.instance-type =~ g4dn.*"
+    }
+  ],
+  "enableExecuteCommand": true,
+  "tags": [
+    {
+      "key": "Environment",
+      "value": "production"
+    },
+    {
+      "key": "Service",
+      "value": "shadow-trainer-api"
+    }
+  ]
+}

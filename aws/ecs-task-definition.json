@@ -1,0 +1,76 @@
+{
+  "family": "shadow-trainer-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["EC2"],
+  "placementConstraints": [
+    {
+      "type": "memberOf",
+      "expression": "attribute:ecs.instance-type =~ g4dn.*"
+    }
+  ],
+  "cpu": "2048",
+  "memory": "8192",
+  "taskRoleArn": "arn:aws:iam::381491870028:role/ecsTaskRole",
+  "executionRoleArn": "arn:aws:iam::381491870028:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "shadow-trainer-api",
+      "image": "381491870028.dkr.ecr.us-east-2.amazonaws.com/shadow-trainer-celery:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8002,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "USE_CELERY",
+          "value": "true"
+        },
+        {
+          "name": "REDIS_HOST",
+          "value": "shadow-trainer-redis.cache.amazonaws.com"
+        },
+        {
+          "name": "REDIS_PORT",
+          "value": "6379"
+        },
+        {
+          "name": "INCLUDE_2D_IMAGES",
+          "value": "true"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/shadow-trainer-api",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "resourceRequirements": [
+        {
+          "type": "GPU",
+          "value": "1"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "efs-models",
+          "containerPath": "/app/api_backend/checkpoint",
+          "readOnly": true
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "efs-models",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "fs-xxxxxxxxx",
+        "transitEncryption": "ENABLED"
+      }
+    }
+  ]
+}
