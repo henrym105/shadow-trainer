@@ -2,7 +2,7 @@
 
 set -e
 
-DOMAINS=("shadow-trainer.com" "www.shadow-trainer.com" "api.shadow-trainer.com")
+DOMAINS=("shadow-trainer.com" "www.shadow-trainer.com" "api.shadow-trainer.com" "flower.shadow-trainer.com")
 
 # Detect OS
 OS=$(uname | tr '[:upper:]' '[:lower:]')
@@ -31,9 +31,11 @@ sudo rm -f /etc/nginx/conf.d/default.conf
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo rm -f "$SITES_AVAILABLE/shadow-trainer.com.conf"
 sudo rm -f "$SITES_AVAILABLE/api.shadow-trainer.com.conf"
+sudo rm -f "$SITES_AVAILABLE/flower.shadow-trainer.com.conf"
 if [ "$USE_CONF_D" = false ]; then
     sudo rm -f "$SITES_ENABLED/shadow-trainer.com.conf"
     sudo rm -f "$SITES_ENABLED/api.shadow-trainer.com.conf"
+    sudo rm -f "$SITES_ENABLED/flower.shadow-trainer.com.conf"
 fi
 
 # FRONTEND CONFIG
@@ -92,11 +94,40 @@ server {
 }
 EOF
 
+# FLOWER MONITORING CONFIG
+FLOWER_CONF="$SITES_AVAILABLE/flower.shadow-trainer.com.conf"
+echo "Creating Flower monitoring configuration at $FLOWER_CONF..."
+sudo tee "$FLOWER_CONF" > /dev/null <<EOF
+server {
+    listen 80;
+    server_name flower.shadow-trainer.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:5555;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # WebSocket support for real-time updates
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Flower specific timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+EOF
+
 # Enable configs if using sites-enabled
 if [ "$USE_CONF_D" = false ]; then
     echo "Enabling configurations in sites-enabled..."
     sudo ln -sf "$FRONTEND_CONF" "$SITES_ENABLED/"
     sudo ln -sf "$API_CONF" "$SITES_ENABLED/"
+    sudo ln -sf "$FLOWER_CONF" "$SITES_ENABLED/"
 fi
 
 # Reload NGINX
