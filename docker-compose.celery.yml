@@ -20,6 +20,9 @@ services:
       context: .
       dockerfile: Dockerfile.celery
       target: api
+      cache_from:
+        - shadow-trainer-api:latest
+    image: shadow-trainer-api:latest
     ports:
       - "8002:8002"
     environment:
@@ -52,6 +55,9 @@ services:
       context: .
       dockerfile: Dockerfile.celery
       target: worker
+      cache_from:
+        - shadow-trainer-worker:latest
+    image: shadow-trainer-worker:latest
     environment:
       - USE_CELERY=true
       - CELERY_WORKER=true
@@ -83,6 +89,9 @@ services:
       context: .
       dockerfile: Dockerfile.celery
       target: beat
+      cache_from:
+        - shadow-trainer-beat:latest
+    image: shadow-trainer-beat:latest
     environment:
       - USE_CELERY=true
       - CELERY_WORKER=true
@@ -103,6 +112,9 @@ services:
       context: .
       dockerfile: Dockerfile.celery
       target: flower
+      cache_from:
+        - shadow-trainer-flower:latest
+    image: shadow-trainer-flower:latest
     ports:
       - "5555:5555"
     environment:

@@ -79,7 +79,7 @@ EXPOSE 8002 5555
 
 # API service stage
 FROM runtime AS api
-CMD ["uv", "run", "uvicorn", "api_backend.api_service:app", "--host", "0.0.0.0", "--port", "8002"]
+CMD ["python", "-m", "uvicorn", "api_backend.api_service:app", "--host", "0.0.0.0", "--port", "8002"]
 
 # Celery worker stage
 FROM runtime AS worker

@@ -188,7 +188,7 @@ def process_video_task(self, job_data: Dict[str, Any]) -> str:
         )
         create_3d_pose_images_from_array(
             user_3d_keypoints_filepath=str(file_pose3d),
-            pro_3d_keypoints_filepath=str(pro_keypoints_path),
+            pro_keypoints_filepath=str(pro_keypoints_path),
             output_dir=str(dir_pose3d),
             is_lefty=is_lefty
         )
