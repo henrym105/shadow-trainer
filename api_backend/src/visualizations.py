@@ -8,10 +8,12 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %
 logger = logging.getLogger(__name__)
 
 def time_warp_pro_video(amateur_data: np.ndarray, professional: np.ndarray):
-    """    Time warps the professional data to align with the amateur data.
+    """Time warps the professional data to align with the amateur data.
+
     Args:
         amateur_data (np.ndarray): The amateur data as a NumPy array.
         professional (np.ndarray): The professional data as a NumPy array.
+
     Returns:
         np.ndarray: The time-warped professional data. Shape will match the amateur data.
     """
@@ -20,8 +22,8 @@ def time_warp_pro_video(amateur_data: np.ndarray, professional: np.ndarray):
     # professional_kpts = shift_data_time(professional, 200, 100, max_y_pt, switch_point - max_y_pt, len(amateur_data) - switch_point)
     professional_kpts = shift_data_time(
         data=professional, 
-        switch=switch_point, 
-        max_y=max_y_pt, 
+        switch=200, 
+        max_y=100, 
         time_1=max_y_pt, 
         time_2=switch_point - max_y_pt, 
         time_3=len(amateur_data) - switch_point
@@ -34,104 +36,103 @@ def time_warp_pro_video(amateur_data: np.ndarray, professional: np.ndarray):
 
 
 def get_numpy_info(arr):
-  """
-  Gets the minimum, maximum, and average values from a numpy array.
+    """Gets the minimum, maximum, and average values from a numpy array.
 
-  Args:
+    Args:
     arr (np.ndarray): Input numpy array.
 
-  Returns:
+    Returns:
     tuple: A tuple containing (min_value, max_value, average_value).
-  """
+    """
 
-  # Robust version: handle short arrays and edge cases
-  n_frames = len(arr)
-  if n_frames < 15:
-      # Not enough frames for smoothing or switch logic
-      logger.info("[get_numpy_info] Too few frames for robust analysis, skipping temporal alignment.")
-      return (False, 0, 0, [0,0,0,0])
+    # Robust version: handle short arrays and edge cases
+    n_frames = len(arr)
+    if n_frames < 15:
+        # Not enough frames for smoothing or switch logic
+        logger.info("[get_numpy_info] Too few frames for robust analysis, skipping temporal alignment.")
+        return (False, 0, 0, [0,0,0,0])
 
-  left_ankle_arr = []
-  right_ankle_arr = []
-  higher_ankle_arr = []
-  head_arr = []
-  max_left = 0
-  max_left_index = 0
-  arm_movement = [0]
-  try:
-      prev_arm_position = get_frame_info(arr[0])["Right Wrist"]
-  except Exception as e:
-      logger.info(f"[get_numpy_info] Error extracting Right Wrist: {e}")
-      return (False, 0, 0, [0,0,0,0])
+    left_ankle_arr = []
+    right_ankle_arr = []
+    higher_ankle_arr = []
+    head_arr = []
+    max_left = 0
+    max_left_index = 0
+    arm_movement = [0]
+    try:
+        prev_arm_position = get_frame_info(arr[0])["Right Wrist"]
+    except Exception as e:
+        logger.info(f"[get_numpy_info] Error extracting Right Wrist: {e}")
+        return (False, 0, 0, [0,0,0,0])
 
-  is_valid = True
+    is_valid = True
 
-  for i in range(n_frames):
-      try:
-          joints = get_frame_info(arr[i])
-          left_ankle_z = joints["Left Ankle"][2]
-          right_ankle_z = joints["Right Ankle"][2]
-          head_z = joints["Head"][2]
-          arm_movement.append(np.linalg.norm(np.array(joints["Right Wrist"]) - np.array(prev_arm_position)))
-          if left_ankle_z > max_left:
-              max_left = left_ankle_z
-              max_left_index = i
-          left_ankle_arr.append(left_ankle_z)
-          right_ankle_arr.append(right_ankle_z)
-          head_arr.append(head_z)
-      except Exception as e:
-          logger.info(f"[get_numpy_info] Error at frame {i}: {e}")
-          return (False, 0, 0, [0,0,0,0])
+    for i in range(n_frames):
+        try:
+            joints = get_frame_info(arr[i])
+            left_ankle_z = joints["Left Ankle"][2]
+            right_ankle_z = joints["Right Ankle"][2]
+            head_z = joints["Head"][2]
+            arm_movement.append(np.linalg.norm(np.array(joints["Right Wrist"]) - np.array(prev_arm_position)))
+            if left_ankle_z > max_left:
+                max_left = left_ankle_z
+                max_left_index = i
+            left_ankle_arr.append(left_ankle_z)
+            right_ankle_arr.append(right_ankle_z)
+            head_arr.append(head_z)
+        except Exception as e:
+            logger.info(f"[get_numpy_info] Error at frame {i}: {e}")
+            return (False, 0, 0, [0,0,0,0])
 
-  # Smoothing
-  try:
-      left_ankle_arr = np.array(left_ankle_arr)
-      right_ankle_arr = np.array(right_ankle_arr)
-      left_ankle_arr = np.convolve(left_ankle_arr, np.ones(10)/10, mode='valid')
-      right_ankle_arr = np.convolve(right_ankle_arr, np.ones(10)/10, mode='valid')
-  except Exception as e:
-      logger.info(f"[get_numpy_info] Error in smoothing: {e}")
-      return (False, 0, 0, [0,0,0,0])
+    # Smoothing
+    try:
+        left_ankle_arr = np.array(left_ankle_arr)
+        right_ankle_arr = np.array(right_ankle_arr)
+        left_ankle_arr = np.convolve(left_ankle_arr, np.ones(10)/10, mode='valid')
+        right_ankle_arr = np.convolve(right_ankle_arr, np.ones(10)/10, mode='valid')
+    except Exception as e:
+        logger.info(f"[get_numpy_info] Error in smoothing: {e}")
+        return (False, 0, 0, [0,0,0,0])
 
-  for i in range(len(left_ankle_arr)):
-      if left_ankle_arr[i] > right_ankle_arr[i]:
-          higher_ankle_arr.append(1)
-      else:
-          higher_ankle_arr.append(0)
+    for i in range(len(left_ankle_arr)):
+        if left_ankle_arr[i] > right_ankle_arr[i]:
+            higher_ankle_arr.append(1)
+        else:
+            higher_ankle_arr.append(0)
 
-  # Switch point logic
-  switch_point = 0
-  for i in range(max_left_index, len(higher_ankle_arr)):
-      if left_ankle_arr[i] <= 0.003:
-          switch_point = i
-          break
-  # Validity checks
-  if switch_point == 0 or switch_point >= len(higher_ankle_arr):
-      logger.info("[get_numpy_info] No valid switch point found.")
-      return (False, 0, max_left_index, [0,0,0,0])
-  if np.sum(higher_ankle_arr[:switch_point]) < len(higher_ankle_arr[:switch_point])*0.8:
-      is_valid = False
-  if np.sum(higher_ankle_arr[switch_point:]) > len(higher_ankle_arr[switch_point:])*0.2:
-      is_valid = False
-  if max(arm_movement) < 0.37:
-      is_valid = False
+    # Switch point logic
+    switch_point = 0
+    for i in range(max_left_index, len(higher_ankle_arr)):
+        if left_ankle_arr[i] <= 0.003:
+            switch_point = i
+            break
+    # Validity checks
+    if switch_point == 0 or switch_point >= len(higher_ankle_arr):
+        logger.info("[get_numpy_info] No valid switch point found.")
+        return (False, 0, max_left_index, [0,0,0,0])
+    if np.sum(higher_ankle_arr[:switch_point]) < len(higher_ankle_arr[:switch_point])*0.8:
+        is_valid = False
+    if np.sum(higher_ankle_arr[switch_point:]) > len(higher_ankle_arr[switch_point:])*0.2:
+        is_valid = False
+    if max(arm_movement) < 0.37:
+        is_valid = False
 
-  ankle_points = [0,0,0,0]
-  try:
-      switch_joints = get_frame_info(arr[switch_point])
-      ankle_points[0] = switch_joints["Right Ankle"][0]
-      ankle_points[1] = switch_joints["Right Ankle"][1]
-      ankle_points[2] = switch_joints["Left Ankle"][0]
-      ankle_points[3] = switch_joints["Left Ankle"][1]
-  except Exception as e:
-      logger.info(f"[get_numpy_info] Error extracting ankle points: {e}")
-      return (False, switch_point, max_left_index, [0,0,0,0])
+    ankle_points = [0,0,0,0]
+    try:
+        switch_joints = get_frame_info(arr[switch_point])
+        ankle_points[0] = switch_joints["Right Ankle"][0]
+        ankle_points[1] = switch_joints["Right Ankle"][1]
+        ankle_points[2] = switch_joints["Left Ankle"][0]
+        ankle_points[3] = switch_joints["Left Ankle"][1]
+    except Exception as e:
+        logger.info(f"[get_numpy_info] Error extracting ankle points: {e}")
+        return (False, switch_point, max_left_index, [0,0,0,0])
 
-  if np.linalg.norm(np.array(ankle_points[:2]) - np.array(ankle_points[2:])) <= 0.1:
-      is_valid = False
+    if np.linalg.norm(np.array(ankle_points[:2]) - np.array(ankle_points[2:])) <= 0.1:
+        is_valid = False
 
-  logger.info(f"[get_numpy_info] is_valid={is_valid}, switch_point={switch_point}, max_left_index={max_left_index}, ankle_points={ankle_points}")
-  return (is_valid, switch_point, max_left_index, ankle_points)
+    logger.info(f"[get_numpy_info] is_valid={is_valid}, switch_point={switch_point}, max_left_index={max_left_index}, ankle_points={ankle_points}")
+    return (is_valid, switch_point, max_left_index, ankle_points)
 
 
 def get_frame_info(frame: np.ndarray) -> dict:

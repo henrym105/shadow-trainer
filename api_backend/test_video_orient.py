@@ -30,6 +30,23 @@ def test_rotate_video_until_upright():
         import traceback
         traceback.print_exc()
 
+
+def test_mirror_video():
+    """Test the mirror_video function"""
+    import sys
+    import os
+
+    # Add the src directory to path if needed
+    sys.path.append('/home/ec2-user/shadow-trainer/api_backend')
+
+    from src.yolo2d import mirror_video_for_lefty
+
+    video_path = "/home/ec2-user/shadow-trainer/api_backend/sample_videos/Matthew_Side.MOV"
+    mirror_video_for_lefty(video_path, debug=False)
+
+
+
 # Run the test
 if __name__ == "__main__":
-    print(test_rotate_video_until_upright())
+    # print(test_rotate_video_until_upright())
+    test_mirror_video()
