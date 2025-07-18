@@ -3,7 +3,7 @@
 SESSION="api"
 
 # Start a new tmux session (detached) with window 1
-tmux new-session -d -s $SESSION -n 'backend'
+tmux new-session -d -s $SESSION -n 'api'
 
 # In window 1, split the pane vertically
 tmux split-window -h -t $SESSION:0

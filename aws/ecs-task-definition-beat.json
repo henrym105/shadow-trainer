@@ -1,0 +1,56 @@
+{
+  "family": "shadow-trainer-beat",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["EC2"],
+  "cpu": "512",
+  "memory": "1024",
+  "taskRoleArn": "arn:aws:iam::381491870028:role/ecsTaskRole",
+  "executionRoleArn": "arn:aws:iam::381491870028:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "shadow-trainer-beat",
+      "image": "381491870028.dkr.ecr.us-east-2.amazonaws.com/shadow-trainer-beat:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "USE_CELERY",
+          "value": "true"
+        },
+        {
+          "name": "CELERY_WORKER",
+          "value": "true"
+        },
+        {
+          "name": "REDIS_HOST",
+          "value": "shadow-trainer-redis.cache.amazonaws.com"
+        },
+        {
+          "name": "REDIS_PORT",
+          "value": "6379"
+        },
+        {
+          "name": "REDIS_DB",
+          "value": "0"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/shadow-trainer-beat",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "key": "Environment",
+      "value": "production"
+    },
+    {
+      "key": "Service",
+      "value": "shadow-trainer-beat"
+    }
+  ]
+}

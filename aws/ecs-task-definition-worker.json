@@ -1,0 +1,86 @@
+{
+  "family": "shadow-trainer-worker",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["EC2"],
+  "placementConstraints": [
+    {
+      "type": "memberOf",
+      "expression": "attribute:ecs.instance-type =~ g4dn.*"
+    }
+  ],
+  "cpu": "2048",
+  "memory": "6144",
+  "taskRoleArn": "arn:aws:iam::381491870028:role/ecsTaskRole",
+  "executionRoleArn": "arn:aws:iam::381491870028:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "shadow-trainer-worker",
+      "image": "381491870028.dkr.ecr.us-east-2.amazonaws.com/shadow-trainer-worker:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "USE_CELERY",
+          "value": "true"
+        },
+        {
+          "name": "CELERY_WORKER",
+          "value": "true"
+        },
+        {
+          "name": "REDIS_HOST",
+          "value": "shadow-trainer-redis.cache.amazonaws.com"
+        },
+        {
+          "name": "REDIS_PORT",
+          "value": "6379"
+        },
+        {
+          "name": "REDIS_DB",
+          "value": "0"
+        },
+        {
+          "name": "CELERY_WORKER_CONCURRENCY",
+          "value": "2"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/shadow-trainer-worker",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "resourceRequirements": [
+        {
+          "type": "GPU",
+          "value": "1"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "tmp-output",
+          "containerPath": "/app/api_backend/tmp_api_output"
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "tmp-output",
+      "host": {
+        "sourcePath": "/tmp/shadow-trainer-output"
+      }
+    }
+  ],
+  "tags": [
+    {
+      "key": "Environment",
+      "value": "production"
+    },
+    {
+      "key": "Service",
+      "value": "shadow-trainer-worker"
+    }
+  ]
+}
