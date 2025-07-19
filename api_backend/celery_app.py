@@ -68,13 +68,13 @@ celery_app.conf.update(
     result_expires=3600,  # Results expire after 1 hour
     result_persistent=True,
     
-    # Retry configuration
-    task_reject_on_worker_lost=True,
-    task_acks_late=True,
+    # # Retry configuration
+    # task_reject_on_worker_lost=True,
+    # task_acks_late=True,
     
     # Monitoring
     worker_send_task_events=True,
-    task_send_events=True,
+    task_send_events=True
 )
 
 if __name__ == '__main__':

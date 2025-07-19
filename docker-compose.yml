@@ -36,8 +36,8 @@ services:
         condition: service_healthy
     volumes:
       - api_tmp:/app/api_backend/tmp_api_output
-      - ./api_backend/checkpoint:/app/api_backend/checkpoint:ro
-      - ./api_backend/sample_videos:/app/api_backend/sample_videos:ro
+      - ./api_backend/checkpoint:/app/api_backend/checkpoint
+      - ./api_backend/sample_videos:/app/api_backend/sample_videos
     restart: unless-stopped
     deploy:
       resources:
@@ -68,8 +68,8 @@ services:
         condition: service_healthy
     volumes:
       - api_tmp:/app/api_backend/tmp_api_output
-      - ./api_backend/checkpoint:/app/api_backend/checkpoint:ro
-      - ./api_backend/sample_videos:/app/api_backend/sample_videos:ro
+      - ./api_backend/checkpoint:/app/api_backend/checkpoint
+      - ./api_backend/sample_videos:/app/api_backend/sample_videos
     restart: unless-stopped
     networks:
       - shadow-trainer-network
@@ -99,7 +99,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./api_backend/checkpoint:/app/api_backend/checkpoint:ro
+      - ./api_backend/checkpoint:/app/api_backend/checkpoint
     restart: unless-stopped
     networks:
       - shadow-trainer-network

@@ -64,7 +64,6 @@ COPY scripts ./scripts
 RUN mkdir -p /app/api_backend/tmp_api_output \
              /app/api_backend/checkpoint \
              /app/api_backend/sample_videos && \
-    chmod -R 755 /app/api_backend && \
     find /app/scripts -name "*.sh" -type f -exec chmod +x {} \;
 
 # Default environment variables

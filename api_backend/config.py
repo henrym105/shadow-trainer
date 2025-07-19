@@ -21,7 +21,7 @@ class Config:
     CELERY_TASK_TIME_LIMIT = int(os.getenv('CELERY_TASK_TIME_LIMIT', '1800'))  # 30 minutes
     
     # Application settings
-    INCLUDE_2D_IMAGES = os.getenv('INCLUDE_2D_IMAGES', 'true').lower() == 'true'
+    INCLUDE_2D_IMAGES = os.getenv('INCLUDE_2D_IMAGES', True)
     CLEANUP_RETENTION_MINUTES = int(os.getenv('CLEANUP_RETENTION_MINUTES', '60'))
     
     # S3 configuration

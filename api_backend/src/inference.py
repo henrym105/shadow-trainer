@@ -247,7 +247,7 @@ def get_pose3D_no_vis(
         raise ValueError("You must provide a YAML configuration file for the model via the 'yaml_path' argument.")
 
     if DEBUG: logger.info("\n[INFO] Using MotionAGFormer with the following configuration:")
-    if DEBUG: pprint(args)
+    # if DEBUG: pprint(args)
 
     # Load model and set to eval() mode to disable training-specific pytorch features
     model = nn.DataParallel(MotionAGFormer(**args)).to(device)
@@ -348,16 +348,16 @@ def create_3d_pose_images_from_array(
     user_keypoints_npy = user_keypoints_npy[user_start : user_end]
     pro_keypoints_npy = pro_keypoints_npy[pro_start : pro_end]
 
-    # Note: output_dir points to the 'pose' directory, but pose2D is at the job root level
-    job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
-    pose2d_dir = pjoin(job_output_dir, 'pose2D')
-    remove_images_before_after_motion(pose2d_dir, user_start, user_end)
+    # # Note: output_dir points to the 'pose' directory, but pose2D is at the job root level
+    # job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
+    # pose2d_dir = pjoin(job_output_dir, 'pose2D')
+    # remove_images_before_after_motion(pose2d_dir, user_start, user_end)
 
     # Set video_length to the minimum of number of frames between user and pro keypoints files
     num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
 
     # Resample the longer sequence to match the shorter one
-    pro_keypoints_npy = time_warp_pro_video(amateur_data=user_keypoints_npy, professional=pro_keypoints_npy)
+    pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, len(user_keypoints_npy))
     if DEBUG: logger.info(f"\nUser keypoints shape after crop/resample: {user_keypoints_npy.shape}")
     if DEBUG: logger.info(f"Professional keypoints shape after crop/resample: {pro_keypoints_npy.shape}")
     # ------------------------------------------------------------------------------------------------
@@ -367,10 +367,6 @@ def create_3d_pose_images_from_array(
     num_frames = user_keypoints_npy.shape[0]
 
     # Save a copy of the professional keypoints for reference
-    # job_output_dir = os.path.dirname(output_dir)  # Go up one level to job output root
-    # raw_keypoints_dir = pjoin(job_output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
-    # output_pro_3D_npy_path = pjoin(raw_keypoints_dir, KEYPOINTS_FILE_3D_PRO)
-    # if DEBUG: logger.info(f"Professional 3D keypoints saved to {output_pro_3D_npy_path}, with shape {pro_keypoints_npy.shape}")
     np.save(pro_keypoints_filepath, pro_keypoints_npy)
     if DEBUG: logger.info(f"Professional 3D keypoints saved to {pro_keypoints_filepath}, with shape {pro_keypoints_npy.shape}")
 
@@ -413,6 +409,7 @@ def create_3d_pose_images_from_array(
         plt.savefig(output_path_3D_this_frame, dpi=200, format='png', bbox_inches='tight')
         plt.close(fig)
 
+    return user_start, user_end
 
 def remove_images_before_after_motion(pose_img_dir, delete_before_idx = 0, delete_after_idx = None):
     """ Remove pose2D images before and after the specified index in the output directory.

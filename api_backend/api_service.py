@@ -35,7 +35,7 @@ from src.inference import (
     create_2D_images,
 )
 from src.utils import get_pytorch_device
-from src.yolo2d import rotate_video_until_upright
+from src.yolo2d import mirror_video_for_lefty, rotate_video_until_upright
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
@@ -163,148 +163,158 @@ def cleanup_old_files(retention_minutes: int = 60):
 
 # ==================== VIDEO PROCESSING ====================
 
-def process_video_job(job_id: str, model_size: str = "xs", 
-                     is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None):
-    """
-    Video processing job function for Celery workers.
-    """
-    job = job_manager.get_job(job_id)
-    if not job:
-        raise ValueError(f"Job {job_id} not found")
+# def process_video_job(job_id: str, model_size: str = "xs", 
+#                      is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None):
+#     """
+#     Video processing job function for Celery workers.
+#     """
+#     job = job_manager.get_job(job_id)
+#     if not job:
+#         raise ValueError(f"Job {job_id} not found")
     
-    return process_video_pipeline(
-        job_id=job_id,
-        input_video_path=job.input_path,
-        model_size=model_size,
-        is_lefty=is_lefty,
-        pro_keypoints_filename=pro_keypoints_filename
-    )
+#     return process_video_pipeline(
+#         job_id=job_id,
+#         input_video_path=job.input_path,
+#         model_size=model_size,
+#         is_lefty=is_lefty,
+#         pro_keypoints_filename=pro_keypoints_filename
+#     )
 
 
-def process_video_pipeline(
-        job_id: str, input_video_path: str, model_size: str = "xs", 
-        is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None
-    ) -> str:
-    """Process video with pose estimation and keypoint overlays
+# def process_video_pipeline(
+#         job_id: str, input_video_path: str, model_size: str = "xs", 
+#         is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None
+#     ) -> str:
+#     """Process video with pose estimation and keypoint overlays
     
-    Args:
-        job_id: Unique job identifier
-        input_video_path: Path to input video file
-        model_size: Model size to use for processing
-        is_lefty: Whether the user is left-handed
+#     Args:
+#         job_id: Unique job identifier
+#         input_video_path: Path to input video file
+#         model_size: Model size to use for processing
+#         is_lefty: Whether the user is left-handed
     
-    Returns:
-        Path to output video file
-    """
-    # Establish output directory constants for this job
-    DIR_OUTPUT_BASE = TMP_DIR / f"{job_id}_output"
+#     Returns:
+#         Path to output video file
+#     """
+#     # Establish output directory constants for this job
+#     DIR_OUTPUT_BASE = TMP_DIR / f"{job_id}_output"
 
-    DIR_POSE2D = DIR_OUTPUT_BASE / "pose2D"
-    DIR_POSE3D = DIR_OUTPUT_BASE / "pose3D"
-    DIR_COMBINED_FRAMES = DIR_OUTPUT_BASE / "combined_frames"
-    DIR_KEYPOINTS = DIR_OUTPUT_BASE / "raw_keypoints"
+#     DIR_POSE2D = DIR_OUTPUT_BASE / "pose2D"
+#     DIR_POSE3D = DIR_OUTPUT_BASE / "pose3D"
+#     DIR_COMBINED_FRAMES = DIR_OUTPUT_BASE / "combined_frames"
+#     DIR_KEYPOINTS = DIR_OUTPUT_BASE / "raw_keypoints"
 
-    FILE_POSE2D = DIR_KEYPOINTS / "2D_keypoints.npy"
-    FILE_POSE3D = DIR_KEYPOINTS / "user_3D_keypoints.npy"
-    FILE_POSE3D_PRO = DIR_KEYPOINTS / "pro_3D_keypoints.npy"
+#     FILE_POSE2D = DIR_KEYPOINTS / "2D_keypoints.npy"
+#     FILE_POSE3D = DIR_KEYPOINTS / "user_3D_keypoints.npy"
+#     FILE_POSE3D_PRO = DIR_KEYPOINTS / "pro_3D_keypoints.npy"
 
-    DIR_OUTPUT_BASE.mkdir(exist_ok=True)
-    DIR_POSE2D.mkdir(exist_ok=True)
-    DIR_POSE3D.mkdir(exist_ok=True)
-    DIR_COMBINED_FRAMES.mkdir(exist_ok=True)
-    DIR_KEYPOINTS.mkdir(exist_ok=True)
+#     DIR_OUTPUT_BASE.mkdir(exist_ok=True)
+#     DIR_POSE2D.mkdir(exist_ok=True)
+#     DIR_POSE3D.mkdir(exist_ok=True)
+#     DIR_COMBINED_FRAMES.mkdir(exist_ok=True)
+#     DIR_KEYPOINTS.mkdir(exist_ok=True)
 
-    try:
-        logger.info(f"Starting video processing for job {job_id}")
-        logger.info(f"User handedness preference: {'Left-handed' if is_lefty else 'Right-handed'}")
-        cleanup_old_files(retention_minutes = 60)
+#     try:
+#         logger.info(f"Starting video processing for job {job_id}")
+#         logger.info(f"User handedness preference: {'Left-handed' if is_lefty else 'Right-handed'}")
+#         cleanup_old_files(retention_minutes = 60)
         
-        # Get device for processing
-        device = get_pytorch_device()
+#         # Get device for processing
+#         device = get_pytorch_device()
 
-        # Update job status to processing
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=5)
+#         # Update job status to processing
+#         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=5)
         
-        # Load model configuration
-        logger.info(f"Current working directory: {os.getcwd()}")
-        model_config_path = get_model_config_path(model_size)
-        logger.info(f"Using model config: {model_config_path}")
+#         # Load model configuration
+#         logger.info(f"Current working directory: {os.getcwd()}")
+#         model_config_path = get_model_config_path(model_size)
+#         logger.info(f"Using model config: {model_config_path}")
 
-        # First, ensure the user uploaded video is upright
-        rotate_video_until_upright(input_video_path)
+#         # First, ensure the user uploaded video is upright
+#         rotate_video_until_upright(input_video_path)
 
-        # Step 1: Extract 2D poses (20% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=20, message="Extracting 2D poses...")
-        get_pose2D(video_path=input_video_path, output_file=FILE_POSE2D, device=device)
+#         # Then flip the input video if the user is left-handed
+#         if is_lefty: 
+#             mirror_video_for_lefty(input_video_path)
 
-        # Step 2: Create 2D visualization frames (35% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=35, message="Creating 2D visualization frames...")
-        if INCLUDE_2D_IMAGES:
-            cap = cv2.VideoCapture(input_video_path)
-            keypoints_2d = np.load(FILE_POSE2D)
-            create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
-            cap.release()
+#         # Step 1: Extract 2D poses (20% progress)
+#         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=20, message="Extracting 2D poses...")
+#         get_pose2D(video_path=input_video_path, output_file=FILE_POSE2D, device=device)
 
-        # Step 3: Generate 3D poses (50% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=50, message="Generating 3D poses...")
-        get_pose3D_no_vis(
-            user_2d_kpts_filepath = FILE_POSE2D,
-            output_keypoints_path = FILE_POSE3D,
-            video_path=input_video_path,
-            device=device,
-            model_size=model_size,
-            yaml_path=model_config_path
-        )
+#         # Step 2: Create 2D visualization frames (35% progress)
+#         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=35, message="Creating 2D visualization frames...")
+#         if INCLUDE_2D_IMAGES:
+#             cap = cv2.VideoCapture(input_video_path)
+#             keypoints_2d = np.load(FILE_POSE2D)
+#             create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
+#             cap.release()
 
-        # Step 4: Download pro keypoints if specified
-        pro_keypoints_path = TMP_PRO_KEYPOINTS_FILE
-        if pro_keypoints_filename:
-            logger.info(f"Downloading pro keypoints file from S3: {pro_keypoints_filename}")
-            download_pro_keypoints_from_s3(pro_keypoints_filename, FILE_POSE3D_PRO)
-            pro_keypoints_path = FILE_POSE3D_PRO
+#         # Step 3: Generate 3D poses (50% progress)
+#         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=50, message="Generating 3D poses...")
+#         get_pose3D_no_vis(
+#             user_2d_kpts_filepath = FILE_POSE2D,
+#             output_keypoints_path = FILE_POSE3D,
+#             video_path=input_video_path,
+#             device=device,
+#             model_size=model_size,
+#             yaml_path=model_config_path
+#         )
 
-        # Step 4: Create 3D visualization frames (70% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=70, message="Creating visualization frames...")
-        create_3d_pose_images_from_array(
-            user_3d_keypoints_filepath = FILE_POSE3D,
-            output_dir = DIR_POSE3D,
-            pro_keypoints_filepath = pro_keypoints_path,
-            is_lefty = is_lefty
-        )
+#         # Step 4: Download pro keypoints if specified
+#         pro_keypoints_path = TMP_PRO_KEYPOINTS_FILE
+#         if pro_keypoints_filename:
+#             logger.info(f"Downloading pro keypoints file from S3: {pro_keypoints_filename}")
+#             download_pro_keypoints_from_s3(pro_keypoints_filename, FILE_POSE3D_PRO)
+#             pro_keypoints_path = FILE_POSE3D_PRO
 
-        # # Step 5: Generate combined frames (85% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85, message="Combining frames with original video...")
-        if INCLUDE_2D_IMAGES:
-            generate_output_combined_frames(
-                output_dir_2D=DIR_POSE2D,
-                output_dir_3D=DIR_POSE3D,
-                output_dir_combined=DIR_COMBINED_FRAMES
-            )
+#         # Step 4: Create 3D visualization frames (70% progress)
+#         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=70, message="Creating visualization frames...")
+#         create_3d_pose_images_from_array(
+#             user_3d_keypoints_filepath = FILE_POSE3D,
+#             output_dir = DIR_POSE3D,
+#             pro_keypoints_filepath = pro_keypoints_path,
+#             is_lefty = is_lefty
+#         )
 
-        # Step 6: Create final video (95% progress)
-        job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=95, message="Generating final video...")
-        output_video_path = img2video(
-            video_path = input_video_path,
-            input_frames_dir = DIR_COMBINED_FRAMES if INCLUDE_2D_IMAGES else DIR_POSE3D,
-        )
+#         # # Step 5: Generate combined frames (85% progress)
+#         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=85, message="Combining frames with original video...")
+#         if INCLUDE_2D_IMAGES:
+#             generate_output_combined_frames(
+#                 output_dir_2D=DIR_POSE2D,
+#                 output_dir_3D=DIR_POSE3D,
+#                 output_dir_combined=DIR_COMBINED_FRAMES
+#             )
 
-        # Complete job
-        job_manager.update_job_status(
-            job_id, JobStatus.COMPLETED, progress=100, 
-            message="Video processing completed successfully!", output_path=output_video_path
-        )
-        logger.info(f"Video processing completed for job {job_id}: {output_video_path}")
+#         # Step 6: Create final video (95% progress)
+#         job_manager.update_job_status(job_id, JobStatus.PROCESSING, progress=95, message="Generating final video...")
+#         output_video_path = img2video(
+#             video_path = input_video_path,
+#             input_frames_dir = DIR_COMBINED_FRAMES if INCLUDE_2D_IMAGES else DIR_POSE3D,
+#         )
 
-        # Final garbage collection before completion
-        gc.collect()
+#         # Complete job
+#         job_manager.update_job_status(
+#             job_id, JobStatus.COMPLETED, progress=100, 
+#             message="Video processing completed successfully!", output_path=output_video_path
+#         )
+#         logger.info(f"Video processing completed for job {job_id}: {output_video_path}")
+
+#         # Flip the input video back to original orientation if the user is left-handed
+#         if is_lefty: 
+#             mirror_video_for_lefty(input_video_path)
+
+#         # Final garbage collection before completion
+#         gc.collect()
         
-        return output_video_path
+#         return output_video_path
         
-    except Exception as e:
-        error_msg = f"Video processing failed: {str(e)}"
-        logger.error(f"Job {job_id} failed: {error_msg}")
-        job_manager.update_job_status(job_id, JobStatus.FAILED, error=error_msg)
-        raise
+#     except Exception as e:
+#         error_msg = f"Video processing failed: {str(e)}"
+#         logger.error(f"Job {job_id} failed: {error_msg}")
+#         job_manager.update_job_status(job_id, JobStatus.FAILED, error=error_msg)
+#         raise
+
+
 
 # ==================== API ENDPOINTS ====================
 
@@ -437,7 +447,7 @@ async def upload_video(
             status_code=400,
             detail="File too large. Maximum size is 100MB"
         )
-    
+
     try:
         # Save uploaded file
         input_path = save_uploaded_file(file)

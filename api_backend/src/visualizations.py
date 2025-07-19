@@ -22,7 +22,7 @@ def time_warp_pro_video(amateur_data: np.ndarray, professional: np.ndarray):
     # professional_kpts = shift_data_time(professional, 200, 100, max_y_pt, switch_point - max_y_pt, len(amateur_data) - switch_point)
     professional_kpts = shift_data_time(
         data=professional, 
-        switch=200, 
+        switch=200,
         max_y=100, 
         time_1=max_y_pt, 
         time_2=switch_point - max_y_pt, 
