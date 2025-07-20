@@ -1,18 +1,18 @@
-FROM python:3.10-slim
+FROM node:18-alpine
 
 WORKDIR /app
 
-# Install system dependencies for OpenCV
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
+# Copy package files
+COPY package*.json ./
 
+# Install dependencies
+RUN npm install
+
+# Copy source code
 COPY . .
-COPY ./src/ ./src/
 
-RUN pip install -r requirements.txt
+# Expose port
+EXPOSE 3000
+
+# Start the development server
+CMD ["npm", "start"]

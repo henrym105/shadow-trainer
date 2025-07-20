@@ -4,13 +4,18 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   api:
-    build: ./api_backend
+    build: .
     container_name: fastapi
-    command: uvicorn main:app --host 0.0.0.0 --port 8002
+    command: uvicorn api_service:app --host 0.0.0.0 --port 8000
     ports:
-      - "8002:8002"
+      - "8000:8000"
     depends_on:
       - redis
     restart: unless-stopped
@@ -18,7 +23,7 @@ services:
       - ./:/app
 
   worker:
-    build: ./api_backend
+    build: .
     container_name: celery_worker
     command: celery -A tasks worker --loglevel=info --concurrency=1
     depends_on:
@@ -28,7 +33,7 @@ services:
       - ./:/app
 
   flower:
-    build: ./api_backend
+    build: .
     container_name: flower
     command: celery -A tasks flower --port=5555
     ports:
@@ -38,7 +43,6 @@ services:
     restart: unless-stopped
 
   redis-commander:
-
     image: rediscommander/redis-commander
     ports:
       - "8081:8081"
@@ -48,7 +52,7 @@ services:
       - REDIS_HOSTS=local:redis:6379
 
   frontend:
-    build: ./api_frontend
+    build: ../api_frontend
     container_name: react_frontend
     ports:
       - "3000:3000"
@@ -57,3 +61,5 @@ services:
     restart: unless-stopped
     environment:
       - REACT_APP_API_URL=http://api:8000
+
+
