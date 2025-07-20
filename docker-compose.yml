@@ -1,0 +1,59 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./api_backend
+    container_name: fastapi
+    command: uvicorn main:app --host 0.0.0.0 --port 8002
+    ports:
+      - "8002:8002"
+    depends_on:
+      - redis
+    restart: unless-stopped
+    volumes:
+      - ./:/app
+
+  worker:
+    build: ./api_backend
+    container_name: celery_worker
+    command: celery -A tasks worker --loglevel=info --concurrency=1
+    depends_on:
+      - api
+    restart: unless-stopped
+    volumes:
+      - ./:/app
+
+  flower:
+    build: ./api_backend
+    container_name: flower
+    command: celery -A tasks flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis-commander:
+
+    image: rediscommander/redis-commander
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+
+  frontend:
+    build: ./api_frontend
+    container_name: react_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+    environment:
+      - REACT_APP_API_URL=http://api:8000
