@@ -1,6 +1,9 @@
 import gc
+import json
 import os
 from pathlib import Path
+import shutil
+import time
 from typing import Optional
 import uuid
 
@@ -15,13 +18,14 @@ from src.inference import create_2D_images, create_3d_pose_images_from_array, fl
 from constants import (
     API_ROOT_DIR,
     INCLUDE_2D_IMAGES,
+    S3_BUCKET,
+    S3_PRO_PREFIX,
     UPLOAD_DIR,
     OUTPUT_DIR,
     TMP_PRO_KEYPOINTS_FILE,
 )
 
 logger = get_task_logger(__name__)
-
 
 # ----------------------------------------------------
 # Define Celery app 
@@ -221,17 +225,17 @@ def process_video_task(
 # ----------------------------------------------------
 
 # ==================== UTILITY FUNCTIONS ====================
-def list_s3_pro_keypoints():
-    """List available professional keypoints files in S3."""
-    import boto3
-    s3 = boto3.client("s3")
-    response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_PRO_PREFIX)
-    files = [
-        obj["Key"].replace(S3_PRO_PREFIX, "")
-        for obj in response.get("Contents", [])
-        if obj["Key"].endswith(".npy")
-    ]
-    return files
+# def list_s3_pro_keypoints():
+#     """List available professional keypoints files in S3."""
+#     import boto3
+#     s3 = boto3.client("s3")
+#     response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_PRO_PREFIX)
+#     files = [
+#         obj["Key"].replace(S3_PRO_PREFIX, "")
+#         for obj in response.get("Contents", [])
+#         if obj["Key"].endswith(".npy")
+#     ]
+#     return files
 
 def download_pro_keypoints_from_s3(filename, dest_path):
     import boto3
@@ -290,7 +294,7 @@ def cleanup_old_files(retention_minutes: int = 60):
     """Clean up old temporary files (older than retention_minutes)"""
     current_time = time.time()
     file_retention_cutoff_time = current_time - (retention_minutes * 60)
-    for item in TMP_DIR.iterdir():
+    for item in OUTPUT_DIR.iterdir():
         is_past_retention = (item.stat().st_mtime < file_retention_cutoff_time)
         if item.is_file() and is_past_retention:
             try:
