@@ -357,7 +357,9 @@ def create_3d_pose_images_from_array(
     num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
 
     # Resample the longer sequence to match the shorter one
-    pro_keypoints_npy = time_warp_pro_video(amateur_data=user_keypoints_npy, professional=pro_keypoints_npy)
+    user_keypoints_npy = resample_pose_sequence(user_keypoints_npy, num_frames)
+    pro_keypoints_npy = resample_pose_sequence(pro_keypoints_npy, num_frames)
+    # pro_keypoints_npy = time_warp_pro_video(amateur_data=user_keypoints_npy, professional=pro_keypoints_npy)
     if DEBUG: logger.info(f"\nUser keypoints shape after crop/resample: {user_keypoints_npy.shape}")
     if DEBUG: logger.info(f"Professional keypoints shape after crop/resample: {pro_keypoints_npy.shape}")
     # ------------------------------------------------------------------------------------------------
