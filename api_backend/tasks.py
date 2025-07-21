@@ -11,10 +11,19 @@ from celery import Celery
 from celery.utils.log import get_task_logger
 import cv2
 from fastapi import UploadFile
+import numpy as np
 
 from src.utils import get_pytorch_device
 from src.yolo2d import rotate_video_until_upright
-from src.inference import create_2D_images, create_3d_pose_images_from_array, flip_rgb_to_bgr, generate_output_combined_frames, get_pose2D, get_pose3D_no_vis, img2video
+from src.inference import (
+    create_2D_images, 
+    create_3d_pose_images_from_array, 
+    flip_rgb_to_bgr, 
+    generate_output_combined_frames, 
+    get_pose2D, 
+    get_pose3D_no_vis, 
+    img2video
+)
 from constants import (
     API_ROOT_DIR,
     INCLUDE_2D_IMAGES,
@@ -220,22 +229,30 @@ def process_video_task(
 
 
 
+@celery_app.task
+def add_task(x, y):
+    for i in range(x):
+        time.sleep(1)
+        print(f"Processing {i + 1}/{x}...")
+    return x + y
+
+
 # ----------------------------------------------------
 # Utils
 # ----------------------------------------------------
 
 # ==================== UTILITY FUNCTIONS ====================
-# def list_s3_pro_keypoints():
-#     """List available professional keypoints files in S3."""
-#     import boto3
-#     s3 = boto3.client("s3")
-#     response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_PRO_PREFIX)
-#     files = [
-#         obj["Key"].replace(S3_PRO_PREFIX, "")
-#         for obj in response.get("Contents", [])
-#         if obj["Key"].endswith(".npy")
-#     ]
-#     return files
+def list_s3_pro_keypoints():
+    """List available professional keypoints files in S3."""
+    import boto3
+    s3 = boto3.client("s3")
+    response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_PRO_PREFIX)
+    files = [
+        obj["Key"].replace(S3_PRO_PREFIX, "")
+        for obj in response.get("Contents", [])
+        if obj["Key"].endswith(".npy")
+    ]
+    return files
 
 def download_pro_keypoints_from_s3(filename, dest_path):
     import boto3

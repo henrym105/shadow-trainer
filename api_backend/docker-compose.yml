@@ -21,16 +21,18 @@ services:
     restart: unless-stopped
     volumes:
       - ./:/app
+      - ~/.aws:/root/.aws
 
   worker:
     build: .
     container_name: celery_worker
-    command: celery -A tasks worker --loglevel=info --concurrency=1
+    command: celery -A tasks worker --loglevel=info
     depends_on:
       - api
     restart: unless-stopped
     volumes:
       - ./:/app
+      - ~/.aws:/root/.aws
 
   flower:
     build: .
@@ -41,6 +43,8 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
+    volumes:
+      - ~/.aws:/root/.aws
 
   redis-commander:
     image: rediscommander/redis-commander
@@ -61,5 +65,3 @@ services:
     restart: unless-stopped
     environment:
       - REACT_APP_API_URL=http://api:8000
-
-
