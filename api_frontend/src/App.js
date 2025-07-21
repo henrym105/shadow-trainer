@@ -1,364 +1,156 @@
-/**
- * Shadow Trainer - Main Application Component
- * AI-Powered Motion Analysis for Athletic Performance
- */
+import React, { useState } from 'react';
+import FileUpload from './components/FileUpload';
+import ProgressBar from './components/ProgressBar';
+import VideoResult from './components/VideoResult';
+import ProKeypointsSelector from './components/ProKeypointsSelector';
+import VideoAPI, { useJobPolling } from './services/videoApi';
+import './App.css';
 
-import React, { useState, useCallback } from "react";
-import { VideoAPI, useJobPolling, APIError } from "./services/videoApi";
-import FileUpload from "./components/FileUpload";
-import ProgressBar from "./components/ProgressBar";
-import VideoResult from "./components/VideoResult";
-import ProKeypointsSelector from "./components/ProKeypointsSelector";
-import "./App.css";
+const MODEL_SIZES = [
+  { value: 'xs', label: 'Extra Small' },
+  { value: 's', label: 'Small' },
+  { value: 'm', label: 'Medium' },
+  { value: 'l', label: 'Large' }
+];
 
 function App() {
-  // State management
+  // State variables
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadError, setUploadError] = useState(null);
   const [taskId, setTaskId] = useState(null);
   const [jobStatus, setJobStatus] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [modelSize, setModelSize] = useState('xs');
-  const [isLefty, setIsLefty] = useState(false); // New state for handedness preference
-  const [selectedProFile, setSelectedProFile] = useState(""); // New state for ProKeypoints file
+  const [isLefty, setIsLefty] = useState(false);
+  const [selectedProFile, setSelectedProFile] = useState('Spencer_Strider.npy');
+  const [proOptions, setProOptions] = useState([]);
 
-  // Handle file selection from FileUpload component
-  const handleFileSelect = useCallback((file, error) => {
+  // Poll job status
+  useJobPolling(taskId, setJobStatus, 2000);
+
+  // Load pro keypoints options
+  React.useEffect(() => {
+    VideoAPI.getProKeypointsList().then(setProOptions).catch(() => {});
+  }, []);
+
+  // Handle file selection
+  const handleFileSelect = (file, error) => {
     setSelectedFile(file);
     setUploadError(error);
-    
-    // Clear previous job state when new file selected
-    if (file) {
-      setTaskId(null);
-      setJobStatus(null);
-    }
-  }, []);
+  };
 
-  // Handle job status updates from polling
-  const handleStatusUpdate = useCallback((status) => {
-    setJobStatus(status);
-    console.log('Job status update:', status);
-  }, []);
-
-  // Use polling hook to automatically check job status
-  const { isPolling, error: pollingError } = useJobPolling(taskId, handleStatusUpdate);
-
-  // Handle video upload and processing
+  // Handle upload
   const handleUpload = async () => {
-    if (!selectedFile) {
-      setUploadError('Please select a video file first');
-      return;
-    }
-
-    // Validate file before upload
-    const validation = VideoAPI.validateFile(selectedFile);
-    if (!validation.isValid) {
-      setUploadError(validation.error);
-      return;
-    }
-
+    if (!selectedFile) return;
     setIsUploading(true);
     setUploadError(null);
-
     try {
-      console.log('Starting upload...', selectedFile.name);
-      const response = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty, selectedProFile);
-      console.log('Upload successful:', response);
-      setTaskId(response.task_id);
-      // Initial status
-      setJobStatus({
-        task_id: response.task_id,
-        status: response.status || 'queued',
-        progress: 0,
-        message: 'Upload successful, processing queued...'
-      });
-
-    } catch (error) {
-      console.error('Upload failed:', error);
-      let errorMessage = 'Upload failed. Please try again.';
-      
-      if (error instanceof APIError) {
-        errorMessage = error.detail || error.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setUploadError(errorMessage);
+      const res = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty, selectedProFile);
+      setTaskId(res.task_id);
+      setJobStatus({ status: 'queued', progress: 0 });
+    } catch (err) {
+      setUploadError(err.message);
     } finally {
       setIsUploading(false);
     }
   };
 
-  // Handle sample lefty video processing
+  // Handle sample video
   const handleSampleVideo = async () => {
     setIsUploading(true);
     setUploadError(null);
-
     try {
-      console.log('Starting sample lefty video processing...');
-      const response = await VideoAPI.processSampleLeftyVideo(modelSize, selectedProFile);
-      console.log('Sample video processing started:', response);
-      setTaskId(response.task_id);
-      // Clear any selected file since we're using the sample
+      const res = await VideoAPI.processSampleLeftyVideo(modelSize, selectedProFile);
+      setTaskId(res.task_id);
+      setJobStatus({ status: 'queued', progress: 0 });
       setSelectedFile(null);
-      // Initial status
-      setJobStatus({
-        task_id: response.task_id,
-        status: response.status || 'queued',
-        progress: 0,
-        message: 'Sample lefty video processing started...'
-      });
-
-    } catch (error) {
-      console.error('Sample video processing failed:', error);
-      let errorMessage = 'Sample video processing failed. Please try again.';
-      
-      if (error instanceof APIError) {
-        errorMessage = error.detail || error.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setUploadError(errorMessage);
+    } catch (err) {
+      setUploadError(err.message);
     } finally {
       setIsUploading(false);
     }
   };
 
-  // Reset to initial state
+  // Reset for new upload
   const handleReset = () => {
     setSelectedFile(null);
     setUploadError(null);
     setTaskId(null);
     setJobStatus(null);
     setIsUploading(false);
-    setIsLefty(false); // Reset handedness preference
-    setSelectedProFile(""); // Reset ProKeypoints file
   };
 
-  // Determine current application state
-  const getAppState = () => {
-    if (jobStatus?.status === 'completed' || jobStatus?.status === 'SUCCESS') return 'completed';
-    if (jobStatus?.status === 'failed' || jobStatus?.status === 'FAILURE') return 'failed';
-    if (taskId && (jobStatus?.status === 'processing' || jobStatus?.status === 'queued' || jobStatus?.status === 'PROGRESS' || jobStatus?.status === 'STARTED' || jobStatus?.status === 'PENDING')) return 'processing';
-    return 'upload';
-  };
-
-  const appState = getAppState();
+  // UI states
+  const isProcessing = jobStatus && ['queued', 'processing'].includes(jobStatus.status);
+  const isCompleted = jobStatus && jobStatus.status === 'completed';
+  const isFailed = jobStatus && jobStatus.status === 'failed';
 
   return (
-    <div className="app">
-      <div className="app-container">
-        {/* Header */}
-        <header className="app-header">
-          <div className="logo-section">
-            <img src="/assets/Shadow Trainer Logo.png" alt="Shadow Trainer" className="logo" />
-            <div className="logo-text">
-              <h1>Shadow Trainer</h1>
-              <p>AI-Powered Motion Analysis</p>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="app-main">
-          {appState === 'upload' && (
-            <div className="upload-section">
-              <div className="section-header">
-                <h2>Upload Your Training Video</h2>
-                <p>Get detailed motion analysis and pose estimation for your athletic performance</p>
-              </div>
-
-              <FileUpload
-                onFileSelect={handleFileSelect}
+    <div className="app-root">
+      <header className="app-header">
+        <img src="/Shadow Trainer Logo.png" alt="Shadow Trainer Logo" className="logo" />
+        <div>
+          <h1>Shadow Trainer</h1>
+          <p>AI-Powered Motion Analysis</p>
+        </div>
+      </header>
+      <main className="app-main">
+        {!taskId && (
+          <div className="upload-card">
+            <h2>Upload Your Training Video</h2>
+            <p>Get detailed motion analysis and pose estimation for your athletic performance</p>
+            <FileUpload
+              selectedFile={selectedFile}
+              onFileSelect={handleFileSelect}
+              uploadError={uploadError}
+              disabled={isUploading}
+            />
+            <div className="config-row">
+              <label>Model Size:</label>
+              <select value={modelSize} onChange={e => setModelSize(e.target.value)} disabled={isUploading}>
+                {MODEL_SIZES.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <label>
+                <input type="checkbox" checked={isLefty} onChange={e => setIsLefty(e.target.checked)} disabled={isUploading} />
+                Left-handed
+              </label>
+              <ProKeypointsSelector
+                options={proOptions}
+                value={selectedProFile}
+                onChange={setSelectedProFile}
                 disabled={isUploading}
               />
-
-              {/* Sample Video Button - Only show when no file is selected */}
-              {!selectedFile && (
-                <div className="sample-video-section">
-                  <div className="divider">
-                    <span>or</span>
-                  </div>
-                  
-                  <button
-                    className="sample-video-btn"
-                    onClick={handleSampleVideo}
-                    disabled={isUploading}
-                  >
-                    {isUploading ? (
-                      <>
-                        <span className="btn-spinner"></span>
-                        Processing Sample...
-                      </>
-                    ) : (
-                      <>
-                        <span className="btn-icon">🎯</span>
-                        Use Sample Video
-                      </>
-                    )}
-                  </button>
-                  <p className="sample-video-description">
-                    Try our sample left-handed baseball pitch for a quick demo
-                  </p>
-                </div>
-              )}
-
-              {(uploadError || pollingError) && (
-                <div className="error-message">
-                  <span className="error-icon">⚠️</span>
-                  {uploadError || pollingError}
-                </div>
-              )}
-
-              {selectedFile && (
-                <div className="upload-controls">
-                  <div className="model-selection">
-                    <label htmlFor="model-size">Analysis Quality:</label>
-                    <select
-                      id="model-size"
-                      value={modelSize}
-                      onChange={(e) => setModelSize(e.target.value)}
-                      disabled={isUploading}
-                    >
-                      <option value="xs">Fast (XS) - 30-60 seconds</option>
-                      <option value="s">Balanced (S) - 60-90 seconds</option>
-                      <option value="m">High Quality (M) - 90-120 seconds</option>
-                    </select>
-                  </div>
-
-                  <div className="handedness-selection">
-                    <label htmlFor="handedness-toggle">Dominant Hand:</label>
-                    <div className="toggle-container">
-                      <span className={`toggle-label ${!isLefty ? 'active' : ''}`}>Right</span>
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={isLefty}
-                          onChange={(e) => setIsLefty(e.target.checked)}
-                          disabled={isUploading}
-                        />
-                        <span className="slider"></span>
-                      </label>
-                      <span className={`toggle-label ${isLefty ? 'active' : ''}`}>Left</span>
-                    </div>
-                  </div>
-
-                  <ProKeypointsSelector
-                    onSelect={setSelectedProFile}
-                    disabled={isUploading}
-                  />
-
-                  <button
-                    className="upload-btn"
-                    onClick={handleUpload}
-                    disabled={isUploading || !selectedFile}
-                  >
-                    {isUploading ? (
-                      <>
-                        <span className="btn-spinner"></span>
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <span className="btn-icon">🚀</span>
-                        Start Analysis
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
             </div>
-          )}
-
-          {appState === 'processing' && jobStatus && (
-            <div className="processing-section">
-              <div className="section-header">
-                <h2>Processing Your Video</h2>
-                <p>Our AI is analyzing your movement patterns and generating pose estimations</p>
-              </div>
-
-              <ProgressBar
-                progress={jobStatus.progress}
-                status={jobStatus.status}
-                message={jobStatus.message}
-                animated={true}
-              />
-
-              <div className="processing-info">
-                <div className="processing-steps">
-                  <div className={`step ${jobStatus.progress >= 20 ? 'completed' : 'pending'}`}>
-                    <span className="step-icon">👁️</span>
-                    <span className="step-text">2D Keypoint Detection</span>
-                  </div>
-                  <div className={`step ${jobStatus.progress >= 50 ? 'completed' : 'pending'}`}>
-                    <span className="step-icon">🎯</span>
-                    <span className="step-text">3D Pose Estimation</span>
-                  </div>
-                  <div className={`step ${jobStatus.progress >= 80 ? 'completed' : 'pending'}`}>
-                    <span className="step-icon">🎨</span>
-                    <span className="step-text">Visualization Generation</span>
-                  </div>
-                  <div className={`step ${jobStatus.progress >= 100 ? 'completed' : 'pending'}`}>
-                    <span className="step-icon">🎬</span>
-                    <span className="step-text">Video Compilation</span>
-                  </div>
-                </div>
-
-                <p className="job-id">Job ID: {jobStatus.task_id}</p>
-              </div>
+            <div className="action-row">
+              <button className="upload-btn" onClick={handleUpload} disabled={!selectedFile || isUploading}>Upload Video</button>
+              <span className="or-divider">or</span>
+              <button className="sample-btn" onClick={handleSampleVideo} disabled={isUploading}>
+                🎯 Use Sample Video
+              </button>
             </div>
-          )}
-
-          {appState === 'completed' && jobStatus && (
-          <VideoResult
-            taskId={jobStatus.task_id}
-            originalFilename={selectedFile?.name || 'video'}
-            previewUrl={VideoAPI.getPreviewUrl(jobStatus.task_id)}
-            downloadUrl={VideoAPI.getDownloadUrl(jobStatus.task_id)}
-          />
-          )}
-
-          {appState === 'failed' && jobStatus && (
-            <div className="error-section">
-              <div className="error-content">
-                <div className="error-icon">😞</div>
-                <h3>Processing Failed</h3>
-                <p>We encountered an issue while processing your video.</p>
-                {jobStatus.error && (
-                  <div className="error-details">
-                    <strong>Error:</strong> {jobStatus.error}
-                  </div>
-                )}
-                <button className="retry-btn" onClick={handleReset}>
-                  <span className="btn-icon">🔄</span>
-                  Try Again
-                </button>
-              </div>
-            </div>
-          )}
-        </main>
-
-        {/* Footer */}
-        <footer className="app-footer">
-          <div className="footer-content">
-            <p>&copy; 2025 Shadow Trainer. All rights reserved.</p>
-            <div className="footer-links">
-              <a href="#privacy">Privacy Policy</a>
-              <a href="#terms">Terms of Service</a>
-              <a href="#support">Support</a>
-            </div>
+            <div className="sample-desc">Try our sample left-handed baseball pitch for a quick demo</div>
           </div>
-        </footer>
-
-        {/* Reset Button - Always available */}
-        {(taskId || selectedFile) && (
-          <button className="reset-btn floating" onClick={handleReset}>
-            <span className="btn-icon">🏠</span>
-            Start Over
-          </button>
         )}
-      </div>
+        {isProcessing && (
+          <ProgressBar status={jobStatus.status} progress={jobStatus.progress} />
+        )}
+        {isCompleted && (
+          <VideoResult
+            taskId={taskId}
+            jobStatus={jobStatus}
+            onReset={handleReset}
+          />
+        )}
+        {isFailed && (
+          <div className="error-card">
+            <h3>Processing Failed</h3>
+            <p>{jobStatus.error || 'An error occurred during processing.'}</p>
+            <button onClick={handleReset}>Try Again</button>
+          </div>
+        )}
+      </main>
     </div>
   );
 }

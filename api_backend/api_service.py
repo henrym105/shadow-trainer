@@ -203,7 +203,10 @@ async def download_processed_video(task_id: str):
     result = AsyncResult(task_id, app=celery_app)
     if not result.ready() or not result.successful():
         raise HTTPException(status_code=400, detail="Job not completed yet")
-    output_path = result.result if isinstance(result.result, str) else None
+
+    output_path = result.result['output_path'] if 'output_path' in result.result else None
+    logger.info(f"{output_path = }")
+
     if not output_path or not Path(output_path).exists():
         raise HTTPException(status_code=404, detail="Output file not found")
     filename = f"processed_{Path(output_path).name}"
@@ -222,8 +225,18 @@ async def get_video_preview(task_id: str):
     result = AsyncResult(task_id, app=celery_app)
     if not result.ready() or not result.successful():
         raise HTTPException(status_code=400, detail="Job not completed yet")
-    output_path = result.result if isinstance(result.result, str) else None
+
+    # logger.info(f"Result of task {task_id}: {result.__dict__ = }")
+    # logger.info(f"result: {result = }")
+    # logger.info(f"{result['output_path'] = }")
+    output_path = result.result['output_path'] if 'output_path' in result.result else None
+
+    logger.info(f"{output_path = }")
+
     if not output_path or not Path(output_path).exists():
+        logger.info(f"Output Path not found at result.result.output_path.")
+        logger.info(f"Result of task {task_id}:")
+        logger.info(f"\t{result.__dict__ = }")
         raise HTTPException(status_code=404, detail="Output file not found")
     return FileResponse(
         path=output_path,
@@ -234,6 +247,40 @@ async def get_video_preview(task_id: str):
         }
     )
 
+
+
+@app.post("/videos/sample-lefty")
+async def process_sample_lefty_video(
+    model_size: str = Query("xs", description="Model size: xs, s, m, l"),
+    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3")
+):
+    """Process the sample lefty video with specified parameters"""
+    from constants import SAMPLE_VIDEO_PATH
+    
+    if not Path(SAMPLE_VIDEO_PATH).exists():
+        raise HTTPException(
+            status_code=404, 
+            detail="Sample video not found"
+        )
+
+    try:
+        # Start processing task with sample video
+        task = process_video_task.delay(
+            input_video_path=str(SAMPLE_VIDEO_PATH),
+            model_size=model_size,
+            is_lefty=True,  # Sample is specifically for lefty
+            pro_keypoints_filename=pro_keypoints_filename
+        )
+    except Exception as e:
+        logger.error(f"Error starting sample video processing task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start processing task: {str(e)}")
+
+    return {
+        "task_id": task.id,
+        "file_id": "sample_lefty",
+        "original_filename": "Left_Hand_Friend_Side.MOV",
+        "status": "queued"
+    }
 
 
 @app.get("/pro_keypoints/list")

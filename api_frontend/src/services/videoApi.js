@@ -1,141 +1,114 @@
-/**
- * API Service for Shadow Trainer
- * Handles all communication with the backend API
- */
+import React from 'react';
+import axios from 'axios';
 
-import { useState, useEffect, useCallback } from 'react';
+// API Configuration
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000, // 30 seconds
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
-/**
- * API Error class for better error handling
- */
+// Custom error class for API errors
 export class APIError extends Error {
-  constructor(message, status = 500, detail = '') {
+  constructor(message, status, response) {
     super(message);
     this.name = 'APIError';
     this.status = status;
-    this.detail = detail;
+    this.response = response;
   }
 }
 
-/**
- * Main API service class
- */
+// API service class
 export class VideoAPI {
+  
   /**
-   * Upload a video file and start processing
-   * @param {File} file - The video file to upload
-   * @param {string} modelSize - Model size to use ('xs', 's', 'm', 'l')
-   * @param {boolean} isLefty - Whether the user is left-handed
-   * @param {string} proKeypointsFilename - Optional pro keypoints filename
-   * @returns {Promise<Object>} Upload response with task_id
+   * Upload video file and start processing
+   * @param {File} file - Video file to upload
+   * @param {string} modelSize - Model size ('xs', 's', 'm', 'l')
+   * @param {boolean} isLefty - Whether user is left-handed
+   * @param {string} proKeypointsFilename - Professional player keypoints filename
+   * @returns {Promise<Object>} Task information
    */
-  static async uploadVideo(file, modelSize = 'xs', isLefty = false, proKeypointsFilename = "") {
-    // Celery-based API expects POST /videos/upload with query params and file
-    const formData = new FormData();
-    formData.append('file', file);
-    let url = `${API_BASE_URL}/videos/upload?model_size=${modelSize}&is_lefty=${isLefty}`;
-    if (proKeypointsFilename) {
-      url += `&pro_keypoints_filename=${encodeURIComponent(proKeypointsFilename)}`;
-    }
+  static async uploadVideo(file, modelSize = 'xs', isLefty = false, proKeypointsFilename = 'Spencer_Strider.npy') {
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        body: formData,
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const params = new URLSearchParams({
+        model_size: modelSize,
+        is_lefty: isLefty.toString(),
+        pro_keypoints_filename: proKeypointsFilename
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ 
-          detail: `Upload failed with status ${response.status}` 
-        }));
-        throw new APIError(
-          errorData.detail || 'Upload failed',
-          response.status,
-          errorData.detail
-        );
-      }
+      const response = await api.post(`/videos/upload?${params}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
-      // Celery returns { task_id, status, ... }
-      return await response.json();
+      return response.data;
     } catch (error) {
-      if (error instanceof APIError) {
-        throw error;
-      }
-      console.error('Upload failed:', error);
-      throw new APIError('Network error during upload');
+      console.error('Upload error:', error);
+      throw new APIError(
+        error.response?.data?.detail || 'Failed to upload video',
+        error.response?.status,
+        error.response
+      );
     }
   }
 
   /**
-   * Process the sample lefty video
-   * @param {string} modelSize - Model size to use ('xs', 's', 'm', 'l')
-   * @param {string} proKeypointsFilename - Optional pro keypoints filename
-   * @returns {Promise<Object>} Upload response with task_id
+   * Process sample lefty video (we'll need to add this endpoint to the backend)
+   * @param {string} modelSize - Model size ('xs', 's', 'm', 'l')
+   * @param {string} proKeypointsFilename - Professional player keypoints filename
+   * @returns {Promise<Object>} Task information
    */
-  static async processSampleLeftyVideo(modelSize = 'xs', proKeypointsFilename = "") {
-    // Celery-based API expects POST /videos/sample-lefty with query params
-    let url = `${API_BASE_URL}/videos/sample-lefty?model_size=${modelSize}`;
-    if (proKeypointsFilename) {
-      url += `&pro_keypoints_filename=${encodeURIComponent(proKeypointsFilename)}`;
-    }
+  static async processSampleLeftyVideo(modelSize = 'xs', proKeypointsFilename = 'Spencer_Strider.npy') {
     try {
-      const response = await fetch(url, {
-        method: 'POST',
+      const params = new URLSearchParams({
+        model_size: modelSize,
+        is_lefty: 'true',
+        pro_keypoints_filename: proKeypointsFilename
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ 
-          detail: `Sample video processing failed with status ${response.status}` 
-        }));
-        throw new APIError(
-          errorData.detail || 'Sample video processing failed',
-          response.status,
-          errorData.detail
-        );
-      }
-
-      // Celery returns { task_id, status, ... }
-      return await response.json();
+      const response = await api.post(`/videos/sample-lefty?${params}`);
+      return response.data;
     } catch (error) {
-      if (error instanceof APIError) {
-        throw error;
-      }
-      console.error('Sample video processing failed:', error);
-      throw new APIError('Network error during sample video processing');
+      console.error('Sample processing error:', error);
+      throw new APIError(
+        error.response?.data?.detail || 'Failed to process sample video',
+        error.response?.status,
+        error.response
+      );
     }
   }
 
   /**
-   * Get processing status for a job
-   * @param {string} taskId - The job ID to check
-   * @returns {Promise<Object>} Job status response
+   * Get job status
+   * @param {string} taskId - Task identifier
+   * @returns {Promise<Object>} Job status information
    */
   static async getJobStatus(taskId) {
-    // Celery-based API: GET /videos/{task_id}/status
-    const url = `${API_BASE_URL}/videos/${taskId}/status`;
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new APIError('Job not found', 404);
-        }
-        throw new APIError(`Status check failed with status ${response.status}`, response.status);
-      }
-      // Celery returns { task_id, status, progress, error, ... }
-      return await response.json();
+      const response = await api.get(`/videos/${taskId}/status`);
+      return response.data;
     } catch (error) {
-      if (error instanceof APIError) {
-        throw error;
-      }
-      console.error('Status check failed:', error);
-      throw new APIError('Network error during status check');
+      console.error('Status check error:', error);
+      throw new APIError(
+        error.response?.data?.detail || 'Failed to get job status',
+        error.response?.status,
+        error.response
+      );
     }
   }
 
   /**
    * Get download URL for processed video
-   * @param {string} taskId - The job ID
+   * @param {string} taskId - Task identifier
    * @returns {string} Download URL
    */
   static getDownloadUrl(taskId) {
@@ -143,8 +116,8 @@ export class VideoAPI {
   }
 
   /**
-   * Get preview URL for streaming video in browser
-   * @param {string} taskId - The job ID
+   * Get preview URL for processed video
+   * @param {string} taskId - Task identifier
    * @returns {string} Preview URL
    */
   static getPreviewUrl(taskId) {
@@ -152,124 +125,106 @@ export class VideoAPI {
   }
 
   /**
-   * Check if API is healthy
-   * @returns {Promise<Object|null>} Health status or null if unhealthy
+   * Validate file client-side
+   * @param {File} file - File to validate
+   * @returns {Object} Validation result
+   */
+  static validateFile(file) {
+    const validTypes = ['.mp4', '.mov', '.avi', '.mkv'];
+    const maxSize = 100 * 1024 * 1024; // 100MB
+    
+    if (!file) {
+      return { valid: false, error: 'No file selected' };
+    }
+
+    const extension = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+    if (!validTypes.includes(extension)) {
+      return { 
+        valid: false, 
+        error: `Invalid file type. Please upload a video file (${validTypes.join(', ')})` 
+      };
+    }
+
+    if (file.size > maxSize) {
+      return { 
+        valid: false, 
+        error: 'File size too large. Please upload a video smaller than 100MB' 
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Health check
+   * @returns {Promise<boolean>} API availability
    */
   static async healthCheck() {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`);
-      if (response.ok) {
-        return await response.json();
-      }
-      return null;
-    } catch {
-      return null;
+      const response = await api.get('/');
+      return response.status === 200;
+    } catch (error) {
+      console.error('Health check failed:', error);
+      return false;
     }
   }
 
   /**
-   * Validate file before upload
-   * @param {File} file - File to validate
-   * @returns {Object} Validation result with isValid boolean and optional error message
+   * Get list of professional keypoints files
+   * @returns {Promise<Array>} List of available professional players
    */
-  static validateFile(file) {
-    // Check file type
-    const allowedTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
-    const allowedExtensions = ['.mp4', '.mov', '.avi', '.mkv'];
-    
-    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    
-    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
-      return {
-        isValid: false,
-        error: 'Invalid file type. Please upload a video file (.mp4, .mov, .avi, .mkv)'
-      };
+  static async getProKeypointsList() {
+    try {
+      const response = await api.get('/pro_keypoints/list');
+      return response.data.files || [];
+    } catch (error) {
+      console.error('Failed to get pro keypoints list:', error);
+      throw new APIError(
+        error.response?.data?.detail || 'Failed to get professional players list',
+        error.response?.status,
+        error.response
+      );
     }
-
-    // Check file size (100MB limit)
-    const maxSize = 100 * 1024 * 1024; // 100MB
-    if (file.size > maxSize) {
-      return {
-        isValid: false,
-        error: 'File too large. Maximum size is 100MB'
-      };
-    }
-
-    return { isValid: true };
   }
 }
 
-/**
- * Custom hook for polling job status
- * @param {string|null} taskId - Job ID to poll for
- * @param {Function} onStatusUpdate - Callback function for status updates
- * @param {number} pollingInterval - Polling interval in milliseconds
- * @returns {Object} Object with isPolling boolean and error string
- */
+// Custom hook for job polling
 export const useJobPolling = (taskId, onStatusUpdate, pollingInterval = 2000) => {
-  const [isPolling, setIsPolling] = useState(false);
-  const [error, setError] = useState(null);
+  const [isPolling, setIsPolling] = React.useState(false);
 
-  const pollStatus = useCallback(async () => {
-    if (!taskId) return false;
-
-    try {
-      const status = await VideoAPI.getJobStatus(taskId);
-      onStatusUpdate(status);
-      setError(null);
-      
-      // Stop polling if job is completed or failed
-      if (status.status === 'completed' || status.status === 'failed') {
-        return false;
-      }
-      
-      return true; // Continue polling
-    } catch (err) {
-      const errorMessage = err instanceof APIError ? err.detail || err.message : 'Polling failed';
-      console.error('Polling error:', errorMessage);
-      setError(errorMessage);
-      return false; // Stop polling on error
-    }
-  }, [taskId, onStatusUpdate]);
-
-  useEffect(() => {
-    if (!taskId) {
-      setIsPolling(false);
-      setError(null);
-      return;
-    }
+  React.useEffect(() => {
+    if (!taskId) return;
 
     setIsPolling(true);
-    setError(null);
-    
-    let interval;
+    const pollStatus = async () => {
+      try {
+        const status = await VideoAPI.getJobStatus(taskId);
+        onStatusUpdate(status);
 
-    // Initial poll
-    pollStatus().then(shouldContinue => {
-      if (!shouldContinue) {
-        setIsPolling(false);
-        return;
-      }
-
-      // Set up interval polling
-      interval = setInterval(async () => {
-        const shouldContinue = await pollStatus();
-        if (!shouldContinue) {
-          clearInterval(interval);
+        // Stop polling if job is completed or failed
+        if (status.status === 'completed' || status.status === 'failed') {
           setIsPolling(false);
+          return;
         }
-      }, pollingInterval);
-    });
 
-    // Cleanup function
-    return () => {
-      if (interval) {
-        clearInterval(interval);
+        // Continue polling
+        setTimeout(pollStatus, pollingInterval);
+      } catch (error) {
+        console.error('Polling error:', error);
+        onStatusUpdate({ 
+          status: 'failed', 
+          error: 'Failed to check job status' 
+        });
+        setIsPolling(false);
       }
-      setIsPolling(false);
     };
 
-  }, [taskId, pollStatus, pollingInterval]);
+    pollStatus();
 
-  return { isPolling, error };
+    return () => setIsPolling(false);
+  }, [taskId, onStatusUpdate, pollingInterval]);
+
+  return { isPolling };
 };
+
+export default VideoAPI;

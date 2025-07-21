@@ -1,39 +1,26 @@
-import React, { useEffect, useState } from "react";
+import React from 'react';
+import './ProKeypointsSelector.css';
+import './ProKeypointsSelector.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
-
-function ProKeypointsSelector({ onSelect, disabled }) {
-  const [proFiles, setProFiles] = useState([]);
-  const [selected, setSelected] = useState("");
-
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/pro_keypoints/list`)
-      .then(res => res.json())
-      .then(data => setProFiles(data.files || []));
-  }, []);
-
-  const handleChange = (e) => {
-    setSelected(e.target.value);
-    if (onSelect) onSelect(e.target.value);
-  };
-
+const ProKeypointsSelector = ({ options, value, onChange, disabled }) => {
   return (
-    <div className="model-selection pro-keypoints-selector">
-      <label htmlFor="pro-player-select">Choose a professional player to shadow:</label>
+    <div className="pro-keypoints-selector">
+      <label htmlFor="pro-keypoints">Professional Player:</label>
       <select
-        id="pro-player-select"
-        value={selected}
-        onChange={handleChange}
+        id="pro-keypoints"
+        value={value}
+        onChange={e => onChange(e.target.value)}
         disabled={disabled}
       >
-        {proFiles.map(f => (
-          <option key={f.filename} value={f.filename}>
-            {f.name} ({f.team})
+        {options.length === 0 && <option value="">Loading...</option>}
+        {options.map(opt => (
+          <option key={opt.filename} value={opt.filename}>
+            {opt.name ? `${opt.name} (${opt.team})` : opt.filename}
           </option>
         ))}
       </select>
     </div>
   );
-}
+};
 
 export default ProKeypointsSelector;

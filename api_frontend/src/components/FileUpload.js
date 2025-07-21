@@ -1,108 +1,106 @@
-/**
- * File Upload Component
- * Handles video file selection and validation
- */
-
 import React, { useState, useRef } from 'react';
 import './FileUpload.css';
+import './FileUpload.css';
 
-const FileUpload = ({ onFileSelect, disabled = false, acceptedFormats = ['.mp4', '.mov', '.avi', '.mkv'] }) => {
-  const [dragActive, setDragActive] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
+const FileUpload = ({ 
+  selectedFile, 
+  onFileSelect, 
+  uploadError, 
+  disabled = false 
+}) => {
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Validate file type and size
   const validateFile = (file) => {
-    if (!file) return { valid: false, error: 'No file selected' };
+    const validTypes = ['.mp4', '.mov', '.avi', '.mkv'];
+    const maxSize = 100 * 1024 * 1024; // 100MB
+    
+    if (!file) {
+      return { valid: false, error: 'No file selected' };
+    }
 
-    // Check file extension
-    const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-    if (!acceptedFormats.includes(fileExtension)) {
+    const extension = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+    if (!validTypes.includes(extension)) {
       return { 
         valid: false, 
-        error: `Invalid file type. Accepted formats: ${acceptedFormats.join(', ')}` 
+        error: `Invalid file type. Please upload a video file (${validTypes.join(', ')})` 
       };
     }
 
-    // Check file size (max 100MB)
-    const maxSize = 100 * 1024 * 1024; // 100MB in bytes
     if (file.size > maxSize) {
       return { 
         valid: false, 
-        error: 'File too large. Maximum size is 100MB.' 
+        error: 'File size too large. Please upload a video smaller than 100MB' 
       };
     }
 
-    return { valid: true, error: null };
+    return { valid: true };
   };
 
-  // Handle file selection
   const handleFileSelect = (file) => {
     const validation = validateFile(file);
     
-    if (validation.valid) {
-      setSelectedFile(file);
-      onFileSelect(file, null);
-    } else {
-      setSelectedFile(null);
+    if (!validation.valid) {
       onFileSelect(null, validation.error);
+      return;
     }
-  };
 
-  // Handle drag events
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDragIn = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-      setDragActive(true);
-    }
-  };
-
-  const handleDragOut = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+    // Create preview URL
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    
+    onFileSelect(file, null);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+    setIsDragOver(false);
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelect(e.dataTransfer.files[0]);
+    if (disabled) return;
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileSelect(files[0]);
     }
   };
 
-  // Handle input change
-  const handleInputChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelect(e.target.files[0]);
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    if (!disabled) {
+      setIsDragOver(true);
     }
   };
 
-  // Handle click to open file dialog
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleFileInputChange = (e) => {
+    const files = e.target.files;
+    if (files.length > 0) {
+      handleFileSelect(files[0]);
+    }
+  };
+
   const handleClick = () => {
     if (!disabled && fileInputRef.current) {
       fileInputRef.current.click();
     }
   };
 
-  // Clear selection
-  const handleClear = () => {
-    setSelectedFile(null);
+  const clearSelection = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
     onFileSelect(null, null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  // Format file size
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -114,62 +112,66 @@ const FileUpload = ({ onFileSelect, disabled = false, acceptedFormats = ['.mp4',
   return (
     <div className="file-upload-container">
       <div
-        className={`file-upload-dropzone ${dragActive ? 'drag-active' : ''} ${disabled ? 'disabled' : ''} ${selectedFile ? 'has-file' : ''}`}
-        onDragEnter={handleDragIn}
-        onDragLeave={handleDragOut}
-        onDragOver={handleDrag}
+        className={`file-upload-zone ${isDragOver ? 'drag-over' : ''} ${disabled ? 'disabled' : ''} ${selectedFile ? 'has-file' : ''}`}
         onDrop={handleDrop}
-        onClick={!selectedFile ? handleClick : undefined}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onClick={handleClick}
       >
         <input
           ref={fileInputRef}
           type="file"
-          accept={acceptedFormats.join(',')}
-          onChange={handleInputChange}
-          disabled={disabled}
+          accept=".mp4,.mov,.avi,.mkv,video/*"
+          onChange={handleFileInputChange}
           style={{ display: 'none' }}
+          disabled={disabled}
         />
-        {selectedFile ? (
-          <div className="file-selected">
-            <div className="file-icon">🎥</div>
-            <div className="file-info">
-              <div className="file-name">{selectedFile.name}</div>
-              <div className="file-size">{formatFileSize(selectedFile.size)}</div>
+        
+        {!selectedFile ? (
+          <div className="upload-prompt">
+            <div className="upload-icon">📹</div>
+            <h3>Drop your video here</h3>
+            <p>or click to browse</p>
+            <div className="file-requirements">
+              <p>Supported formats: MP4, MOV, AVI, MKV</p>
+              <p>Maximum size: 100MB</p>
             </div>
-            <button 
-              className="clear-button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleClear();
-              }}
-              disabled={disabled}
-            >
-              ✕
-            </button>
           </div>
         ) : (
-          <div className="file-upload-content">
-            <div className="upload-icon">📁</div>
-            <div className="upload-text">
-              <strong>Click to upload</strong> or drag and drop
+          <div className="file-info">
+            <div className="file-details">
+              <h4>{selectedFile.name}</h4>
+              <p>Size: {formatFileSize(selectedFile.size)}</p>
+              <button 
+                type="button" 
+                className="clear-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearSelection();
+                }}
+              >
+                Clear Selection
+              </button>
             </div>
-            <div className="upload-formats">
-              Supported formats: {acceptedFormats.join(', ')}
-            </div>
-            <div className="upload-size">
-              Maximum file size: 100MB
-            </div>
+            {previewUrl && (
+              <div className="video-preview">
+                <video
+                  src={previewUrl}
+                  controls
+                  width="200"
+                  height="150"
+                  onError={() => setPreviewUrl(null)}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
-      {/* Video preview below the green box, outside the dropzone */}
-      {selectedFile && (
-        <div className="file-preview" style={{ marginTop: '1rem', width: '100%' }}>
-          <video
-            src={URL.createObjectURL(selectedFile)}
-            controls
-            style={{ width: '100%', maxHeight: '320px', borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
-          />
+      
+      {uploadError && (
+        <div className="upload-error">
+          <span className="error-icon">⚠️</span>
+          {uploadError}
         </div>
       )}
     </div>
