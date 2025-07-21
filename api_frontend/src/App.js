@@ -86,71 +86,101 @@ function App() {
   const isFailed = jobStatus && jobStatus.status === 'failed';
 
   return (
-    <div className="app-root">
-      <header className="app-header">
-        <img src="/Shadow Trainer Logo.png" alt="Shadow Trainer Logo" className="logo" />
-        <div>
-          <h1>Shadow Trainer</h1>
-          <p>AI-Powered Motion Analysis</p>
-        </div>
-      </header>
-      <main className="app-main">
-        {!taskId && (
-          <div className="upload-card">
-            <h2>Upload Your Training Video</h2>
-            <p>Get detailed motion analysis and pose estimation for your athletic performance</p>
-            <FileUpload
-              selectedFile={selectedFile}
-              onFileSelect={handleFileSelect}
-              uploadError={uploadError}
-              disabled={isUploading}
-            />
-            <div className="config-row">
-              <label>Model Size:</label>
-              <select value={modelSize} onChange={e => setModelSize(e.target.value)} disabled={isUploading}>
-                {MODEL_SIZES.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <label>
-                <input type="checkbox" checked={isLefty} onChange={e => setIsLefty(e.target.checked)} disabled={isUploading} />
-                Left-handed
-              </label>
-              <ProKeypointsSelector
-                options={proOptions}
-                value={selectedProFile}
-                onChange={setSelectedProFile}
+    <div className="app">
+      <div className="app-container">
+        <header className="app-header">
+          <div className="logo-section">
+            <img src="/Shadow Trainer Logo.png" alt="Shadow Trainer Logo" className="logo" />
+            <div className="logo-text">
+              <h1>Shadow Trainer</h1>
+              <p>AI-Powered Motion Analysis</p>
+            </div>
+          </div>
+        </header>
+        <main className="app-main">
+          {!taskId && (
+            <section className="upload-section">
+              <div className="section-header">
+                <h2>Upload Your Training Video</h2>
+                <p>Get detailed motion analysis and pose estimation for your athletic performance</p>
+              </div>
+              <FileUpload
+                selectedFile={selectedFile}
+                onFileSelect={handleFileSelect}
+                uploadError={uploadError}
                 disabled={isUploading}
               />
-            </div>
-            <div className="action-row">
-              <button className="upload-btn" onClick={handleUpload} disabled={!selectedFile || isUploading}>Upload Video</button>
-              <span className="or-divider">or</span>
-              <button className="sample-btn" onClick={handleSampleVideo} disabled={isUploading}>
-                🎯 Use Sample Video
-              </button>
-            </div>
-            <div className="sample-desc">Try our sample left-handed baseball pitch for a quick demo</div>
-          </div>
-        )}
-        {isProcessing && (
-          <ProgressBar status={jobStatus.status} progress={jobStatus.progress} />
-        )}
-        {isCompleted && (
-          <VideoResult
-            taskId={taskId}
-            jobStatus={jobStatus}
-            onReset={handleReset}
-          />
-        )}
-        {isFailed && (
-          <div className="error-card">
-            <h3>Processing Failed</h3>
-            <p>{jobStatus.error || 'An error occurred during processing.'}</p>
-            <button onClick={handleReset}>Try Again</button>
-          </div>
-        )}
-      </main>
+              <div className="upload-controls">
+                <div className="model-selection">
+                  <label htmlFor="model-size">Model Size:</label>
+                  <select id="model-size" value={modelSize} onChange={e => setModelSize(e.target.value)} disabled={isUploading}>
+                    {MODEL_SIZES.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="handedness-selection">
+                  <label>Handedness:</label>
+                  <div className="toggle-container">
+                    <span className={`toggle-label${isLefty ? ' active' : ''}`}>Lefty</span>
+                    <label className="toggle-switch">
+                      <input type="checkbox" checked={isLefty} onChange={e => setIsLefty(e.target.checked)} disabled={isUploading} />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <ProKeypointsSelector
+                  options={proOptions}
+                  value={selectedProFile}
+                  onChange={setSelectedProFile}
+                  disabled={isUploading}
+                />
+                <button className="upload-btn" onClick={handleUpload} disabled={!selectedFile || isUploading}>
+                  <span className="btn-icon">⬆️</span>
+                  {isUploading ? <span className="btn-spinner" /> : 'Upload Video'}
+                </button>
+                <div className="divider"><span>or</span></div>
+                <button className="sample-video-btn" onClick={handleSampleVideo} disabled={isUploading}>
+                  <span className="btn-icon">🎯</span>
+                  {isUploading ? <span className="btn-spinner" /> : 'Use Sample Video'}
+                </button>
+                <div className="sample-video-description">Try our sample left-handed baseball pitch for a quick demo</div>
+              </div>
+              {uploadError && (
+                <div className="error-message">
+                  <span className="error-icon">⚠️</span>
+                  {uploadError}
+                </div>
+              )}
+            </section>
+          )}
+          {isProcessing && (
+            <section className="processing-section">
+              <ProgressBar status={jobStatus.status} progress={jobStatus.progress} />
+              <div className="processing-info">
+                <p className="job-id">Job ID: {taskId}</p>
+              </div>
+            </section>
+          )}
+          {isCompleted && (
+            <VideoResult
+              taskId={taskId}
+              jobStatus={jobStatus}
+              onReset={handleReset}
+            />
+          )}
+          {isFailed && (
+            <section className="error-section">
+              <div className="error-content">
+                <span className="error-icon">❌</span>
+                <h3>Processing Failed</h3>
+                <p>{jobStatus.error || 'An error occurred during processing.'}</p>
+                <button className="retry-btn" onClick={handleReset}>Try Again</button>
+              </div>
+            </section>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
