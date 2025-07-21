@@ -10,7 +10,7 @@ import uuid
 from celery import Celery
 from celery.utils.log import get_task_logger
 import cv2
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 import numpy as np
 
 from src.utils import get_pytorch_device
@@ -27,6 +27,7 @@ from src.inference import (
 from constants import (
     API_ROOT_DIR,
     INCLUDE_2D_IMAGES,
+    PRO_TEAMS_MAP,
     S3_BUCKET,
     S3_PRO_PREFIX,
     UPLOAD_DIR,
@@ -40,7 +41,7 @@ logger = get_task_logger(__name__)
 # Define Celery app 
 # ----------------------------------------------------
 # Default result expiration time inside of redis and celery (seconds)
-RESULT_EXPIRES = 5*60
+RESULT_EXPIRES = 24 * 60 * 60
 
 celery_app = Celery(
     "tasks",
@@ -59,14 +60,23 @@ celery_app.conf.update(
 # ----------------------------------------------------
 
 @celery_app.task(bind=True)
-def process_video_task(self, input_file_path: str):
+def process_video_task_small(
+        self, input_video_path: str, model_size: str = "xs", 
+        is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None
+    ) -> str:
     """Process video with progress updates"""
+    logger.info(f" ---> [ process_video_task_small ]")
+    logger.info(f"{input_video_path=}")
+    logger.info(f"{model_size=}")
+    logger.info(f"{is_lefty=}")
+    logger.info(f"{pro_keypoints_filename=}")
+
     try:
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 10})
         
         # Generate output path
-        input_path = Path(input_file_path)
+        input_path = Path(input_video_path)
         output_filename = f"processed_{uuid.uuid4()}.mp4"
         output_path = Path("/app/output") / output_filename
 
@@ -76,13 +86,13 @@ def process_video_task(self, input_file_path: str):
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 50})
 
-        flip_rgb_to_bgr(input_file_path, str(output_path))
+        flip_rgb_to_bgr(input_video_path, str(output_path))
 
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 100})
 
         return {
-            "input_path": input_file_path,
+            "input_path": input_video_path,
             "output_path": str(output_path),
             "original_filename": input_path.name,
             "file_size": os.path.getsize(output_path),
@@ -102,7 +112,6 @@ def process_video_task(
     """Process video with pose estimation and keypoint overlays
     
     Args:
-        job_id: Unique job identifier
         input_video_path: Path to input video file
         model_size: Model size to use for processing
         is_lefty: Whether the user is left-handed
@@ -110,10 +119,10 @@ def process_video_task(
     Returns:
         Path to output video file
     """
-    job_id = self.request.id
+    task_id = self.request.id
 
-    # Establish output directory constants for this job
-    DIR_OUTPUT_BASE = OUTPUT_DIR / f"{job_id}_output"
+    # Establish output directory constants for this task
+    DIR_OUTPUT_BASE = OUTPUT_DIR / f"{task_id}_output"
 
     DIR_POSE2D = DIR_OUTPUT_BASE / "pose2D"
     DIR_POSE3D = DIR_OUTPUT_BASE / "pose3D"
@@ -131,7 +140,7 @@ def process_video_task(
     DIR_KEYPOINTS.mkdir(exist_ok=True)
 
     try:
-        logger.info(f"Starting video processing for job {job_id}")
+        logger.info(f"Starting video processing for task {task_id}")
         logger.info(f"User handedness preference: {'Left-handed' if is_lefty else 'Right-handed'}")
         cleanup_old_files(retention_minutes = 60)
         
@@ -207,7 +216,7 @@ def process_video_task(
 
         # Complete job
         self.update_state(state='PROGRESS', meta={'progress': 100}, message="Video processing completed.")
-        logger.info(f"Video processing completed for job {job_id}: {output_video_path}")
+        logger.info(f"Video processing completed for job {task_id}: {output_video_path}")
 
         # Final garbage collection before completion
         gc.collect()
@@ -222,7 +231,7 @@ def process_video_task(
 
     except Exception as e:
         error_msg = f"Video processing failed: {str(e)}"
-        logger.error(f"Job {job_id} failed: {error_msg}")
+        logger.error(f"Job {task_id} failed: {error_msg}")
         self.update_state(state='FAILED', meta={'error': error_msg})
         raise e
 
@@ -235,6 +244,31 @@ def add_task(x, y):
         time.sleep(1)
         print(f"Processing {i + 1}/{x}...")
     return x + y
+
+
+
+@celery_app.task(bind=True)
+def save_uploaded_file(self, file: UploadFile, file_id: str) -> str:
+    """Save uploaded file to temporary directory"""
+    # Create unique filename
+    file_ext = Path(file.filename).suffix.lower()
+    temp_filename = f"{file_id}{file_ext}"
+    temp_filepath = OUTPUT_DIR / temp_filename
+    
+    # Save file
+    with open(temp_filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Verify file exists and is readable before starting task
+    if not os.path.exists(temp_filepath):
+        raise HTTPException(status_code=500, detail="Failed to save uploaded file")
+    
+    # Additional verification - ensure file has content
+    if os.stat(temp_filepath).st_size == 0:
+        raise HTTPException(status_code=500, detail="Uploaded file is empty")
+    
+    logger.info(f"Saved uploaded file: {temp_filepath}")
+    return str(temp_filepath)
 
 
 # ----------------------------------------------------
@@ -252,11 +286,23 @@ def list_s3_pro_keypoints():
         for obj in response.get("Contents", [])
         if obj["Key"].endswith(".npy")
     ]
+    result = []
+    for f in files:
+        info = PRO_TEAMS_MAP.get(f.replace(".npy", ""), {})
+        result.append({
+            "filename": f,
+            "name": info.get("name"),
+            "team": info.get("team"),
+            "city": info.get("city")
+        })
+    files = result
     return files
 
 def download_pro_keypoints_from_s3(filename, dest_path):
     import boto3
     s3 = boto3.client("s3")
+    logger.info(f"Downloading pro keypoints file {filename} from S3 to {dest_path}")
+    logger.info(f"S3 Bucket: {S3_BUCKET}, Prefix: {S3_PRO_PREFIX}, filename: {filename}")
     s3.download_file(S3_BUCKET, S3_PRO_PREFIX + filename, str(dest_path))
 
 
@@ -270,21 +316,6 @@ def validate_video_file(file: UploadFile) -> bool:
     
     return file_ext in allowed_extensions
 
-
-def save_uploaded_file(file: UploadFile) -> str:
-    """Save uploaded file to temporary directory"""
-    # Create unique filename
-    file_id = str(uuid.uuid4())
-    file_ext = Path(file.filename).suffix.lower()
-    temp_filename = f"{file_id}{file_ext}"
-    temp_filepath = OUTPUT_DIR / temp_filename
-    
-    # Save file
-    with open(temp_filepath, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
-    logger.info(f"Saved uploaded file: {temp_filepath}")
-    return str(temp_filepath)
 
 
 def get_model_config_path(model_size: str = "xs") -> str:
@@ -306,8 +337,8 @@ def get_model_config_path(model_size: str = "xs") -> str:
     return config_yaml_path
         
 
-
-def cleanup_old_files(retention_minutes: int = 60):
+@celery_app.task(bind=True)
+def cleanup_old_files(self, retention_minutes: int = 60):
     """Clean up old temporary files (older than retention_minutes)"""
     current_time = time.time()
     file_retention_cutoff_time = current_time - (retention_minutes * 60)

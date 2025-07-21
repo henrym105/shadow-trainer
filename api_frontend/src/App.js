@@ -15,7 +15,7 @@ function App() {
   // State management
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadError, setUploadError] = useState(null);
-  const [jobId, setJobId] = useState(null);
+  const [taskId, setTaskId] = useState(null);
   const [jobStatus, setJobStatus] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [modelSize, setModelSize] = useState('xs');
@@ -29,7 +29,7 @@ function App() {
     
     // Clear previous job state when new file selected
     if (file) {
-      setJobId(null);
+      setTaskId(null);
       setJobStatus(null);
     }
   }, []);
@@ -41,7 +41,7 @@ function App() {
   }, []);
 
   // Use polling hook to automatically check job status
-  const { isPolling, error: pollingError } = useJobPolling(jobId, handleStatusUpdate);
+  const { isPolling, error: pollingError } = useJobPolling(taskId, handleStatusUpdate);
 
   // Handle video upload and processing
   const handleUpload = async () => {
@@ -62,15 +62,13 @@ function App() {
 
     try {
       console.log('Starting upload...', selectedFile.name);
-      const response = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty, selectedProFile); // Pass pro keypoints
-      
+      const response = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty, selectedProFile);
       console.log('Upload successful:', response);
-      setJobId(response.job_id);
-      
+      setTaskId(response.task_id);
       // Initial status
       setJobStatus({
-        job_id: response.job_id,
-        status: 'queued',
+        task_id: response.task_id,
+        status: response.status || 'queued',
         progress: 0,
         message: 'Upload successful, processing queued...'
       });
@@ -99,17 +97,14 @@ function App() {
     try {
       console.log('Starting sample lefty video processing...');
       const response = await VideoAPI.processSampleLeftyVideo(modelSize, selectedProFile);
-      
       console.log('Sample video processing started:', response);
-      setJobId(response.job_id);
-      
+      setTaskId(response.task_id);
       // Clear any selected file since we're using the sample
       setSelectedFile(null);
-      
       // Initial status
       setJobStatus({
-        job_id: response.job_id,
-        status: 'queued',
+        task_id: response.task_id,
+        status: response.status || 'queued',
         progress: 0,
         message: 'Sample lefty video processing started...'
       });
@@ -134,7 +129,7 @@ function App() {
   const handleReset = () => {
     setSelectedFile(null);
     setUploadError(null);
-    setJobId(null);
+    setTaskId(null);
     setJobStatus(null);
     setIsUploading(false);
     setIsLefty(false); // Reset handedness preference
@@ -143,9 +138,9 @@ function App() {
 
   // Determine current application state
   const getAppState = () => {
-    if (jobStatus?.status === 'completed') return 'completed';
-    if (jobStatus?.status === 'failed') return 'failed';
-    if (jobId && (jobStatus?.status === 'processing' || jobStatus?.status === 'queued')) return 'processing';
+    if (jobStatus?.status === 'completed' || jobStatus?.status === 'SUCCESS') return 'completed';
+    if (jobStatus?.status === 'failed' || jobStatus?.status === 'FAILURE') return 'failed';
+    if (taskId && (jobStatus?.status === 'processing' || jobStatus?.status === 'queued' || jobStatus?.status === 'PROGRESS' || jobStatus?.status === 'STARTED' || jobStatus?.status === 'PENDING')) return 'processing';
     return 'upload';
   };
 
@@ -310,18 +305,18 @@ function App() {
                   </div>
                 </div>
 
-                <p className="job-id">Job ID: {jobStatus.job_id}</p>
+                <p className="job-id">Job ID: {jobStatus.task_id}</p>
               </div>
             </div>
           )}
 
           {appState === 'completed' && jobStatus && (
-            <VideoResult
-              jobId={jobStatus.job_id}
-              originalFilename={selectedFile?.name || 'video'}
-              previewUrl={VideoAPI.getPreviewUrl(jobStatus.job_id)}
-              downloadUrl={VideoAPI.getDownloadUrl(jobStatus.job_id)}
-            />
+          <VideoResult
+            taskId={jobStatus.task_id}
+            originalFilename={selectedFile?.name || 'video'}
+            previewUrl={VideoAPI.getPreviewUrl(jobStatus.task_id)}
+            downloadUrl={VideoAPI.getDownloadUrl(jobStatus.task_id)}
+          />
           )}
 
           {appState === 'failed' && jobStatus && (
@@ -357,7 +352,7 @@ function App() {
         </footer>
 
         {/* Reset Button - Always available */}
-        {(jobId || selectedFile) && (
+        {(taskId || selectedFile) && (
           <button className="reset-btn floating" onClick={handleReset}>
             <span className="btn-icon">🏠</span>
             Start Over

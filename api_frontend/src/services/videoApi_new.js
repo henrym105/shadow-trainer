@@ -27,7 +27,7 @@ export class VideoAPI {
    * Upload a video file and start processing
    * @param {File} file - The video file to upload
    * @param {string} modelSize - Model size to use ('xs', 's', 'm', 'l')
-   * @returns {Promise<Object>} Upload response with job_id
+   * @returns {Promise<Object>} Upload response with task_id
    */
   static async uploadVideo(file, modelSize = 'xs') {
     const formData = new FormData();
@@ -64,11 +64,11 @@ export class VideoAPI {
 
   /**
    * Get processing status for a job
-   * @param {string} jobId - The job ID to check
+   * @param {string} taskId - The job ID to check
    * @returns {Promise<Object>} Job status response
    */
-  static async getJobStatus(jobId) {
-    const url = `${API_BASE_URL}/videos/${jobId}/status`;
+  static async getJobStatus(taskId) {
+    const url = `${API_BASE_URL}/videos/${taskId}/status`;
     
     try {
       const response = await fetch(url);
@@ -92,20 +92,20 @@ export class VideoAPI {
 
   /**
    * Get download URL for processed video
-   * @param {string} jobId - The job ID
+   * @param {string} taskId - The job ID
    * @returns {string} Download URL
    */
-  static getDownloadUrl(jobId) {
-    return `${API_BASE_URL}/videos/${jobId}/download`;
+  static getDownloadUrl(taskId) {
+    return `${API_BASE_URL}/videos/${taskId}/download`;
   }
 
   /**
    * Get preview URL for streaming video in browser
-   * @param {string} jobId - The job ID
+   * @param {string} taskId - The job ID
    * @returns {string} Preview URL
    */
-  static getPreviewUrl(jobId) {
-    return `${API_BASE_URL}/videos/${jobId}/preview`;
+  static getPreviewUrl(taskId) {
+    return `${API_BASE_URL}/videos/${taskId}/preview`;
   }
 
   /**
@@ -158,20 +158,20 @@ export class VideoAPI {
 
 /**
  * Custom hook for polling job status
- * @param {string|null} jobId - Job ID to poll for
+ * @param {string|null} taskId - Job ID to poll for
  * @param {Function} onStatusUpdate - Callback function for status updates
  * @param {number} pollingInterval - Polling interval in milliseconds
  * @returns {Object} Object with isPolling boolean and error string
  */
-export const useJobPolling = (jobId, onStatusUpdate, pollingInterval = 2000) => {
+export const useJobPolling = (taskId, onStatusUpdate, pollingInterval = 2000) => {
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState(null);
 
   const pollStatus = useCallback(async () => {
-    if (!jobId) return false;
+    if (!taskId) return false;
 
     try {
-      const status = await VideoAPI.getJobStatus(jobId);
+      const status = await VideoAPI.getJobStatus(taskId);
       onStatusUpdate(status);
       setError(null);
       
@@ -187,10 +187,10 @@ export const useJobPolling = (jobId, onStatusUpdate, pollingInterval = 2000) => 
       setError(errorMessage);
       return false; // Stop polling on error
     }
-  }, [jobId, onStatusUpdate]);
+  }, [taskId, onStatusUpdate]);
 
   useEffect(() => {
-    if (!jobId) {
+    if (!taskId) {
       setIsPolling(false);
       setError(null);
       return;
@@ -226,7 +226,7 @@ export const useJobPolling = (jobId, onStatusUpdate, pollingInterval = 2000) => 
       setIsPolling(false);
     };
 
-  }, [jobId, pollStatus, pollingInterval]);
+  }, [taskId, pollStatus, pollingInterval]);
 
   return { isPolling, error };
 };

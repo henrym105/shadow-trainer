@@ -22,6 +22,7 @@ services:
     volumes:
       - ./:/app
       - ~/.aws:/root/.aws
+    privileged: true
 
   worker:
     build: .
@@ -45,6 +46,8 @@ services:
     restart: unless-stopped
     volumes:
       - ~/.aws:/root/.aws
+    environment:
+      - FLOWER_UNAUTHENTICATED_API=1
 
   redis-commander:
     image: rediscommander/redis-commander

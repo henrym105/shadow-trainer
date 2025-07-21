@@ -7,12 +7,12 @@ from tqdm import tqdm
 from ultralytics import YOLO
 
 from src.utils import get_pytorch_device, get_frame_info
+from constants import API_ROOT_DIR
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
 logger = logging.getLogger(__name__)
 
-BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHECKPOINT_DIR = os.path.join(BACKEND_ROOT, "checkpoint")
+CHECKPOINT_DIR = os.path.join(API_ROOT_DIR, "checkpoint")
 
 class YOLOPoseEstimator:
     def __init__(self, model_name="yolo11x-pose.pt", checkpoint_dir=CHECKPOINT_DIR, device="cpu"):

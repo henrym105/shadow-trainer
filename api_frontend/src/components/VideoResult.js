@@ -1,12 +1,7 @@
-/**
- * Video Result Component
- * Displays processed video with download options
- */
-
 import React, { useState } from 'react';
 import './VideoResult.css';
 
-const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
+const VideoResult = ({ taskId, originalFilename, previewUrl, downloadUrl }) => {
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -21,9 +16,8 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
   };
 
   const handleDownload = () => {
-    // Create a temporary link to trigger download
     const link = document.createElement('a');
-    link.href = downloadUrl;
+    link.href = `/api/videos/${taskId}/download`;
     link.download = `processed_${originalFilename}`;
     document.body.appendChild(link);
     link.click();
@@ -31,14 +25,12 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
   };
 
   const copyLinkToClipboard = async () => {
-    const fullUrl = `${downloadUrl}`;
+    const fullUrl = `/api/videos/${taskId}/download`;
     try {
       await navigator.clipboard.writeText(fullUrl);
-      // You could add a toast notification here
       alert('Download link copied to clipboard!');
     } catch (err) {
       console.error('Failed to copy link:', err);
-      // Fallback for older browsers
       const textArea = document.createElement('textarea');
       textArea.value = fullUrl;
       document.body.appendChild(textArea);
@@ -63,7 +55,6 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
             <p>Loading preview...</p>
           </div>
         )}
-        
         {videoError ? (
           <div className="video-error">
             <div className="error-icon">⚠️</div>
@@ -77,27 +68,21 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
             onLoadedData={handleVideoLoad}
             onError={handleVideoError}
             onLoadStart={() => setIsLoading(true)}
-            poster="/assets/video-poster.png" // You can add a poster image
+            poster="/assets/video-poster.png"
+            src={`/api/videos/${taskId}/preview`}
           >
-            <source src={previewUrl} type="video/mp4" />
+            <source src={`/api/videos/${taskId}/preview`} type="video/mp4" />
             Your browser does not support the video tag.
           </video>
         )}
       </div>
 
       <div className="action-buttons">
-        <button 
-          className="download-btn primary"
-          onClick={handleDownload}
-        >
+        <button className="download-btn primary" onClick={handleDownload}>
           <span className="btn-icon">⬇️</span>
           Download Video
         </button>
-        
-        <button 
-          className="copy-link-btn secondary"
-          onClick={copyLinkToClipboard}
-        >
+        <button className="copy-link-btn secondary" onClick={copyLinkToClipboard}>
           <span className="btn-icon">🔗</span>
           Copy Link
         </button>
@@ -106,7 +91,7 @@ const VideoResult = ({ jobId, originalFilename, previewUrl, downloadUrl }) => {
       <div className="result-info">
         <div className="info-item">
           <span className="info-label">Job ID:</span>
-          <span className="info-value">{jobId}</span>
+          <span className="info-value">{taskId}</span>
         </div>
         <div className="info-item">
           <span className="info-label">Processing:</span>

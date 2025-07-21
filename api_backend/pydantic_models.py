@@ -14,14 +14,14 @@ class JobStatus(str, Enum):
 
 class VideoUploadResponse(BaseModel):
     """Response model for video upload"""
-    job_id: str
+    task_id: str
     message: str
     estimated_time: int = 120  # seconds
 
 
 class ProcessingStatusResponse(BaseModel):
     """Response model for processing status check"""
-    job_id: str
+    task_id: str
     status: JobStatus
     progress: int  # 0-100
     message: Optional[str] = None
@@ -31,7 +31,7 @@ class ProcessingStatusResponse(BaseModel):
 
 class VideoJob(BaseModel):
     """Internal model representing a video processing job"""
-    job_id: str
+    task_id: str
     original_filename: str
     input_path: str
     output_path: Optional[str] = None
@@ -44,7 +44,7 @@ class VideoJob(BaseModel):
     def create_new_job(cls, filename: str, input_path: str) -> 'VideoJob':
         """Create a new video processing job"""
         return cls(
-            job_id=str(uuid.uuid4()),
+            task_id=str(uuid.uuid4()),
             original_filename=filename,
             input_path=input_path
         )
