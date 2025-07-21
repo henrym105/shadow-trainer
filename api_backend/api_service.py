@@ -64,7 +64,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://shadow-trainer.com", "https://www.shadow-trainer.com"],
+    allow_origins=["https://shadow-trainer.com", "https://www.shadow-trainer.com", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -75,6 +75,30 @@ app.mount("/output", StaticFiles(directory=str(TMP_DIR)), name="output")
 
 
 # ==================== UTILITY FUNCTIONS ====================
+PRO_TEAMS_MAP = {
+    "Dean_Kremer": { 
+        "name": "Dean Kremer",
+        "team": "Baltimore Orioles",
+        "city": "Baltimore"
+    }, 
+    "Justin_Verlander": {
+        "name": "Justin Verlander",
+        "team": "San Francisco Giants",
+        "city": "San Francisco"
+    },
+    "Kevin_Gausman": {
+        "name": "Kevin Gausman",
+        "team": "Toronto Blue Jays",
+        "city": "Toronto"
+    },
+    "Spencer_Strider": {
+        "name": "Spencer Strider",
+        "team": "Atlanta Braves",
+        "city": "Atlanta"
+    }
+}
+
+
 def list_s3_pro_keypoints():
     """List available professional keypoints files in S3."""
     import boto3
@@ -85,6 +109,16 @@ def list_s3_pro_keypoints():
         for obj in response.get("Contents", [])
         if obj["Key"].endswith(".npy")
     ]
+    result = []
+    for f in files:
+        info = PRO_TEAMS_MAP.get(f.replace(".npy", ""), {})
+        result.append({
+            "filename": f,
+            "name": info.get("name"),
+            "team": info.get("team"),
+            "city": info.get("city")
+        })
+    files = result
     return files
 
 def download_pro_keypoints_from_s3(filename, dest_path):
