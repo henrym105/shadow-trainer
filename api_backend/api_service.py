@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
-from constants import TMP_PRO_KEYPOINTS_FILE
+from constants import TMP_PRO_KEYPOINTS_FILE, TMP_PRO_KEYPOINTS_FILE_S3
 from tasks import (
     celery_app, 
     process_video_task,
@@ -63,7 +63,7 @@ async def upload_and_process_video(
     file: UploadFile = File(...),
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
     is_lefty: bool = Query(False, description="Whether the user is left-handed"),
-    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE, description="Professional keypoints filename from S3")
+    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3")
 ):
     """Upload video file and start processing task"""
     if not validate_video_file(file):
@@ -79,8 +79,7 @@ async def upload_and_process_video(
         raise e
 
     # Start processing task after confirming file is ready
-    # task = process_video_task_small.delay(
-    task = process_video_task.delay(
+    task = process_video_task_small.delay(
         input_video_path=input_path,
         model_size=model_size,
         is_lefty=is_lefty,
@@ -100,7 +99,7 @@ async def upload_and_process_video(
     file: UploadFile = File(...),
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
     is_lefty: bool = Query(False, description="Whether the user is left-handed"),
-    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE, description="Professional keypoints filename from S3")
+    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3")
 ):
     """Upload video file and start processing task"""
     if not validate_video_file(file):
@@ -113,16 +112,20 @@ async def upload_and_process_video(
     try:
         input_path = save_uploaded_file(file, file_id)
     except Exception as e:
-        raise e
+        logger.error(f"Error saving uploaded file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {str(e)}")
 
     # Start processing task after confirming file is ready
-    # task = process_video_task.delay(
-    task = process_video_task_small.delay(
-        input_video_path=input_path,
-        model_size=model_size,
-        is_lefty=is_lefty,
-        pro_keypoints_filename=pro_keypoints_filename
-    )
+    try:
+        task = process_video_task.delay(
+            input_video_path=input_path,
+            model_size=model_size,
+            is_lefty=is_lefty,
+            pro_keypoints_filename=pro_keypoints_filename
+        )
+    except Exception as e:
+        logger.error(f"Error starting Celery task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start processing task: {str(e)}")
 
     return {
         "task_id": task.id,

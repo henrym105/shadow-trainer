@@ -224,7 +224,7 @@ def process_video_task(
         return {
             "input_path": input_video_path,
             "output_path": str(output_video_path),
-            "original_filename": input_video_path.name,
+            "original_filename": os.path.basename(input_video_path),
             "file_size": os.path.getsize(output_video_path),
             "status": "completed"
         }
