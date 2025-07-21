@@ -1,0 +1,26 @@
+# Use a PyTorch image with CUDA that supports Python 3.9
+FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-devel
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Set work directory
+WORKDIR /app
+
+# Install system dependencies (optional: pip upgrade, etc.)
+RUN apt-get update && apt-get install -y \
+    python3.9 \
+    python3.9-distutils \
+    curl \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.9 \
+    && ln -sf python3.9 /usr/bin/python \
+    && ln -sf pip3 /usr/bin/pip \
+    && apt-get clean
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# Copy rest of the application code
+COPY . .
