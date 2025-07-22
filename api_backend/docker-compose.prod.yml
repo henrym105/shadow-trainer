@@ -23,8 +23,6 @@ services:
     restart: unless-stopped
     volumes:
       - ./:/app
-      - ~/.aws:/root/.aws
-    privileged: true
     deploy:
       resources:
         reservations:
@@ -44,7 +42,6 @@ services:
     restart: unless-stopped
     volumes:
       - ./:/app
-      - ~/.aws:/root/.aws
     deploy:
       resources:
         reservations:
@@ -62,8 +59,6 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
-    volumes:
-      - ~/.aws:/root/.aws
     environment:
       - FLOWER_UNAUTHENTICATED_API=1
 
@@ -83,4 +78,17 @@ services:
       - "3000:3000"
     depends_on:
       - api
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx_proxy
+    ports:
+      - "80:80"
+      - "8002:8002"
+    depends_on:
+      - api
+      - frontend
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
     restart: unless-stopped
