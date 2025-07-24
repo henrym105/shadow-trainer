@@ -22,8 +22,9 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [modelSize, setModelSize] = useState('xs');
   const [isLefty, setIsLefty] = useState(false);
-  const [selectedProFile, setSelectedProFile] = useState('Spencer_Strider.npy');
+  const [selectedProFile, setSelectedProFile] = useState('BlakeSnell_median.npy');
   const [proOptions, setProOptions] = useState([]);
+  const [videoFormat, setVideoFormat] = useState('combined'); // 'combined' or '3d_only'
 
   // Poll job status
   useJobPolling(taskId, setJobStatus, 2000);
@@ -45,7 +46,7 @@ function App() {
     setIsUploading(true);
     setUploadError(null);
     try {
-      const res = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty, selectedProFile);
+      const res = await VideoAPI.uploadVideo(selectedFile, modelSize, isLefty, selectedProFile, videoFormat);
       setTaskId(res.task_id);
       setJobStatus({ status: 'queued', progress: 0 });
     } catch (err) {
@@ -60,7 +61,7 @@ function App() {
     setIsUploading(true);
     setUploadError(null);
     try {
-      const res = await VideoAPI.processSampleLeftyVideo(modelSize, selectedProFile);
+      const res = await VideoAPI.processSampleLeftyVideo(modelSize, selectedProFile, videoFormat);
       setTaskId(res.task_id);
       setJobStatus({ status: 'queued', progress: 0 });
       setSelectedFile(null);
@@ -150,6 +151,13 @@ function App() {
                   onChange={setSelectedProFile}
                   disabled={isUploading}
                 />
+                <div className="video-format-selection">
+                  <label htmlFor="video-format">Output Format:</label>
+                  <select id="video-format" value={videoFormat} onChange={e => setVideoFormat(e.target.value)} disabled={isUploading}>
+                    <option value="combined">2D + 3D Side by Side</option>
+                    <option value="3d_only">3D Skeleton Only</option>
+                  </select>
+                </div>
                 <button className="upload-btn" onClick={handleUpload} disabled={!selectedFile || isUploading}>
                   <span className="btn-icon">⬆️</span>
                   {isUploading ? <span className="btn-spinner" /> : 'Upload Video'}

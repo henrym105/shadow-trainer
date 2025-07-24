@@ -391,7 +391,8 @@ def list_and_play_mp4_from_s3(
 
 if __name__ == "__main__":
     # Example usage
-    bucket_name = "shadow-trainer-prod"
-    prefix = "pro_3d_keypoints"
+    from constants import S3_BUCKET, S3_PRO_PREFIX
+    bucket_name = S3_BUCKET
+    prefix = S3_PRO_PREFIX.rstrip('/')
     # cleaned_data = find_all_pro_npy_files(bucket_name, prefix, dryrun=True)
     # logger.info(f"Processed {len(cleaned_data)} valid pose sequences.")

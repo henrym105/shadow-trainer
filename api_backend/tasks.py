@@ -62,7 +62,8 @@ celery_app.conf.update(
 @celery_app.task(bind=True)
 def process_video_task_small(
         self, input_video_path: str, model_size: str = "xs", 
-        is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None
+        is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None,
+        video_format: str = "combined"
     ) -> str:
     """Process video with progress updates"""
     logger.info(f" ---> [ process_video_task_small ]")
@@ -110,7 +111,8 @@ def process_video_task(
         input_video_path: str, 
         model_size: str = "xs", 
         is_lefty: bool = False, 
-        pro_keypoints_filename: str = None
+        pro_keypoints_filename: str = None,
+        video_format: str = "combined"
     ) -> str:
     """Process video with pose estimation and keypoint overlays
     
@@ -169,7 +171,7 @@ def process_video_task(
 
         # Step 2: Create 2D visualization frames (35% progress)
         self.update_state(state='PROGRESS', meta={'progress': 35}, message="Creating 2D visualization frames...")
-        if INCLUDE_2D_IMAGES:
+        if INCLUDE_2D_IMAGES and video_format != "3d_only":
             cap = cv2.VideoCapture(input_video_path)
             keypoints_2d = np.load(FILE_POSE2D)
             create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
@@ -204,7 +206,7 @@ def process_video_task(
 
         # # Step 5: Generate combined frames (85% progress)
         self.update_state(state='PROGRESS', meta={'progress': 85}, message="Combining frames with original video...")
-        if INCLUDE_2D_IMAGES:
+        if INCLUDE_2D_IMAGES and video_format != "3d_only":
             generate_output_combined_frames(
                 output_dir_2D=DIR_POSE2D,
                 output_dir_3D=DIR_POSE3D,
@@ -213,9 +215,17 @@ def process_video_task(
 
         # Step 6: Create final video (95% progress)
         self.update_state(state='PROGRESS', meta={'progress': 95}, message="Generating final video...")
+        # Select output directory based on video format
+        if video_format == "3d_only":
+            input_frames_dir = DIR_POSE3D
+            logger.info(f"Creating 3D-only video from {input_frames_dir}")
+        else:  # "combined" or default
+            input_frames_dir = DIR_COMBINED_FRAMES if INCLUDE_2D_IMAGES else DIR_POSE3D
+            logger.info(f"Creating combined video format from {input_frames_dir}")
+            
         output_video_path = img2video(
             video_path = input_video_path,
-            input_frames_dir = DIR_COMBINED_FRAMES if INCLUDE_2D_IMAGES else DIR_POSE3D,
+            input_frames_dir = input_frames_dir,
         )
 
         # Complete job
@@ -293,12 +303,14 @@ def list_s3_pro_keypoints():
     ]
     result = []
     for f in files:
-        info = PRO_TEAMS_MAP.get(f.replace(".npy", ""), {})
+        # Extract player name by removing _median.npy suffix
+        player_key = f.replace("_median.npy", "").replace(".npy", "")
+        info = PRO_TEAMS_MAP.get(player_key, {})
         result.append({
             "filename": f,
-            "name": info.get("name"),
-            "team": info.get("team"),
-            "city": info.get("city")
+            "name": info.get("name", player_key),  # Use player_key as fallback if not in map
+            "team": info.get("team", "Unknown"),
+            "city": info.get("city", "Unknown")
         })
     files = result
     return files

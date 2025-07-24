@@ -135,6 +135,33 @@ body {
   outline: none;
 }
 
+/* Video Format Selection */
+.video-format-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.video-format-selection label {
+  font-weight: 600;
+  color: #333;
+}
+
+.video-format-selection select {
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.video-format-selection select:focus {
+  border-color: #4CAF50;
+  outline: none;
+}
+
 /* Handedness Toggle Styles */
 .handedness-selection {
   display: flex;

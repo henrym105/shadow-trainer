@@ -31,9 +31,10 @@ export class VideoAPI {
    * @param {string} modelSize - Model size ('xs', 's', 'm', 'l')
    * @param {boolean} isLefty - Whether user is left-handed
    * @param {string} proKeypointsFilename - Professional player keypoints filename
+   * @param {string} videoFormat - Output video format ('combined' or '3d_only')
    * @returns {Promise<Object>} Task information
    */
-  static async uploadVideo(file, modelSize = 'xs', isLefty = false, proKeypointsFilename = 'Spencer_Strider.npy') {
+  static async uploadVideo(file, modelSize = 'xs', isLefty = false, proKeypointsFilename = 'BlakeSnell_median.npy', videoFormat = 'combined') {
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -41,7 +42,8 @@ export class VideoAPI {
       const params = new URLSearchParams({
         model_size: modelSize,
         is_lefty: isLefty.toString(),
-        pro_keypoints_filename: proKeypointsFilename
+        pro_keypoints_filename: proKeypointsFilename,
+        video_format: videoFormat
       });
 
       const response = await api.post(`/videos/upload?${params}`, formData, {
@@ -65,14 +67,16 @@ export class VideoAPI {
    * Process sample lefty video (we'll need to add this endpoint to the backend)
    * @param {string} modelSize - Model size ('xs', 's', 'm', 'l')
    * @param {string} proKeypointsFilename - Professional player keypoints filename
+   * @param {string} videoFormat - Output video format ('combined' or '3d_only')
    * @returns {Promise<Object>} Task information
    */
-  static async processSampleLeftyVideo(modelSize = 'xs', proKeypointsFilename = 'Spencer_Strider.npy') {
+  static async processSampleLeftyVideo(modelSize = 'xs', proKeypointsFilename = 'BlakeSnell_median.npy', videoFormat = 'combined') {
     try {
       const params = new URLSearchParams({
         model_size: modelSize,
         is_lefty: 'true',
-        pro_keypoints_filename: proKeypointsFilename
+        pro_keypoints_filename: proKeypointsFilename,
+        video_format: videoFormat
       });
 
       const response = await api.post(`/videos/sample-lefty?${params}`);

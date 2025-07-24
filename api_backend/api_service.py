@@ -83,7 +83,8 @@ async def upload_and_process_video(
     file: UploadFile = File(...),
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
     is_lefty: bool = Query(False, description="Whether the user is left-handed"),
-    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3")
+    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3"),
+    video_format: str = Query("combined", description="Output video format: combined (2D+3D) or 3d_only")
 ):
     """Upload video file and start processing task"""
     if not validate_video_file(file):
@@ -104,7 +105,8 @@ async def upload_and_process_video(
         input_video_path=input_path,
         model_size=model_size,
         is_lefty=is_lefty,
-        pro_keypoints_filename=pro_keypoints_filename
+        pro_keypoints_filename=pro_keypoints_filename,
+        video_format=video_format
     )
 
     return {
@@ -120,7 +122,8 @@ async def upload_and_process_video(
     file: UploadFile = File(...),
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
     is_lefty: bool = Query(False, description="Whether the user is left-handed"),
-    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3")
+    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3"),
+    video_format: str = Query("combined", description="Output video format: combined (2D+3D) or 3d_only")
 ):
     """Upload video file and start processing task"""
     if not validate_video_file(file):
@@ -142,7 +145,8 @@ async def upload_and_process_video(
             input_video_path=input_path,
             model_size=model_size,
             is_lefty=is_lefty,
-            pro_keypoints_filename=pro_keypoints_filename
+            pro_keypoints_filename=pro_keypoints_filename,
+            video_format=video_format
         )
     except Exception as e:
         logger.error(f"Error starting Celery task: {e}")
@@ -273,7 +277,8 @@ async def get_video_preview(task_id: str):
 @app.post("/videos/sample-lefty")
 async def process_sample_lefty_video(
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
-    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3")
+    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3"),
+    video_format: str = Query("combined", description="Output video format: combined (2D+3D) or 3d_only")
 ):
     """Process the sample lefty video with specified parameters"""
     from constants import SAMPLE_VIDEO_PATH
@@ -290,7 +295,8 @@ async def process_sample_lefty_video(
             input_video_path=str(SAMPLE_VIDEO_PATH),
             model_size=model_size,
             is_lefty=True,  # Sample is specifically for lefty
-            pro_keypoints_filename=pro_keypoints_filename
+            pro_keypoints_filename=pro_keypoints_filename,
+            video_format=video_format
         )
     except Exception as e:
         logger.error(f"Error starting sample video processing task: {e}")
