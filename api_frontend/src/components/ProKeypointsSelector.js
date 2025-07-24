@@ -5,7 +5,7 @@ import './ProKeypointsSelector.css';
 const ProKeypointsSelector = ({ options, value, onChange, disabled }) => {
   return (
     <div className="pro-keypoints-selector">
-      <label htmlFor="pro-keypoints">Professional Player:</label>
+      <label htmlFor="pro-keypoints" className="option-header">Professional Player:</label>
       <select
         id="pro-keypoints"
         value={value}

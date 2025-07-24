@@ -8,8 +8,22 @@ const STATUS_MAP = {
 };
 
 
-const ProgressBar = ({ status, progress }) => {
+const ProgressBar = ({ status, progress, proPlayerName }) => {
   const statusInfo = STATUS_MAP[status] || STATUS_MAP['queued'];
+  
+  const getProgressMessage = () => {
+    if (status === 'processing' && proPlayerName) {
+      return `Rendering ${proPlayerName} as your Shadow...`;
+    }
+    if (status === 'processing') {
+      return 'Your video is being analyzed. This may take a few minutes.';
+    }
+    if (status === 'queued') return 'Waiting for available worker...';
+    if (status === 'completed') return 'Processing complete!';
+    if (status === 'failed') return 'There was an error during processing.';
+    return '';
+  };
+
   return (
     <div className="progress-bar-card">
       <div className="progress-status" style={{ color: statusInfo.color }}>
@@ -24,10 +38,7 @@ const ProgressBar = ({ status, progress }) => {
       </div>
       <div className="progress-percent">{progress ? `${progress}%` : '...'}</div>
       <div className="progress-desc">
-        {status === 'processing' && 'Your video is being analyzed. This may take a few minutes.'}
-        {status === 'queued' && 'Waiting for available worker...'}
-        {status === 'completed' && 'Processing complete!'}
-        {status === 'failed' && 'There was an error during processing.'}
+        {getProgressMessage()}
       </div>
     </div>
   );

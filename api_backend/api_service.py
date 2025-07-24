@@ -11,7 +11,7 @@ from fastapi import FastAPI, Query, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from constants import TMP_PRO_KEYPOINTS_FILE, TMP_PRO_KEYPOINTS_FILE_S3
+from constants import TMP_PRO_KEYPOINTS_FILE_S3
 from tasks import (
     celery_app, 
     process_video_task,

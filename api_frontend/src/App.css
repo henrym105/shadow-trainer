@@ -23,7 +23,7 @@ body {
 }
 
 .app-container {
-  max-width: 1200px;
+  max-width: 1500px;
   margin: 0 auto;
   padding: 2rem;
   flex: 1;
@@ -94,7 +94,7 @@ body {
 /* Upload Section */
 .upload-section {
   width: 100%;
-  max-width: 600px;
+  max-width: 800px;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 16px;
   padding: 2rem;
@@ -113,12 +113,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  text-align: center;
 }
 
-.model-selection label {
-  font-weight: 600;
-  color: #333;
-}
 
 .model-selection select {
   padding: 0.75rem;
@@ -128,6 +125,8 @@ body {
   background: white;
   cursor: pointer;
   transition: border-color 0.3s;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .model-selection select:focus {
@@ -140,12 +139,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  text-align: center;
 }
 
-.video-format-selection label {
-  font-weight: 600;
-  color: #333;
-}
 
 .video-format-selection select {
   padding: 0.75rem;
@@ -155,6 +151,8 @@ body {
   background: white;
   cursor: pointer;
   transition: border-color 0.3s;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .video-format-selection select:focus {
@@ -162,17 +160,72 @@ body {
   outline: none;
 }
 
-/* Handedness Toggle Styles */
-.handedness-selection {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+/* Options Section */
+.options-section {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 2rem;
+  margin: 1.5rem 0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
 }
 
-.handedness-selection label {
+/* Option Header Styling */
+.option-header {
   font-weight: 600;
   color: #333;
 }
+
+.options-section:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.options-title {
+  color: #333;
+  font-size: 1.3rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  font-weight: 600;
+  position: relative;
+}
+
+.options-title::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  border-radius: 2px;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 3rem;
+  align-items: start;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0; /* Allows flex items to shrink below their content size */
+}
+
+/* Throwing Style Toggle Styles */
+.throwing-style-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: center;
+}
+
 
 .toggle-container {
   display: flex;
@@ -635,6 +688,15 @@ input:disabled + .slider:before {
   .upload-section,
   .processing-section,
   .error-section {
+    padding: 1.5rem;
+  }
+  
+  .options-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .options-section {
     padding: 1.5rem;
   }
   

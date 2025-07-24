@@ -7,10 +7,8 @@ import VideoAPI, { useJobPolling } from './services/videoApi';
 import './App.css';
 
 const MODEL_SIZES = [
-  { value: 'xs', label: 'Extra Small' },
-  { value: 's', label: 'Small' },
-  { value: 'm', label: 'Medium' },
-  { value: 'l', label: 'Large' }
+  { value: 'xs', label: 'Small/Fast' },
+  { value: 's', label: 'Large/Slow' }
 ];
 
 function App() {
@@ -95,6 +93,12 @@ function App() {
     setIsUploading(false);
   };
 
+  // Get professional player name from selected file
+  const getProPlayerName = () => {
+    const proOption = proOptions.find(opt => opt.filename === selectedProFile);
+    return proOption?.name || selectedProFile.replace('_median.npy', '').replace(/([A-Z])/g, ' $1').trim();
+  };
+
   // UI states
   const isProcessing = jobStatus && ['queued', 'processing'].includes(jobStatus.status);
   const isCompleted = jobStatus && jobStatus.status === 'completed';
@@ -127,36 +131,51 @@ function App() {
                 disabled={isUploading}
               />
               <div className="upload-controls">
-                <div className="model-selection">
-                  <label htmlFor="model-size">Model Size:</label>
-                  <select id="model-size" value={modelSize} onChange={e => setModelSize(e.target.value)} disabled={isUploading}>
-                    {MODEL_SIZES.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="handedness-selection">
-                  <label>Handedness:</label>
-                  <div className="toggle-container">
-                    <span className={`toggle-label${isLefty ? ' active' : ''}`}>Lefty</span>
-                    <label className="toggle-switch">
-                      <input type="checkbox" checked={isLefty} onChange={e => setIsLefty(e.target.checked)} disabled={isUploading} />
-                      <span className="slider"></span>
-                    </label>
+                <div className="options-section">
+                  <h3 className="options-title">Player Configuration</h3>
+                  <div className="options-grid">
+                    <div className="option-group">
+                      <div className="throwing-style-selection">
+                        <label className="option-header">Throwing Style:</label>
+                        <div className="toggle-container">
+                          <span className={`toggle-label${!isLefty ? ' active' : ''}`}>Right-Handed</span>
+                          <label className="toggle-switch">
+                            <input type="checkbox" checked={isLefty} onChange={e => setIsLefty(e.target.checked)} disabled={isUploading} />
+                            <span className="slider"></span>
+                          </label>
+                          <span className={`toggle-label${isLefty ? ' active' : ''}`}>Left-Handed</span>
+                        </div>
+                      </div>
+                      <ProKeypointsSelector
+                        options={proOptions}
+                        value={selectedProFile}
+                        onChange={setSelectedProFile}
+                        disabled={isUploading}
+                      />
+                    </div>
                   </div>
                 </div>
-                <ProKeypointsSelector
-                  options={proOptions}
-                  value={selectedProFile}
-                  onChange={setSelectedProFile}
-                  disabled={isUploading}
-                />
-                <div className="video-format-selection">
-                  <label htmlFor="video-format">Output Format:</label>
-                  <select id="video-format" value={videoFormat} onChange={e => setVideoFormat(e.target.value)} disabled={isUploading}>
-                    <option value="combined">2D + 3D Side by Side</option>
-                    <option value="3d_only">3D Skeleton Only</option>
-                  </select>
+                <div className="options-section">
+                  <h3 className="options-title">Model & Output Settings</h3>
+                  <div className="options-grid">
+                    <div className="option-group">
+                      <div className="model-selection">
+                        <label htmlFor="model-size" className="option-header">Model Size:</label>
+                        <select id="model-size" value={modelSize} onChange={e => setModelSize(e.target.value)} disabled={isUploading}>
+                          {MODEL_SIZES.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="video-format-selection">
+                        <label htmlFor="video-format" className="option-header">Output Format:</label>
+                        <select id="video-format" value={videoFormat} onChange={e => setVideoFormat(e.target.value)} disabled={isUploading}>
+                          <option value="combined">2D + 3D Side by Side</option>
+                          <option value="3d_only">3D Skeleton Only</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <button className="upload-btn" onClick={handleUpload} disabled={!selectedFile || isUploading}>
                   <span className="btn-icon">⬆️</span>
@@ -179,7 +198,7 @@ function App() {
           )}
           {isProcessing && (
             <section className="processing-section">
-              <ProgressBar status={jobStatus.status} progress={jobStatus.progress} />
+              <ProgressBar status={jobStatus.status} progress={jobStatus.progress} proPlayerName={getProPlayerName()} />
               <div className="processing-info">
                 <p className="job-id">Job ID: {taskId}</p>
                 <button className="terminate-btn" onClick={handleTerminate}>

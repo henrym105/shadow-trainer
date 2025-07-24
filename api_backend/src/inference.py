@@ -815,7 +815,7 @@ def standardize_3d_keypoints(keypoints: np.ndarray, apply_rotation: bool = True)
     return keypoints
 
 
-def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir_combined: str) -> None:
+def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir_combined: str, pro_player_name: str = None) -> None:
     """Generate a demo video showing 2D input and 3D reconstruction side by side."""
     logger.info('\n\nGenerating demo video frames...')
     
