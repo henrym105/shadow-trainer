@@ -2,17 +2,17 @@ import os
 import logging
 
 import cv2
+from matplotlib import pyplot as plt
 import numpy as np
 from tqdm import tqdm
 from ultralytics import YOLO
+from celery.utils.log import get_task_logger
 
+from constants import API_ROOT_DIR, CHECKPOINT_DIR
 from src.utils import get_pytorch_device, get_frame_info
-from constants import API_ROOT_DIR
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
-logger = logging.getLogger(__name__)
+logger = get_task_logger(__name__)
 
-CHECKPOINT_DIR = os.path.join(API_ROOT_DIR, "checkpoint")
 
 class YOLOPoseEstimator:
     def __init__(self, model_name="yolo11x-pose.pt", checkpoint_dir=CHECKPOINT_DIR, device="cpu"):
@@ -144,6 +144,7 @@ def rotate_video_until_upright(video_path: str, debug: bool = False) -> int:
     yoloEstimator = YOLOPoseEstimator(device=device)
     
     # Get the first frame, use it to determine rotation needed to make the person upright
+    video_path = "/Users/Henry/github/shadow-trainer/api_backend/sample_videos/upside_down_test.mov"
     cap = cv2.VideoCapture(video_path)
     ret, frame = cap.read()
     keypoints = yoloEstimator.get_points_from_frame(frame)
@@ -243,7 +244,7 @@ if __name__ == "__main__":
     # Example usage
     import torch
     estimator = YOLOPoseEstimator(
-        checkpoint_dir=os.path.join(BACKEND_ROOT, "checkpoint"),
+        checkpoint_dir=os.path.join(API_ROOT_DIR, "checkpoint"),
         model_name="yolo11n-pose.pt",
         device= "mps" if torch.backends.mps.is_available() else "cpu"
     )
@@ -256,7 +257,7 @@ if __name__ == "__main__":
 
     # Save the keypoints to a file or process them further as needed
     # For example, you can save them to a .npy file:
-    output_file = os.path.join(BACKEND_ROOT, "tmp_api_output", "output_keypoints_2d_yolov11.npy")
+    output_file = os.path.join(API_ROOT_DIR, "tmp_api_output", "output_keypoints_2d_yolov11.npy")
    
     np.save(output_file, keypoints)
     logger.info(f"Keypoints saved to {output_file}")

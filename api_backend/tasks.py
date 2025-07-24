@@ -31,6 +31,7 @@ from constants import (
     S3_BUCKET,
     S3_PRO_PREFIX,
     UPLOAD_DIR,
+    RESULT_EXPIRES,
     OUTPUT_DIR,
     TMP_PRO_KEYPOINTS_FILE,
 )
@@ -41,7 +42,6 @@ logger = get_task_logger(__name__)
 # Define Celery app 
 # ----------------------------------------------------
 # Default result expiration time inside of redis and celery (seconds)
-RESULT_EXPIRES = 24 * 60 * 60
 
 celery_app = Celery(
     "tasks",
@@ -106,8 +106,11 @@ def process_video_task_small(
 
 @celery_app.task(bind=True)
 def process_video_task(
-        self, input_video_path: str, model_size: str = "xs", 
-        is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None
+        self, 
+        input_video_path: str, 
+        model_size: str = "xs", 
+        is_lefty: bool = False, 
+        pro_keypoints_filename: str = None
     ) -> str:
     """Process video with pose estimation and keypoint overlays
     
@@ -115,6 +118,7 @@ def process_video_task(
         input_video_path: Path to input video file
         model_size: Model size to use for processing
         is_lefty: Whether the user is left-handed
+        pro_keypoints_filename: str
     
     Returns:
         Path to output video file
@@ -142,7 +146,7 @@ def process_video_task(
     try:
         logger.info(f"Starting video processing for task {task_id}")
         logger.info(f"User handedness preference: {'Left-handed' if is_lefty else 'Right-handed'}")
-        cleanup_old_files(retention_minutes = 60)
+        cleanup_old_files(retention_minutes = RESULT_EXPIRES)
         
         # Get device for processing
         device = get_pytorch_device()

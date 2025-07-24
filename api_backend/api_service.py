@@ -2,9 +2,7 @@
 Shadow Trainer API Service
 Professional video processing API for pose estimation and motion analysis.
 """
-import os
 from pathlib import Path
-import shutil
 import uuid
 
 from celery.result import AsyncResult
@@ -12,7 +10,6 @@ from celery.utils.log import get_task_logger
 from fastapi import FastAPI, Query, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
 
 from constants import TMP_PRO_KEYPOINTS_FILE, TMP_PRO_KEYPOINTS_FILE_S3
 from tasks import (
@@ -38,7 +35,7 @@ app = FastAPI(
 # CORS for React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["shadow-trainer.com", "www.shadow-trainer.com", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -287,33 +284,6 @@ async def process_sample_lefty_video(
 async def list_pro_keypoints():
     files = list_s3_pro_keypoints()
     return {"files": files}
-
-
-
-# @app.get("/status/{task_id}")
-# def get_processing_status(task_id: str):
-#     result = AsyncResult(task_id, app=celery_app)
-    
-#     response = {
-#         "task_id": task_id,
-#         "status": result.status,
-#         "progress": None,
-#         "error": None
-#     }
-    
-#     if result.ready():
-#         if result.successful():
-#             response["result"] = result.result
-#             response["download_ready"] = True
-#         else:
-#             # Handle failed tasks properly
-#             response["error"] = str(result.info) if result.info else "Unknown error"
-#     else:
-#         # Check for progress updates if your task supports it
-#         if hasattr(result, 'info') and isinstance(result.info, dict):
-#             response["progress"] = result.info.get('progress', 0)
-    
-#     return response
 
 
 

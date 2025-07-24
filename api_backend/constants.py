@@ -8,6 +8,8 @@ from pathlib import Path
 API_ROOT_DIR = Path(__file__).parent
 UPLOAD_DIR = API_ROOT_DIR / "uploads"
 OUTPUT_DIR = API_ROOT_DIR / "output"
+CHECKPOINT_DIR = API_ROOT_DIR / "checkpoint"
+
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -21,10 +23,7 @@ SAMPLE_VIDEO_PATH = API_ROOT_DIR / "sample_videos" / "Left_Hand_Friend_Side.MOV"
 S3_BUCKET = "shadow-trainer-dev"
 S3_PRO_PREFIX = "test/professional/"
 
-
 INCLUDE_2D_IMAGES = True
-
-
 
 PRO_TEAMS_MAP = {
     "Dean_Kremer": { 
@@ -48,3 +47,9 @@ PRO_TEAMS_MAP = {
         "city": "Atlanta"
     }
 }
+
+# ------------------------------------------------------
+# Celery Config
+# ------------------------------------------------------
+# Set 24 hour redis cache timeout 
+RESULT_EXPIRES = 24 * 60 * 60
