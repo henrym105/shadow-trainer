@@ -35,7 +35,7 @@ app = FastAPI(
 # CORS for React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["shadow-trainer.com", "www.shadow-trainer.com", "*"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,6 +47,29 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Video Processing API. Use /upload-and-process/ to upload a video."}
+
+
+@app.get("/health")
+def health_check():
+    try:
+        # Check Redis connection via Celery
+        inspect = celery_app.control.inspect()
+        stats = inspect.stats()
+        redis_healthy = stats is not None
+        
+        return {
+            "status": "healthy",
+            "service": "shadow-trainer-api",
+            "redis_connection": "ok" if redis_healthy else "error",
+            "celery_workers": len(stats) if stats else 0
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=503, detail={
+            "status": "unhealthy",
+            "service": "shadow-trainer-api",
+            "error": str(e)
+        })
 
 
 @app.get("/test_add")
