@@ -71,6 +71,20 @@ function App() {
     }
   };
 
+  // Handle task termination
+  const handleTerminate = async () => {
+    if (!taskId) return;
+    try {
+      await VideoAPI.terminateTask(taskId);
+      setJobStatus({ status: 'terminated', message: 'Task terminated by user' });
+      setTimeout(() => {
+        handleReset();
+      }, 2000);
+    } catch (error) {
+      setUploadError(error.message);
+    }
+  };
+
   // Reset for new upload
   const handleReset = () => {
     setSelectedFile(null);
@@ -84,6 +98,7 @@ function App() {
   const isProcessing = jobStatus && ['queued', 'processing'].includes(jobStatus.status);
   const isCompleted = jobStatus && jobStatus.status === 'completed';
   const isFailed = jobStatus && jobStatus.status === 'failed';
+  const isTerminated = jobStatus && jobStatus.status === 'terminated';
 
   return (
     <div className="app">
@@ -159,6 +174,10 @@ function App() {
               <ProgressBar status={jobStatus.status} progress={jobStatus.progress} />
               <div className="processing-info">
                 <p className="job-id">Job ID: {taskId}</p>
+                <button className="terminate-btn" onClick={handleTerminate}>
+                  <span className="btn-icon">🛑</span>
+                  Terminate Processing
+                </button>
               </div>
             </section>
           )}
@@ -176,6 +195,16 @@ function App() {
                 <h3>Processing Failed</h3>
                 <p>{jobStatus.error || 'An error occurred during processing.'}</p>
                 <button className="retry-btn" onClick={handleReset}>Try Again</button>
+              </div>
+            </section>
+          )}
+          {isTerminated && (
+            <section className="terminated-section">
+              <div className="terminated-content">
+                <span className="terminated-icon">🛑</span>
+                <h3>Processing Terminated</h3>
+                <p>{jobStatus.message || 'Task was terminated by user request.'}</p>
+                <button className="retry-btn" onClick={handleReset}>Start New Processing</button>
               </div>
             </section>
           )}

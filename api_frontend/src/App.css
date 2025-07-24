@@ -521,6 +521,66 @@ input:disabled + .slider:before {
   transform: scale(1.1);
 }
 
+/* Terminate Button */
+.terminate-btn {
+  padding: 0.75rem 1.5rem;
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.terminate-btn:hover {
+  background: #d32f2f;
+  transform: translateY(-2px);
+}
+
+.terminate-btn .btn-icon {
+  font-size: 1.1rem;
+}
+
+/* Terminated Section */
+.terminated-section {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.terminated-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.terminated-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.terminated-section h3 {
+  color: #333;
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.terminated-section p {
+  color: #666;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+}
+
 /* Animations */
 @keyframes spin {
   0% { transform: rotate(0deg); }

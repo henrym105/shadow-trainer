@@ -310,6 +310,34 @@ async def list_pro_keypoints():
     return {"files": files}
 
 
+@app.post("/videos/{task_id}/terminate")
+async def terminate_video_task(task_id: str):
+    """Terminate a running video processing task"""
+    try:
+        result = AsyncResult(task_id, app=celery_app)
+        
+        if result.state in ['SUCCESS', 'FAILURE']:
+            return {
+                "task_id": task_id,
+                "status": "terminated",
+                "message": "Task has been terminated"
+            }
+        
+        # Revoke (terminate) the task
+        celery_app.control.revoke(task_id, terminate=True, signal='SIGKILL')
+        
+        logger.info(f"Task {task_id} has been terminated by user request")
+        
+        return {
+            "task_id": task_id,
+            "status": "terminated",
+            "message": "Task has been terminated"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error terminating task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to terminate task: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn

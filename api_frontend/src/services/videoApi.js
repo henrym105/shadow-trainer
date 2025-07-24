@@ -186,6 +186,25 @@ export class VideoAPI {
       );
     }
   }
+
+  /**
+   * Terminate a running video processing task
+   * @param {string} taskId - Task identifier
+   * @returns {Promise<Object>} Termination result
+   */
+  static async terminateTask(taskId) {
+    try {
+      const response = await api.post(`/videos/${taskId}/terminate`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to terminate task:', error);
+      throw new APIError(
+        error.response?.data?.detail || 'Failed to terminate task',
+        error.response?.status,
+        error.response
+      );
+    }
+  }
 }
 
 // Custom hook for job polling
@@ -201,8 +220,8 @@ export const useJobPolling = (taskId, onStatusUpdate, pollingInterval = 2000) =>
         const status = await VideoAPI.getJobStatus(taskId);
         onStatusUpdate(status);
 
-        // Stop polling if job is completed or failed
-        if (status.status === 'completed' || status.status === 'failed') {
+        // Stop polling if job is completed, failed, or terminated
+        if (status.status === 'completed' || status.status === 'failed' || status.status === 'terminated') {
           setIsPolling(false);
           return;
         }
