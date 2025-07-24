@@ -11,10 +11,10 @@
 
 # Production commands
 prod:
-	docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
+	docker-compose -f docker-compose.prod.yml --env-file .env.prod up
 
 prod-build:
-	docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+	docker-compose -f docker-compose.prod.yml --env-file .env.prod up --build
 
 prod-logs:
 	docker-compose -f docker-compose.prod.yml logs -f

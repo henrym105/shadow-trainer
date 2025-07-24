@@ -94,9 +94,10 @@ async def upload_and_process_video(
 
     file_id = str(uuid.uuid4())
     try:
-        input_path = save_uploaded_file(file)
+        input_path = save_uploaded_file(file, file_id)
     except Exception as e:
-        raise e
+        logger.error(f"Error saving uploaded file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {str(e)}")
 
     # Start processing task after confirming file is ready
     task = process_video_task_small.delay(

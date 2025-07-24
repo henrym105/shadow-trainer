@@ -37,13 +37,21 @@ class YOLOPoseEstimator:
         Returns:
             np.ndarray: A NumPy array of shape (17, 3) where N is the number of hr_keypoints and each row is [x, y, confidence].
         """
+        if frame is None:
+            raise ValueError("Frame is None, cannot process keypoints")
+            
         pose_results = self.model(frame, verbose=False)
-        if pose_results and pose_results[0].keypoints:
+        keypoints = None
+        
+        if pose_results and pose_results[0].keypoints and len(pose_results[0].keypoints.xyn) > 0:
             # Get keypoints of the first detected pose as numpy array
             keypoints_xy = pose_results[0].keypoints.xyn[0].cpu().numpy()  # shape (N, 2)
             keypoints_conf = pose_results[0].keypoints.conf[0].cpu().numpy()  # shape (N,)
             keypoints = np.concatenate([keypoints_xy, keypoints_conf[:, None]], axis=1)  # shape (N, 3)
 
+        if keypoints is None:
+            raise ValueError("No keypoints detected in frame")
+            
         assert keypoints.shape == (17, 3), "Keypoints should have shape (17, 3) with format (x, y, conf). Received shape: {}".format(keypoints.shape)
 
         return keypoints
@@ -62,7 +70,15 @@ class YOLOPoseEstimator:
                                 of hr_keypoints and each row is [x, y, confidence],
                                 or None if no poses are detected.
         """
-        keypoints = self.get_keypoints(frame)
+        if frame is None:
+            logger.error("Frame is None, cannot process keypoints")
+            return None
+            
+        try:
+            keypoints = self.get_keypoints(frame)
+        except (ValueError, AssertionError) as e:
+            logger.error(f"Failed to get keypoints from frame: {e}")
+            return None
         thorax = ((keypoints[5] + keypoints[6])/2)
         mid_hip = ((keypoints[12] + keypoints[11])/2)
         spine = (mid_hip+thorax)/2
@@ -144,17 +160,27 @@ def rotate_video_until_upright(video_path: str, debug: bool = False) -> int:
     yoloEstimator = YOLOPoseEstimator(device=device)
     
     # Get the first frame, use it to determine rotation needed to make the person upright
-    video_path = "/Users/Henry/github/shadow-trainer/api_backend/sample_videos/upside_down_test.mov"
     cap = cv2.VideoCapture(video_path)
     ret, frame = cap.read()
     keypoints = yoloEstimator.get_points_from_frame(frame)
+    
+    if keypoints is None:
+        logger.warning(f"No keypoints detected in first frame of {video_path}. Assuming video is upright.")
+        cap.release()
+        return 0
+    
     is_upright = is_person_upright(keypoints)
 
-    while not is_upright:
-        logger.info(f"Incorrect Orientation Detected. Rotating {clockwise_rotations_needed} degrees and check again...")
+    while not is_upright and clockwise_rotations_needed < 4:
+        logger.info(f"Incorrect Orientation Detected. Rotating {clockwise_rotations_needed * 90} degrees and check again...")
         frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         clockwise_rotations_needed += 1
         keypoints = yoloEstimator.get_points_from_frame(frame)
+        
+        if keypoints is None:
+            logger.warning(f"No keypoints detected after rotation. Assuming current orientation is correct.")
+            break
+            
         is_upright = is_person_upright(keypoints)
     cap.release()
     assert not cap.isOpened()

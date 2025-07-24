@@ -251,10 +251,11 @@ def add_task(x, y):
 
 
 
-@celery_app.task(bind=True)
-def save_uploaded_file(self, file: UploadFile, file_id: str) -> str:
+def save_uploaded_file(file: UploadFile, file_id: str = None) -> str:
     """Save uploaded file to temporary directory"""
     # Create unique filename
+    if file_id is None:
+        file_id = str(uuid.uuid4())
     file_ext = Path(file.filename).suffix.lower()
     temp_filename = f"{file_id}{file_ext}"
     temp_filepath = OUTPUT_DIR / temp_filename
