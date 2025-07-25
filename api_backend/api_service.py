@@ -10,6 +10,7 @@ from celery.utils.log import get_task_logger
 from fastapi import FastAPI, Query, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from tasks import generate_3d_keypoints_from_video_task
 
 from constants import TMP_PRO_KEYPOINTS_FILE_S3
 from tasks import (
@@ -115,6 +116,71 @@ async def upload_and_process_video(
         "original_filename": file.filename,
         "status": "queued"
     }
+
+
+
+@app.post("/videos/get_3d_keypoints")
+async def generate_3d_keypoints(
+    file: UploadFile = File(...),
+    model_size: str = Query("xs", description="Model size: xs, s, m, l")
+):
+    """ Upload a video and return the 3D keypoints as a downloadable .npy file. 
+    This endpoint processes the uploaded video to extract 3D keypoints using a pre-trained model.
+    """
+    if not validate_video_file(file):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Please upload a video file (.mp4, .mov, .avi, .mkv)"
+        )
+
+    file_id = str(uuid.uuid4())
+    try:
+        input_path = save_uploaded_file(file, file_id)
+    except Exception as e:
+        logger.error(f"Error saving uploaded file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {str(e)}")
+
+    try:
+        task = generate_3d_keypoints_from_video_task.delay(
+            input_video_path=input_path,
+            model_size=model_size
+        )
+    except Exception as e:
+        logger.error(f"Error starting 3D keypoints task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start 3D keypoints task: {str(e)}")
+
+    return {
+        "task_id": task.id,
+        "file_id": file_id,
+        "original_filename": file.filename,
+        "status": "queued"
+    }
+
+
+@app.get("/videos/{task_id}/3d_keypoints_download")
+async def download_3d_keypoints(task_id: str):
+    """
+    Download the generated 3D keypoints .npy file from Celery task result.
+    """
+    result = AsyncResult(task_id, app=celery_app)
+    if not result.ready() or not result.successful():
+        raise HTTPException(status_code=400, detail="Job not completed yet")
+
+    # The celery task returns a dict with the key "output_path"
+    keypoints_path = None
+    if isinstance(result.result, dict):
+        keypoints_path = result.result.get("output_path")
+    elif isinstance(result.result, str):
+        keypoints_path = result.result
+
+    if not keypoints_path or not Path(keypoints_path).exists():
+        raise HTTPException(status_code=404, detail="3D keypoints file not found")
+    filename = f"3d_keypoints_{Path(keypoints_path).stem}.npy"
+    return FileResponse(
+        path=keypoints_path,
+        filename=filename,
+        media_type="application/octet-stream"
+    )
 
 
 @app.post("/videos/upload")
