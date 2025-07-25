@@ -26,7 +26,6 @@ from src.inference import (
 )
 from constants import (
     API_ROOT_DIR,
-    INCLUDE_2D_IMAGES,
     PRO_TEAMS_MAP,
     S3_BUCKET,
     S3_PRO_PREFIX,
@@ -171,7 +170,7 @@ def process_video_task(
 
         # Step 2: Create 2D visualization frames (35% progress)
         self.update_state(state='PROGRESS', meta={'progress': 35}, message="Creating 2D visualization frames...")
-        if INCLUDE_2D_IMAGES and video_format != "3d_only":
+        if video_format != "3d_only":
             cap = cv2.VideoCapture(input_video_path)
             keypoints_2d = np.load(FILE_POSE2D)
             create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
@@ -206,7 +205,7 @@ def process_video_task(
 
         # # Step 5: Generate combined frames (85% progress)
         self.update_state(state='PROGRESS', meta={'progress': 85}, message="Combining frames with original video...")
-        if INCLUDE_2D_IMAGES and video_format != "3d_only":
+        if video_format != "3d_only":
             generate_output_combined_frames(
                 output_dir_2D=DIR_POSE2D,
                 output_dir_3D=DIR_POSE3D,
@@ -220,7 +219,7 @@ def process_video_task(
             input_frames_dir = DIR_POSE3D
             logger.info(f"Creating 3D-only video from {input_frames_dir}")
         else:  # "combined" or default
-            input_frames_dir = DIR_COMBINED_FRAMES if INCLUDE_2D_IMAGES else DIR_POSE3D
+            input_frames_dir = DIR_COMBINED_FRAMES if video_format != "3d_only" else DIR_POSE3D
             logger.info(f"Creating combined video format from {input_frames_dir}")
             
         output_video_path = img2video(

@@ -23,8 +23,6 @@ SAMPLE_VIDEO_PATH = API_ROOT_DIR / "sample_videos" / "Left_Hand_Friend_Side.MOV"
 S3_BUCKET = "shadow-trainer-prod"
 S3_PRO_PREFIX = "pro_3d_keypoints/"
 
-INCLUDE_2D_IMAGES = True
-
 PRO_TEAMS_MAP = {
     "BlakeSnell": { 
         "name": "Blake Snell",
