@@ -397,7 +397,7 @@ def cleanup_old_files(self, retention_minutes: int = 60):
     """Clean up old temporary files (older than retention_minutes)"""
     current_time = time.time()
     file_retention_cutoff_time = current_time - (retention_minutes * 60)
-    for item in OUTPUT_DIR.iterdir():
+    for item in UPLOAD_DIR.iterdir():
         is_past_retention = (item.stat().st_mtime < file_retention_cutoff_time)
         if item.is_file() and is_past_retention:
             try:
