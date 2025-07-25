@@ -17,8 +17,6 @@ import torch.nn as nn
 from pprint import pprint
 from tqdm import tqdm
 
-from src.preprocess import h36m_coco_format
-from src.hrnet.gen_kpts import gen_video_kpts
 from src.utils import download_file_if_not_exists, get_frame_info, normalize_screen_coordinates, camera_to_world, get_config, get_pytorch_device
 from src.model.MotionAGFormer import MotionAGFormer
 from src.visualizations import resample_pose_sequence, time_warp_pro_video
@@ -43,6 +41,56 @@ KEYPOINTS_FILE_3D_PRO  = "pro_3D_keypoints.npy"
 # debug flag
 DEBUG = True
 # -------------------------------------------------------
+
+
+def flip_rgb_to_bgr(input_path: str, output_path: str):
+    """Flip RGB/BGR colors for video files
+    Keeping this as a test function for now, not used in the main flow.    
+    """
+    if not os.path.exists(input_path):
+        logger.error(f"Input file does not exist: {input_path}")
+        raise FileNotFoundError(f"Input file does not exist: {input_path}")
+    
+    # Check if file is accessible
+    if not os.access(input_path, os.R_OK):
+        logger.error(f"Input file is not readable: {input_path}")
+        raise PermissionError(f"Input file is not readable: {input_path}")
+    
+    # Check if file has content
+    if os.path.getsize(input_path) == 0:
+        logger.error(f"Input file is empty: {input_path}")
+        raise ValueError(f"Input file is empty: {input_path}")
+
+    cap = cv2.VideoCapture(input_path)
+    
+    # Check if video file was opened successfully
+    if not cap.isOpened():
+        logger.error(f"Could not open video file: {input_path}")
+        raise ValueError(f"Could not open video file: {input_path}")
+    
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frame[:, :, [0, 2]] = frame[:, :, [2, 0]]  # Swap R and B channels
+        out.write(frame)
+    
+    cap.release()
+    out.release()
+
+    if not os.path.exists(output_path):
+        logger.error(f"Output file not found: {output_path}")
+        raise RuntimeError(f"Failed to create output file: {output_path}")
+
+    return output_path
+
 
 def get_joint_colors(color='R', use_0_255_range=False):
     """ Returns the left and right joint colors based on the specified color scheme.
@@ -173,19 +221,11 @@ def get_pose2D(video_path, output_file, device, yolo_version: str = "11") -> np.
     """
     logger.info('\n\nGenerating 2D pose...')
 
-    if yolo_version == "3":
-        # Download hrnet and v3 weights from S3 if they don't exist locally
-        download_file_if_not_exists("pose_hrnet_w48_384x288.pth", CHECKPOINT_DIR)
-        download_file_if_not_exists("yolov3.weights", CHECKPOINT_DIR)
-        keypoints, scores = gen_video_kpts(video_path, det_dim=416, num_person=1, gen_output=True, device=device)
-        keypoints, scores, valid_frames = h36m_coco_format(keypoints, scores)
-        # Add conf score to the last dim
-        keypoints = np.concatenate((keypoints, scores[..., None]), axis=-1)
-
-    elif yolo_version == "11":
-        logger.info(f"{CHECKPOINT_DIR = }")
+    if yolo_version == "11":
         estimator = YOLOPoseEstimator("yolo11x-pose.pt", CHECKPOINT_DIR, device)
         keypoints = estimator.get_keypoints_from_video(video_path)
+    else:
+        raise NotImplementedError("YOLO version other than '11' is not yet supported")
 
     assert keypoints.ndim == 4, "Keypoints should have 4 dimensions for (num_ppl, num_frames, 17, 3). Received shape: {}".format(keypoints.shape)
     np.save(output_file, keypoints)
@@ -776,7 +816,7 @@ def standardize_3d_keypoints(keypoints: np.ndarray, apply_rotation: bool = True)
     return keypoints
 
 
-def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir_combined: str) -> None:
+def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir_combined: str, pro_player_name: str = None) -> None:
     """Generate a demo video showing 2D input and 3D reconstruction side by side."""
     logger.info('\n\nGenerating demo video frames...')
     

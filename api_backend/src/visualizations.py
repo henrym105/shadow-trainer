@@ -7,6 +7,60 @@ import tempfile
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
 logger = logging.getLogger(__name__)
 
+
+
+def scale_torso_to_match(user_kpts: np.ndarray, pro_kpts: np.ndarray) -> np.ndarray:
+    """
+    Scales the user's keypoints so that the torso length matches the pro's torso length.
+    Torso is defined as the distance between the mid-shoulder and mid-hip points.
+
+    Args:
+        user_kpts (np.ndarray): (N, 17, 3) or (17, 3) user keypoints
+        pro_kpts (np.ndarray): (N, 17, 3) or (17, 3) pro keypoints
+    Returns:
+        np.ndarray: Scaled user keypoints, same shape as input
+
+    Usage:
+        user_kpts_scaled = scale_torso_to_match(user_kpts, pro_kpts)
+    """
+    def get_midpoint(a, b):
+        return (a + b) / 2
+
+    def torso_length(kpts):
+        # Indices: Left Shoulder=11, Right Shoulder=14, Left Hip=4, Right Hip=1
+        left_shoulder = kpts[11]
+        right_shoulder = kpts[14]
+        left_hip = kpts[4]
+        right_hip = kpts[1]
+        mid_shoulder = get_midpoint(left_shoulder, right_shoulder)
+        mid_hip = get_midpoint(left_hip, right_hip)
+        return np.linalg.norm(mid_shoulder - mid_hip), mid_hip, mid_shoulder
+
+    # Handle batch or single frame
+    if user_kpts.ndim == 2:
+        user_kpts = user_kpts[None, ...]
+    if pro_kpts.ndim == 2:
+        pro_kpts = pro_kpts[None, ...]
+
+    scaled_user_kpts = np.empty_like(user_kpts)
+    for i in range(user_kpts.shape[0]):
+        u_k = user_kpts[i]
+        p_k = pro_kpts[min(i, pro_kpts.shape[0]-1)]
+        user_len, user_mid_hip, user_mid_shoulder = torso_length(u_k)
+        pro_len, pro_mid_hip, pro_mid_shoulder = torso_length(p_k)
+        if user_len < 1e-6 or pro_len < 1e-6:
+            scaled_user_kpts[i] = u_k
+            continue
+        scale = pro_len / user_len
+        # Center on mid-hip, scale, then restore position
+        centered = u_k - user_mid_hip
+        scaled = centered * scale
+        scaled_user_kpts[i] = scaled + user_mid_hip
+    if scaled_user_kpts.shape[0] == 1:
+        return scaled_user_kpts[0]
+    return scaled_user_kpts
+
+
 def time_warp_pro_video(amateur_data: np.ndarray, professional: np.ndarray):
     """Time warps the professional data to align with the amateur data.
 
@@ -392,7 +446,8 @@ def list_and_play_mp4_from_s3(
 
 if __name__ == "__main__":
     # Example usage
-    bucket_name = "shadow-trainer-prod"
-    prefix = "pro_3d_keypoints"
+    from constants import S3_BUCKET, S3_PRO_PREFIX
+    bucket_name = S3_BUCKET
+    prefix = S3_PRO_PREFIX.rstrip('/')
     # cleaned_data = find_all_pro_npy_files(bucket_name, prefix, dryrun=True)
     # logger.info(f"Processed {len(cleaned_data)} valid pose sequences.")

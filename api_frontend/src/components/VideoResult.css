@@ -1,0 +1,47 @@
+.video-result-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(76,175,80,0.08);
+  padding: 2rem;
+  max-width: 480px;
+  margin: 2rem auto;
+  text-align: center;
+}
+.video-player {
+  margin-bottom: 1rem;
+}
+.result-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+.download-btn, .copy-btn, .reset-btn {
+  background: #2196F3;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.download-btn {
+  background: #4CAF50;
+}
+.copy-btn {
+  background: #ffa500;
+}
+.reset-btn {
+  background: #366e2f;
+}
+.result-meta {
+  font-size: 0.95rem;
+  color: #333;
+  margin-top: 1rem;
+  text-align: left;
+}
+.result-meta div {
+  margin-bottom: 0.3rem;
+}
