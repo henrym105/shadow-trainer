@@ -54,5 +54,5 @@ PRO_TEAMS_MAP = {
 # ------------------------------------------------------
 # Celery Config
 # ------------------------------------------------------
-# Set 24 hour redis cache timeout 
-RESULT_EXPIRES = 24 * 60 * 60
+# Set 1 hour redis cache timeout
+RESULT_EXPIRES = 1 * 60 * 60
