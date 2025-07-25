@@ -236,6 +236,31 @@ function App() {
             </section>
           )}
         </main>
+        <footer>
+          <div
+            className="github-footer-link"
+            style={{
+              background: '#fff',
+              borderRadius: '10px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
+              padding: '18px 0',
+              margin: '32px auto 0 auto',
+              textAlign: 'center',
+              maxWidth: '420px',
+              fontSize: '1.08em',
+              fontWeight: 500
+            }}
+          >
+            <a
+              href="https://github.com/henrym105/shadow-trainer/tree/develop"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#0366d6', textDecoration: 'underline' }}
+            >
+              View Source on GitHub
+            </a>
+          </div>
+        </footer>
       </div>
     </div>
   );
