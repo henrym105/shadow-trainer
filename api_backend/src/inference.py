@@ -379,14 +379,14 @@ def create_3d_pose_images_from_array(
 
     # ------------------ Find motion start for both user and pro, then crop ------------------
     user_start, user_end = get_start_end_info(user_keypoints_npy, is_lefty=is_lefty, output_dir = pjoin(output_dir, "user"))
-    pro_start, pro_end = get_start_end_info(pro_keypoints_npy, is_lefty=is_lefty, output_dir = pjoin(output_dir, "pro"))
+    # pro_start, pro_end = get_start_end_info(pro_keypoints_npy, is_lefty=is_lefty, output_dir = pjoin(output_dir, "pro"))
 
     if DEBUG:
         logger.info(f"User motion starts at frame: {user_start}, ends at frame: {user_end}")
-        logger.info(f"Pro motion starts at frame: {pro_start}, ends at frame: {pro_end}")
+        # logger.info(f"Pro motion starts at frame: {pro_start}, ends at frame: {pro_end}")
 
     user_keypoints_npy = user_keypoints_npy[user_start : user_end]
-    pro_keypoints_npy = pro_keypoints_npy[pro_start : pro_end]
+    # pro_keypoints_npy = pro_keypoints_npy[pro_start : pro_end]
 
     # Note: output_dir points to the 'pose' directory, but pose2D is at the job root level
     job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
@@ -515,118 +515,117 @@ def find_motion_start(keypoints: np.ndarray, is_lefty: bool = True, min_pct_chan
 
 
 
-def get_start_end_info(arr, is_lefty: bool = False, output_dir: str = ".'") -> tuple:
+def get_start_end_info(arr, is_lefty: bool = False, output_dir: str = ".") -> tuple:
     """Determine the start and end points of the motion based on the ankle positions in the 3D keypoints array.
 
     Args:
-        arr (np.ndarray): Input numpy array, assumed to be of shape (n_frames, 17, 3) for 3D keypoints.
+        arr (np.ndarray): Input numpy array.
 
     Returns:
-        tuple: A tuple containing (min_value, max_value, average_value).
+    tuple: A tuple containing (min_value, max_value, average_value).
     """
-    assert arr.ndim == 3, "Input array must be 3D with shape (n_frames, 17, 3). Received shape: {}".format(arr.shape)
-    os.makedirs(output_dir, exist_ok=True)  # Ensure output directory exists
 
-    front_ankle_arr = []
-    back_ankle_arr = []
+    left_ankle_arr = []
+    right_ankle_arr = []
     higher_ankle_arr = []
-    max_front = 0 # Tracks the max z height of the front ankly
-    max_front_index = 100000
+    max_left = 0
+    max_left_index = 0
     low_point = 0
-    starting_point = 0
-
-
-    # Determine which ankle is front/back based on is_lefty
-    if is_lefty:
-        front_ankle_name = "Right Ankle"
-        back_ankle_name = "Left Ankle"
-    else:
-        front_ankle_name = "Left Ankle"
-        back_ankle_name = "Right Ankle"
+    is_valid = True
 
     for i in range(len(arr)):
         joints = get_frame_info(arr[i])
-        front_ankle_z = joints[front_ankle_name][2]
-        back_ankle_z = joints[back_ankle_name][2]
+        left_ankle_z = joints["Left Ankle"][2]
+        right_ankle_z = joints["Right Ankle"][2]
 
-        if front_ankle_z >= max_front:
-            max_front = front_ankle_z
-            max_front_index = i
-            if low_point < i:
-                starting_point = low_point
+        left_ankle_arr.append(left_ankle_z)
+        right_ankle_arr.append(right_ankle_z)
 
-        if front_ankle_z < 0.005:
+    # Smooth the arrays
+    left_ankle_arr = np.array(left_ankle_arr)
+    right_ankle_arr = np.array(right_ankle_arr)
+    left_ankle_arr = np.convolve(left_ankle_arr, np.ones(10)/10, mode='valid')
+    right_ankle_arr = np.convolve(right_ankle_arr, np.ones(10)/10, mode='valid')
+
+    #go through the left and right ankle arrays and find the local maximums of all and the global maximum of the right ankle
+    window_size = 10  # Number of frames before and after
+
+    left_maxs = []
+    left_mins = [0]
+    right_maxs = []
+    right_mins = []
+
+    right_max = float('-inf')
+    right_max_index = -1
+
+    for i in range(window_size, len(left_ankle_arr) - window_size):
+        # LEFT ANKLE CHECKS
+        current_val_left = left_ankle_arr[i]
+        window_left = left_ankle_arr[i - window_size:i + window_size + 1]
+
+        if current_val_left == np.max(window_left) and np.count_nonzero(window_left == current_val_left) == 1:
+            left_maxs.append(i)
+
+        if current_val_left == np.min(window_left):
+            left_mins.append(i)
+
+        # RIGHT ANKLE CHECKS
+        current_val_right = right_ankle_arr[i]
+        window_right = right_ankle_arr[i - window_size:i + window_size + 1]
+
+        if current_val_right == np.max(window_right) and np.count_nonzero(window_right == current_val_right) == 1:
+            if current_val_right > right_max:
+                right_max = current_val_right
+                right_max_index = i
+            right_maxs.append(i)
+
+        if current_val_right == np.min(window_right):
+            right_mins.append(i)
+
+    print(f"Left Mins: {left_mins}")
+    print(f"Left Maxs: {left_maxs}")
+    print(f"Right Mins: {right_mins}")
+    print(f"Right Maxs: {right_maxs}")
+    print(f"Right Max Index: {right_max_index}")
+    #get the maximum value in left_maxs that is less than right_max_index
+    for i in left_maxs:
+        if i < right_max_index and i > max_left_index:
+            max_left_index = i
+    #get the maximum value in left_mins that is less than max_left_index
+    low_point = 0
+    for i in left_mins:
+        if i < max_left_index and i > low_point:
             low_point = i
-
-        front_ankle_arr.append(front_ankle_z)
-        back_ankle_arr.append(back_ankle_z)
-
-    # smooth the arrays
-    front_ankle_arr = np.array(front_ankle_arr)
-    back_ankle_arr = np.array(back_ankle_arr)
-    front_ankle_arr = np.convolve(front_ankle_arr, np.ones(10)/10, mode='valid')
-    back_ankle_arr = np.convolve(back_ankle_arr, np.ones(10)/10, mode='valid')
-
-    for i in range(len(front_ankle_arr)):
-        if front_ankle_arr[i] > back_ankle_arr[i]:
-            higher_ankle_arr.append(1)
-        else:
-            higher_ankle_arr.append(0)
-
-    # Switch point is the index where the back ankle becomes higher than the front ankle after the max_front_index
-    switch_point = 0
-    for i in range(max_front_index, len(higher_ankle_arr)):
-        if higher_ankle_arr[i] == 0:
-            switch_point = i
-            break
-
-    logger.info(f"Switch point found: {switch_point}")
-
-    # Find the first point after switch_point where back ankle is below 0.005. If that never happens, end_point is the last frame. 
-    end_point = len(arr) - 1  # Default to the last frame
-    for i in range(switch_point+5, len(back_ankle_arr)):
-        if back_ankle_arr[i] < 0.01:
+    #get the minimum value in right_mins that is greater than right_max_index
+    end_point = len(right_ankle_arr) - 1
+    for i in right_mins:
+        if i > right_max_index:
             end_point = i
             break
+    print(f"start point: {low_point}, end point: {end_point}")
 
-    # plot the joints
-    plt.plot(front_ankle_arr, label = front_ankle_name + " (Front Ankle)")
-    plt.plot(back_ankle_arr, label = back_ankle_name + " (Back Ankle)")
-    plt.axvline(x=starting_point, color='r', linestyle='--', label='Starting Point')
-    plt.axvline(x=end_point, color='g', linestyle='--', label='End Point')
+    #plot the joints
+    plt.plot(left_ankle_arr, label="Left Ankle")
+    plt.plot(right_ankle_arr, label="Right Ankle")
     plt.legend()
     plt.show()
-    save_path  = pjoin(output_dir, "ankle_plot.png")
-    logger.info(f" ---> Will save ankle plot to {save_path}")
-    plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    return (starting_point, end_point)
 
+    return (low_point, end_point)
 
-# def get_frame_info(frame: np.ndarray) -> dict:
-#     """Get the joint names and their corresponding coordinates from a single frame of 3D key points.
-
-#     Args:
-#         frame (np.ndarray): A single frame of 3D key points, expected shape (
-#             17, 3), where each row corresponds to a joint and each column corresponds to x, y, z coordinates.
-
-#     Returns:
-#         dict: A dictionary mapping joint names to their coordinates. Like {'Hip': [x, y, z], 'Right Hip': [x, y, z], ...}
-#     """
-#     assert frame.shape == (17, 3), f"Expected frame shape (17, 3), got {frame.shape}. Ensure the input is a single frame of 3D key points."
-#     joint_names = [
-#         "Hip", "Right Hip", "Right Knee", "Right Ankle",
-#         "Left Hip", "Left Knee", "Left Ankle", "Spine",
-#         "Thorax", "Neck", "Head", "Left Shoulder",
-#         "Left Elbow", "Left Wrist", "Right Shoulder",
-#         "Right Elbow", "Right Wrist"
-#         ]
-#     joints = {joint_names[i]: frame[i] for i in range(len(frame))}
-#     # print(f"\n[DEBUG] get_frame_info() - Extracted joints from frame: {joints.keys()}")
-#     # pprint(joints)
-#     return joints
-
+def get_frame_info(frame):
+  joint_names = [
+    "Hip", "Right Hip", "Right Knee", "Right Ankle",
+    "Left Hip", "Left Knee", "Left Ankle", "Spine",
+    "Thorax", "Neck", "Head", "Left Shoulder",
+    "Left Elbow", "Left Wrist", "Right Shoulder",
+    "Right Elbow", "Right Wrist"
+    ]
+  #frame is of shape 17, 3 for each joint print the x, y and z coordinates
+  joints = {}
+  for i in range(len(frame)):
+    #print(f"{joint_names[i]}: {frame[i]}")
+    joints[joint_names[i]] = frame[i]
+  return joints
 
 
 
