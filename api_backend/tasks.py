@@ -29,7 +29,6 @@ from constants import (
     PRO_TEAMS_MAP,
     S3_BUCKET,
     S3_PRO_PREFIX,
-    UPLOAD_DIR,
     RESULT_EXPIRES,
     OUTPUT_DIR,
     TMP_PRO_KEYPOINTS_FILE,
@@ -147,8 +146,8 @@ def process_video_task(
     try:
         logger.info(f"Starting video processing for task {task_id}")
         logger.info(f"User handedness preference: {'Left-handed' if is_lefty else 'Right-handed'}")
-        cleanup_old_files(retention_minutes = RESULT_EXPIRES)
-        
+        cleanup_old_files(OUTPUT_DIR, retention_seconds=RESULT_EXPIRES)
+
         # Get device for processing
         device = get_pytorch_device()
 
@@ -189,10 +188,17 @@ def process_video_task(
 
         # Step 4: Download pro keypoints if specified
         pro_keypoints_path = TMP_PRO_KEYPOINTS_FILE
+        pro_player_name = None
         if pro_keypoints_filename:
             logger.info(f"Downloading pro keypoints file from S3: {pro_keypoints_filename}")
             download_pro_keypoints_from_s3(pro_keypoints_filename, FILE_POSE3D_PRO)
             pro_keypoints_path = FILE_POSE3D_PRO
+            
+            # Extract player name from filename
+            player_key = pro_keypoints_filename.replace("_median.npy", "").replace(".npy", "")
+            pro_info = PRO_TEAMS_MAP.get(player_key, {})
+            pro_player_name = pro_info.get("name", player_key)
+            logger.info(f"Professional player: {pro_player_name}")
 
         # Step 4: Create 3D visualization frames (70% progress)
         self.update_state(state='PROGRESS', meta={'progress': 70}, message="Creating 3D visualization frames...")
@@ -200,7 +206,8 @@ def process_video_task(
             user_3d_keypoints_filepath = FILE_POSE3D,
             output_dir = DIR_POSE3D,
             pro_keypoints_filepath = pro_keypoints_path,
-            is_lefty = is_lefty
+            is_lefty = is_lefty,
+            pro_player_name = pro_player_name
         )
 
         # # Step 5: Generate combined frames (85% progress)
@@ -392,12 +399,17 @@ def get_model_config_path(model_size: str = "xs") -> str:
     return config_yaml_path
         
 
-@celery_app.task(bind=True)
-def cleanup_old_files(self, retention_minutes: int = 60):
-    """Clean up old temporary files (older than retention_minutes)"""
+@celery_app.task()
+def cleanup_old_files(output_dir: Path, retention_seconds: int = 60):
+    """Clean up old temporary files (older than retention_seconds)"""
+    # Ensure output_dir is a Path object
+    if not isinstance(output_dir, Path):
+        output_dir = Path(output_dir)
+        
     current_time = time.time()
-    file_retention_cutoff_time = current_time - (retention_minutes * 60)
-    for item in UPLOAD_DIR.iterdir():
+    file_retention_cutoff_time = current_time - retention_seconds
+
+    for item in output_dir.iterdir():
         is_past_retention = (item.stat().st_mtime < file_retention_cutoff_time)
         if item.is_file() and is_past_retention:
             try:

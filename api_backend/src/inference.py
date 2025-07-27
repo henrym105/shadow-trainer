@@ -10,6 +10,7 @@ import cv2
 import matplotlib
 import matplotlib.axis
 import matplotlib.gridspec as gridspec
+from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -345,7 +346,8 @@ def create_3d_pose_images_from_array(
     user_3d_keypoints_filepath: str,
     output_dir: str,
     pro_keypoints_filepath: str = None,
-    is_lefty: bool = False
+    is_lefty: bool = False,
+    pro_player_name: str = None
 ) -> None:
     """
     Create 3D pose frame visualizations for each frame in the given 3D keypoints array.
@@ -409,10 +411,6 @@ def create_3d_pose_images_from_array(
     num_frames = user_keypoints_npy.shape[0]
 
     # Save a copy of the professional keypoints for reference
-    # job_output_dir = os.path.dirname(output_dir)  # Go up one level to job output root
-    # raw_keypoints_dir = pjoin(job_output_dir, OUTPUT_FOLDER_RAW_KEYPOINTS)
-    # output_pro_3D_npy_path = pjoin(raw_keypoints_dir, KEYPOINTS_FILE_3D_PRO)
-    # if DEBUG: logger.info(f"Professional 3D keypoints saved to {output_pro_3D_npy_path}, with shape {pro_keypoints_npy.shape}")
     np.save(pro_keypoints_filepath, pro_keypoints_npy)
     if DEBUG: logger.info(f"Professional 3D keypoints saved to {pro_keypoints_filepath}, with shape {pro_keypoints_npy.shape}")
 
@@ -447,8 +445,23 @@ def create_3d_pose_images_from_array(
                 ax = ax, 
                 angle_adjustment = angle_adjustment,  
                 use_body_part = USE_BODY_PART,
-                show_hip_reference_line = False
+                show_hip_reference_line = False,
+                pro_player_name = pro_player_name
             )
+            
+            # # Add title with professional player name
+            # if pro_player_name:
+            #     plt.title(f"Shadow comparison with {pro_player_name}", fontsize=14, pad=20)
+            # else:
+            #     plt.title("Shadow comparison with professional pitcher", fontsize=14, pad=20)
+                
+            # # Add legend
+            # from matplotlib.lines import Line2D
+            # legend_elements = [
+            #     Line2D([0], [0], color='gray', lw=3, label='Professional'),
+            #     Line2D([0], [0], color='red', lw=3, label='User')
+            # ]
+            # ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.0, 1.0))
 
         # Save this 3D pose image
         output_path_3D_this_frame = pjoin(output_dir, f"{frame_id:04d}_3D.png")
@@ -476,43 +489,6 @@ def remove_images_before_after_motion(pose_img_dir, delete_before_idx = 0, delet
                 if DEBUG: logger.info(f"Removed pose2D frame: {fname}")
     else:
         logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
-
-
-def find_motion_start(keypoints: np.ndarray, is_lefty: bool = True, min_pct_change: float = 3) -> int:
-    """Find the first frame where the distance between the front foot and sacrum (index 0)
-    changes by more than min_pct_change percent relative to the distance in the first frame, using only the z direction.
-
-    Args:
-        keypoints (np.ndarray): Shape (n_frames, 17, 3)
-        is_lefty (bool): If True, use left foot (index 6) as front foot; else right foot (index 3).
-        min_pct_change (float): Minimum relative decrease (as percent) to count as movement.
-
-    Returns:
-        int: Index of the first frame where movement is detected.
-    """
-    # Right Ankle is 3, Left Ankle is 6
-    front_foot_idx = 3 if is_lefty else 6 
-    sacrum_idx = 0
-
-    if keypoints.ndim == 4:
-        keypoints = keypoints[0]
-
-    # Compute initial z distance in the first frame
-    initial_dist = abs(keypoints[0, front_foot_idx, 2] - keypoints[0, sacrum_idx, 2])
-    if initial_dist == 0:
-        return 0  # Avoid division by zero
-
-    for i in range(0, len(keypoints)):
-        front_foot_z = keypoints[i, front_foot_idx, 2]
-        sacrum_z = keypoints[i, sacrum_idx, 2]
-
-        curr_dist = abs(front_foot_z - sacrum_z)
-        pct_change = ((initial_dist - curr_dist) / initial_dist) * 100
-        # if DEBUG: logger.info(f"Frame {i}: initial_dist = {initial_dist:.3f}, curr_dist = {curr_dist:.2f}, rel_decrease = {pct_change:.4f}")
-        if pct_change > min_pct_change:
-            return i
-    return 0  # fallback: no movement detected
-
 
 
 def get_start_end_info(arr, is_lefty: bool = False, output_dir: str = ".") -> tuple:
@@ -701,7 +677,7 @@ def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:
 def create_pose_overlay_image(
     data1: np.ndarray, data2: np.ndarray, ax: matplotlib.axis,
     angle_adjustment: float = 0.0, use_body_part: str = "hips",
-    show_hip_reference_line: bool = False
+    show_hip_reference_line: bool = False, pro_player_name: str = None
 ) -> str:
     """Create a single image with 3D pose keypoints from data1 and data2 overlaid on the same axis.
     Both data1 and data2 are standardized before plotting.
@@ -713,13 +689,13 @@ def create_pose_overlay_image(
         angle_adjustment (float): Angle adjustment in degrees to align the pro pose with the user pose.
         use_body_part (str): Which body part to use for angle calculation: "feet", "hips", or "shoulders".
         show_hip_reference_line (bool): Whether to draw reference lines for the hip angles. Default is False.
+        pro_player_name (str): Name of the professional player for the title. Default is None.
     
     Returns:
         str: Path to the saved overlay image.
         
     """
     # Rotate the pro pose to align with the user pose based on the angle adjustment from the first frame
-    # logger.info(f"[ DEBUG create_pose_overlay_image() ], {data1.shape =}, {data2.shape =}, {angle_adjustment = }, {use_body_part = }, {data1.dtype = }, {data2.dtype = }")
     data2 = rotate_along_z(data2, angle_adjustment)
 
     # Recenter both poses on their left ankles
@@ -733,13 +709,25 @@ def create_pose_overlay_image(
         d2_angle = get_stance_angle(data2, use_body_part)
         draw_reference_angle_line(ax, d1_angle, color='blue', linewidth=2)
         draw_reference_angle_line(ax, d2_angle, color='green', linewidth=2)
-        # if DEBUG: logger.info("\nuser stance angle =", int(d1_angle))
-        # if DEBUG: logger.info("pro  stance angle =", int(d2_angle))
 
     # Visualize the aligned poses
     # Plot the user on top of the pro pose
     show3Dpose(data2, ax, color='blk')
     show3Dpose(data1, ax, color='R')
+
+    # Add title with professional player name
+    if pro_player_name:
+        ax.set_title(f"Shadow comparison with {pro_player_name}", fontsize=14, pad=20)
+    else:
+        ax.set_title("Shadow comparison with professional pitcher", fontsize=14, pad=20)
+
+    # Add legend
+    legend_elements = [
+        Line2D([0], [0], color='gray', lw=3, label='Professional'),
+        Line2D([0], [0], color='red', lw=3, label='User')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.0, 1.0))
+
     return None
 
 
