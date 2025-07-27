@@ -3,6 +3,7 @@ import FileUpload from './components/FileUpload';
 import ProgressBar from './components/ProgressBar';
 import VideoResult from './components/VideoResult';
 import ProKeypointsSelector from './components/ProKeypointsSelector';
+import KeypointsUpload from './components/KeypointsUpload';
 import VideoAPI, { useJobPolling } from './services/videoApi';
 import './App.css';
 
@@ -23,6 +24,7 @@ function App() {
   const [selectedProFile, setSelectedProFile] = useState('BlakeSnell_median.npy');
   const [proOptions, setProOptions] = useState([]);
   const [videoFormat, setVideoFormat] = useState('combined'); // 'combined' or '3d_only'
+  const [activeTab, setActiveTab] = useState('video-processing'); // 'video-processing' or '3d-keypoints'
 
   // Poll job status
   useJobPolling(taskId, setJobStatus, 2000);
@@ -118,8 +120,25 @@ function App() {
           </div>
         </header>
         <main className="app-main">
-          {!taskId && (
-            <section className="upload-section">
+          <div className="tab-navigation">
+            <button 
+              className={`tab-button ${activeTab === 'video-processing' ? 'active' : ''}`}
+              onClick={() => setActiveTab('video-processing')}
+            >
+              Video Processing
+            </button>
+            <button 
+              className={`tab-button ${activeTab === '3d-keypoints' ? 'active' : ''}`}
+              onClick={() => setActiveTab('3d-keypoints')}
+            >
+              3D Keypoints Extraction
+            </button>
+          </div>
+
+          {activeTab === 'video-processing' && (
+            <>
+              {!taskId && (
+                <section className="upload-section">
               <div className="section-header">
                 <h2>Upload Your Training Video</h2>
                 <p>Get detailed motion analysis and pose estimation for your athletic performance</p>
@@ -234,6 +253,12 @@ function App() {
                 <button className="retry-btn" onClick={handleReset}>Start New Processing</button>
               </div>
             </section>
+          )}
+            </>
+          )}
+
+          {activeTab === '3d-keypoints' && (
+            <KeypointsUpload />
           )}
         </main>
         <footer>

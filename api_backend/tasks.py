@@ -256,8 +256,8 @@ def process_video_task(
         raise e
 
 
-@celery_app.task()
-def generate_3d_keypoints_from_video_task(input_video_path: str, model_size: str = "xs") -> str:
+@celery_app.task(bind=True)
+def generate_3d_keypoints_from_video_task(self, input_video_path: str, model_size: str = "xs") -> str:
     """
     Celery task to generate 3D keypoints from a video file and return the path to the 3D keypoints file.
 
@@ -269,6 +269,8 @@ def generate_3d_keypoints_from_video_task(input_video_path: str, model_size: str
         str: Path to the generated 3D keypoints .npy file.
     """
     try:
+        self.update_state(state='PROGRESS', meta={'progress': 10}, message="Initializing 3D keypoints extraction...")
+        
         device = get_pytorch_device()
         model_config_path = get_model_config_path(model_size)
         # Temporary output paths
@@ -278,9 +280,11 @@ def generate_3d_keypoints_from_video_task(input_video_path: str, model_size: str
         temp_3d_path = temp_dir / "3d_keypoints.npy"
 
         # Step 1: Extract 2D keypoints from video
+        self.update_state(state='PROGRESS', meta={'progress': 50}, message="Extracting 2D poses...")
         get_pose2D(video_path=input_video_path, output_file=temp_2d_path, device=device)
 
         # Step 2: Generate 3D keypoints from 2D keypoints
+        self.update_state(state='PROGRESS', meta={'progress': 90}, message="Generating 3D keypoints...")
         get_pose3D_no_vis(
             user_2d_kpts_filepath=temp_2d_path,
             output_keypoints_path=temp_3d_path,
@@ -290,6 +294,7 @@ def generate_3d_keypoints_from_video_task(input_video_path: str, model_size: str
             yaml_path=model_config_path
         )
 
+        self.update_state(state='PROGRESS', meta={'progress': 100}, message="3D keypoints extraction completed!")
         return str(temp_3d_path)
     except Exception as e:
         logger.error(f"Failed to generate 3D keypoints: {e}")

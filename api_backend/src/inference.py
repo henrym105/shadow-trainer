@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-from pprint import pprint
 from tqdm import tqdm
 
 from src.utils import download_file_if_not_exists, get_frame_info, normalize_screen_coordinates, camera_to_world, get_config, get_pytorch_device
@@ -288,7 +287,6 @@ def get_pose3D_no_vis(
         raise ValueError("You must provide a YAML configuration file for the model via the 'yaml_path' argument.")
 
     if DEBUG: logger.info("\n[INFO] Using MotionAGFormer with the following configuration:")
-    if DEBUG: pprint(args)
 
     # Load model and set to eval() mode to disable training-specific pytorch features
     model = nn.DataParallel(MotionAGFormer(**args)).to(device)

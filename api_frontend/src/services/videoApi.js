@@ -209,6 +209,47 @@ export class VideoAPI {
       );
     }
   }
+
+  /**
+   * Upload video file and start 3D keypoints extraction
+   * @param {File} file - Video file to upload
+   * @param {string} modelSize - Model size ('xs', 's', 'm', 'l')
+   * @returns {Promise<Object>} Task information
+   */
+  static async upload3DKeypoints(file, modelSize = 'xs') {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const params = new URLSearchParams({
+        model_size: modelSize
+      });
+
+      const response = await api.post(`/videos/get_3d_keypoints?${params}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('3D keypoints upload error:', error);
+      throw new APIError(
+        error.response?.data?.detail || 'Failed to upload video for 3D keypoints extraction',
+        error.response?.status,
+        error.response
+      );
+    }
+  }
+
+  /**
+   * Get download URL for 3D keypoints .npy file
+   * @param {string} taskId - Task identifier
+   * @returns {string} Download URL
+   */
+  static getKeypointsDownloadUrl(taskId) {
+    return `${API_BASE_URL}/files/${taskId}/download`;
+  }
 }
 
 // Custom hook for job polling

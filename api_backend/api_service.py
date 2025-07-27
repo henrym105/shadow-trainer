@@ -308,6 +308,50 @@ async def download_processed_video(task_id: str):
     )
 
 
+@app.get("/files/{task_id}/download")
+async def download_file(task_id: str):
+    """
+    Generalized download endpoint that can handle any file type based on task result.
+    """
+    result = AsyncResult(task_id, app=celery_app)
+    if not result.ready() or not result.successful():
+        raise HTTPException(status_code=400, detail="Job not completed yet")
+
+    # Handle different result formats
+    file_path = None
+    if isinstance(result.result, dict):
+        file_path = result.result.get("output_path")
+    elif isinstance(result.result, str):
+        file_path = result.result
+
+    if not file_path or not Path(file_path).exists():
+        raise HTTPException(status_code=404, detail="Output file not found")
+    
+    # Determine media type based on file extension
+    file_extension = Path(file_path).suffix.lower()
+    media_type_map = {
+        '.mp4': 'video/mp4',
+        '.mov': 'video/quicktime',
+        '.avi': 'video/x-msvideo',
+        '.mkv': 'video/x-matroska',
+        '.npy': 'application/octet-stream',
+        '.json': 'application/json',
+        '.txt': 'text/plain',
+        '.csv': 'text/csv'
+    }
+    
+    media_type = media_type_map.get(file_extension, 'application/octet-stream')
+    filename = Path(file_path).name
+    
+    logger.info(f"Serving file: {file_path} with media type: {media_type}")
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type=media_type
+    )
+
+
 @app.get("/videos/{task_id}/preview")
 async def get_video_preview(task_id: str):
     """
@@ -317,9 +361,6 @@ async def get_video_preview(task_id: str):
     if not result.ready() or not result.successful():
         raise HTTPException(status_code=400, detail="Job not completed yet")
 
-    # logger.info(f"Result of task {task_id}: {result.__dict__ = }")
-    # logger.info(f"result: {result = }")
-    # logger.info(f"{result['output_path'] = }")
     output_path = result.result['output_path'] if 'output_path' in result.result else None
 
     logger.info(f"{output_path = }")
