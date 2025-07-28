@@ -408,9 +408,30 @@ def create_3d_pose_images_from_array(
         f"User and professional keypoints must have the same shape after cropping & resampling. Got user: {user_keypoints_npy.shape}, pro: {pro_keypoints_npy.shape}"
     num_frames = user_keypoints_npy.shape[0]
 
-    # Save a copy of the professional keypoints for reference
-    np.save(pro_keypoints_filepath, pro_keypoints_npy)
-    if DEBUG: logger.info(f"Professional 3D keypoints saved to {pro_keypoints_filepath}, with shape {pro_keypoints_npy.shape}")
+    # Calculate hip alignment angle adjustment from first frame
+    user_angle = get_stance_angle(user_keypoints_npy[0], USE_BODY_PART)
+    pro_angle = get_stance_angle(pro_keypoints_npy[0], USE_BODY_PART)
+    angle_adjustment = user_angle - pro_angle
+    if DEBUG:
+        logger.info(f"Angle between {USE_BODY_PART} in first frame of USER VIDEO: {user_angle:.2f} degrees")
+        logger.info(f"Angle between {USE_BODY_PART} in first frame of PROFESSIONAL VIDEO: {pro_angle:.2f} degrees")
+        logger.info(f"Angle adjustment: {int(angle_adjustment)}")
+
+    # Apply hip alignment rotation to all pro keyframes
+    pro_keypoints_aligned = np.array([rotate_along_z(frame, angle_adjustment) for frame in pro_keypoints_npy])
+    
+    # Save original pro keypoints for reference (with _original suffix)
+    job_output_dir = os.path.dirname(os.path.dirname(pro_keypoints_filepath))
+    raw_keypoints_dir = os.path.dirname(pro_keypoints_filepath)
+    pro_original_filepath = pjoin(raw_keypoints_dir, "pro_3D_keypoints_original.npy")
+    np.save(pro_original_filepath, pro_keypoints_npy)
+    
+    # Save aligned keypoints (both user and aligned pro)
+    np.save(user_3d_keypoints_filepath, user_keypoints_npy)
+    np.save(pro_keypoints_filepath, pro_keypoints_aligned)  # This overwrites with aligned version
+    if DEBUG: 
+        logger.info(f"Original professional 3D keypoints saved to {pro_original_filepath}, with shape {pro_keypoints_npy.shape}")
+        logger.info(f"Hip-aligned professional 3D keypoints saved to {pro_keypoints_filepath}, with shape {pro_keypoints_aligned.shape}")
 
     for frame_id in tqdm(range(num_frames), desc="Creating 3D pose images", unit="frame"):
         # Create a new figure for this frame
@@ -421,27 +442,17 @@ def create_3d_pose_images_from_array(
 
         user_keypoints_this_frame = user_keypoints_npy[frame_id]
 
-        if pro_keypoints_npy is None:
+        if pro_keypoints_aligned is None:
             show3Dpose(user_keypoints_this_frame, ax)
         else:
-            pro_keypoints_this_frame = pro_keypoints_npy[frame_id]
-            if frame_id == 0:
-                # On the first frame, find the difference between the user and pro stance angle
-                user_angle = get_stance_angle(user_keypoints_this_frame, USE_BODY_PART)
-                pro_angle = get_stance_angle(pro_keypoints_this_frame, USE_BODY_PART)
-                angle_adjustment = user_angle - pro_angle
-                if DEBUG:
-                    logger.info(f"user_3d_keypoints shape: {user_keypoints_this_frame.shape}")
-                    logger.info(f"pro_keypoints_std shape: {pro_keypoints_this_frame.shape}")
-                    logger.info(f"Angle between {USE_BODY_PART} in first frame of USER VIDEO: {user_angle:.2f} degrees")
-                    logger.info(f"Angle between {USE_BODY_PART} in first frame of PROFESSIONAL VIDEO: {pro_angle:.2f} degrees")
-                    logger.info(f"Angle adjustment: {int(angle_adjustment)}")
-            # Create the pose overlay image with the user and pro keypoints
+            # Use the already-aligned pro keypoints
+            pro_keypoints_this_frame = pro_keypoints_aligned[frame_id]
+            # Create the pose overlay image with the user and aligned pro keypoints
             create_pose_overlay_image(
                 data1 = user_keypoints_this_frame, 
                 data2 = pro_keypoints_this_frame, 
                 ax = ax, 
-                angle_adjustment = angle_adjustment,  
+                angle_adjustment = 0.0,  # No additional rotation needed since pro keypoints are already aligned
                 use_body_part = USE_BODY_PART,
                 show_hip_reference_line = False,
                 pro_player_name = pro_player_name
@@ -694,7 +705,9 @@ def create_pose_overlay_image(
         
     """
     # Rotate the pro pose to align with the user pose based on the angle adjustment from the first frame
-    data2 = rotate_along_z(data2, angle_adjustment)
+    # Only apply rotation if angle_adjustment is non-zero (for backward compatibility)
+    if angle_adjustment != 0.0:
+        data2 = rotate_along_z(data2, angle_adjustment)
 
     # Recenter both poses on their left ankles
     # 6 is left ankle, 0 is sacrum (middle of hips)
