@@ -17,6 +17,8 @@ api_backend/videos/**
 api_backend/**.mp4
 api_backend/*_output/
 
+**output/
+
 # Ignore temporary and log files
 *.log
 *.tmp

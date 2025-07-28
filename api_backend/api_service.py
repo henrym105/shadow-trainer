@@ -423,6 +423,94 @@ async def list_pro_keypoints():
     return {"files": files}
 
 
+@app.get("/videos/{task_id}/keypoints/user")
+async def get_user_keypoints(task_id: str):
+    """Get user 3D keypoints data from processed video task"""
+    import numpy as np
+    import json
+    
+    try:
+        result = AsyncResult(task_id, app=celery_app)
+        if not result.ready() or not result.successful():
+            raise HTTPException(status_code=400, detail="Task not completed successfully")
+
+        # Get the output directory from task result
+        task_result = result.result
+        if isinstance(task_result, dict) and 'output_dir' in task_result:
+            output_dir = Path(task_result['output_dir'])
+        elif isinstance(task_result, dict) and 'output_path' in task_result:
+            # Fallback: infer output directory from output_path for older tasks
+            output_path = Path(task_result['output_path'])
+            output_dir = output_path.parent  # e.g., /path/to/taskid_output/file.mp4 -> /path/to/taskid_output
+        else:
+            raise HTTPException(status_code=404, detail="Task output directory not found")
+
+        # Look for user 3D keypoints file in raw_keypoints subdirectory
+        user_keypoints_path = output_dir / 'raw_keypoints' / 'user_3D_keypoints.npy'
+        
+        if not user_keypoints_path.exists():
+            raise HTTPException(status_code=404, detail="User 3D keypoints file not found")
+
+        # Load and return the keypoints data as JSON
+        keypoints_data = np.load(user_keypoints_path)
+        keypoints_list = keypoints_data.tolist()  # Convert numpy array to Python list for JSON
+
+        return {
+            "task_id": task_id,
+            "keypoints": keypoints_list,
+            "shape": keypoints_data.shape,
+            "dtype": str(keypoints_data.dtype)
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting user keypoints for task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get user keypoints: {str(e)}")
+
+
+@app.get("/videos/{task_id}/keypoints/pro")
+async def get_pro_keypoints(task_id: str):
+    """Get professional 3D keypoints data from processed video task"""
+    import numpy as np
+    import json
+    
+    try:
+        result = AsyncResult(task_id, app=celery_app)
+        if not result.ready() or not result.successful():
+            raise HTTPException(status_code=400, detail="Task not completed successfully")
+
+        # Get the output directory from task result
+        task_result = result.result
+        if isinstance(task_result, dict) and 'output_dir' in task_result:
+            output_dir = Path(task_result['output_dir'])
+        elif isinstance(task_result, dict) and 'output_path' in task_result:
+            # Fallback: infer output directory from output_path for older tasks
+            output_path = Path(task_result['output_path'])
+            output_dir = output_path.parent  # e.g., /path/to/taskid_output/file.mp4 -> /path/to/taskid_output
+        else:
+            raise HTTPException(status_code=404, detail="Task output directory not found")
+
+        # Look for pro 3D keypoints file in raw_keypoints subdirectory
+        pro_keypoints_path = output_dir / 'raw_keypoints' / 'pro_3D_keypoints.npy'
+        
+        if not pro_keypoints_path.exists():
+            raise HTTPException(status_code=404, detail="Professional 3D keypoints file not found")
+
+        # Load and return the keypoints data as JSON
+        keypoints_data = np.load(pro_keypoints_path)
+        keypoints_list = keypoints_data.tolist()  # Convert numpy array to Python list for JSON
+
+        return {
+            "task_id": task_id,
+            "keypoints": keypoints_list,
+            "shape": keypoints_data.shape,
+            "dtype": str(keypoints_data.dtype)
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting pro keypoints for task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get pro keypoints: {str(e)}")
+
+
 @app.post("/videos/{task_id}/terminate")
 async def terminate_video_task(task_id: str):
     """Terminate a running video processing task"""

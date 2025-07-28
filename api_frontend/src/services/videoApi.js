@@ -250,6 +250,44 @@ export class VideoAPI {
   static getKeypointsDownloadUrl(taskId) {
     return `${API_BASE_URL}/files/${taskId}/download`;
   }
+
+  /**
+   * Get user 3D keypoints data for a completed task
+   * @param {string} taskId - Task identifier
+   * @returns {Promise<Array>} User 3D keypoints array
+   */
+  static async getUserKeypoints(taskId) {
+    try {
+      const response = await api.get(`/videos/${taskId}/keypoints/user`);
+      return response.data.keypoints;
+    } catch (error) {
+      console.error('Failed to get user keypoints:', error);
+      throw new APIError(
+        error.response?.data?.detail || 'Failed to get user keypoints',
+        error.response?.status,
+        error.response
+      );
+    }
+  }
+
+  /**
+   * Get professional 3D keypoints data for a completed task
+   * @param {string} taskId - Task identifier
+   * @returns {Promise<Array>} Professional 3D keypoints array
+   */
+  static async getProKeypoints(taskId) {
+    try {
+      const response = await api.get(`/videos/${taskId}/keypoints/pro`);
+      return response.data.keypoints;
+    } catch (error) {
+      console.error('Failed to get pro keypoints:', error);
+      throw new APIError(
+        error.response?.data?.detail || 'Failed to get pro keypoints',
+        error.response?.status,
+        error.response
+      );
+    }
+  }
 }
 
 // Custom hook for job polling
