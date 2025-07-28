@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import FileUpload from './components/FileUpload';
 import ProgressBar from './components/ProgressBar';
 import VideoResult from './components/VideoResult';
 import ProKeypointsSelector from './components/ProKeypointsSelector';
 import KeypointsUpload from './components/KeypointsUpload';
+import SkeletonViewer from './components/Skeletonviewer';
+import VisualizerPage from './components/VisualizerPage';
 import VideoAPI, { useJobPolling } from './services/videoApi';
 import './App.css';
 
@@ -12,7 +15,9 @@ const MODEL_SIZES = [
   { value: 's', label: 'Large/Slow' }
 ];
 
-function App() {
+function MainApp() {
+  const navigate = useNavigate();
+  
   // State variables
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadError, setUploadError] = useState(null);
@@ -23,16 +28,31 @@ function App() {
   const [isLefty, setIsLefty] = useState(false);
   const [selectedProFile, setSelectedProFile] = useState('BlakeSnell_median.npy');
   const [proOptions, setProOptions] = useState([]);
-  const [videoFormat, setVideoFormat] = useState('combined'); // 'combined' or '3d_only'
+  const [videoFormat, setVideoFormat] = useState('combined'); // 'combined' or '3d_only' or 'dynamic_3d_animation'
   const [activeTab, setActiveTab] = useState('video-processing'); // 'video-processing' or '3d-keypoints'
+  const [userKeypoints, setUserKeypoints] = useState(null);
+  const [proKeypoints, setProKeypoints] = useState(null);
+
+  // Load pro keypoints options
+  useEffect(() => {
+    VideoAPI.getProKeypointsList().then(setProOptions).catch(() => {});
+  }, []);
 
   // Poll job status
   useJobPolling(taskId, setJobStatus, 2000);
 
-  // Load pro keypoints options
-  React.useEffect(() => {
-    VideoAPI.getProKeypointsList().then(setProOptions).catch(() => {});
-  }, []);
+  // UI states - moved here to be available for useEffect
+  const isProcessing = jobStatus && ['queued', 'processing'].includes(jobStatus.status);
+  const isCompleted = jobStatus && jobStatus.status === 'completed';
+  const isFailed = jobStatus && jobStatus.status === 'failed';
+  const isTerminated = jobStatus && jobStatus.status === 'terminated';
+
+  // Redirect to visualizer page when job completes for dynamic 3D animation
+  useEffect(() => {
+    if (isCompleted && videoFormat === 'dynamic_3d_animation' && taskId) {
+      navigate(`/visualizer/${taskId}`);
+    }
+  }, [isCompleted, videoFormat, taskId, navigate]);
 
   // Handle file selection
   const handleFileSelect = (file, error) => {
@@ -93,6 +113,8 @@ function App() {
     setTaskId(null);
     setJobStatus(null);
     setIsUploading(false);
+    setUserKeypoints(null);
+    setProKeypoints(null);
   };
 
   // Get professional player name from selected file
@@ -100,12 +122,6 @@ function App() {
     const proOption = proOptions.find(opt => opt.filename === selectedProFile);
     return proOption?.name || selectedProFile.replace('_median.npy', '').replace(/([A-Z])/g, ' $1').trim();
   };
-
-  // UI states
-  const isProcessing = jobStatus && ['queued', 'processing'].includes(jobStatus.status);
-  const isCompleted = jobStatus && jobStatus.status === 'completed';
-  const isFailed = jobStatus && jobStatus.status === 'failed';
-  const isTerminated = jobStatus && jobStatus.status === 'terminated';
 
   return (
     <div className="app">
@@ -191,6 +207,7 @@ function App() {
                         <select id="video-format" value={videoFormat} onChange={e => setVideoFormat(e.target.value)} disabled={isUploading}>
                           <option value="combined">2D + 3D Side by Side</option>
                           <option value="3d_only">3D Skeleton Only</option>
+                          <option value="dynamic_3d_animation">Dynamic 3D Animation</option>
                         </select>
                       </div>
                     </div>
@@ -227,7 +244,7 @@ function App() {
               </div>
             </section>
           )}
-          {isCompleted && (
+          {isCompleted && videoFormat !== 'dynamic_3d_animation' && (
             <VideoResult
               taskId={taskId}
               jobStatus={jobStatus}
@@ -288,6 +305,17 @@ function App() {
         </footer>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<MainApp />} />
+        <Route path="/visualizer/:taskId" element={<VisualizerPage />} />
+      </Routes>
+    </Router>
   );
 }
 

@@ -119,6 +119,7 @@ def process_video_task(
         model_size: Model size to use for processing
         is_lefty: Whether the user is left-handed
         pro_keypoints_filename: str
+        video_format: str ("combined", "3d_only", dynamic)
     
     Returns:
         Path to output video file
@@ -169,7 +170,7 @@ def process_video_task(
 
         # Step 2: Create 2D visualization frames (35% progress)
         self.update_state(state='PROGRESS', meta={'progress': 35}, message="Creating 2D visualization frames...")
-        if video_format != "3d_only":
+        if video_format == "combined":
             cap = cv2.VideoCapture(input_video_path)
             keypoints_2d = np.load(FILE_POSE2D)
             create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
@@ -202,17 +203,18 @@ def process_video_task(
 
         # Step 4: Create 3D visualization frames (70% progress)
         self.update_state(state='PROGRESS', meta={'progress': 70}, message="Creating 3D visualization frames...")
-        create_3d_pose_images_from_array(
-            user_3d_keypoints_filepath = FILE_POSE3D,
-            output_dir = DIR_POSE3D,
-            pro_keypoints_filepath = pro_keypoints_path,
-            is_lefty = is_lefty,
-            pro_player_name = pro_player_name
-        )
+        if video_format != "dynamic_3d_animation":
+            create_3d_pose_images_from_array(
+                user_3d_keypoints_filepath = FILE_POSE3D,
+                output_dir = DIR_POSE3D,
+                pro_keypoints_filepath = pro_keypoints_path,
+                is_lefty = is_lefty,
+                pro_player_name = pro_player_name
+            )
 
         # # Step 5: Generate combined frames (85% progress)
         self.update_state(state='PROGRESS', meta={'progress': 85}, message="Combining frames with original video...")
-        if video_format != "3d_only":
+        if video_format == "combined":
             generate_output_combined_frames(
                 output_dir_2D=DIR_POSE2D,
                 output_dir_3D=DIR_POSE3D,
@@ -221,18 +223,25 @@ def process_video_task(
 
         # Step 6: Create final video (95% progress)
         self.update_state(state='PROGRESS', meta={'progress': 95}, message="Generating final video...")
-        # Select output directory based on video format
-        if video_format == "3d_only":
-            input_frames_dir = DIR_POSE3D
-            logger.info(f"Creating 3D-only video from {input_frames_dir}")
-        else:  # "combined" or default
-            input_frames_dir = DIR_COMBINED_FRAMES if video_format != "3d_only" else DIR_POSE3D
-            logger.info(f"Creating combined video format from {input_frames_dir}")
-            
-        output_video_path = img2video(
-            video_path = input_video_path,
-            input_frames_dir = input_frames_dir,
-        )
+        
+        # Skip video generation for dynamic_3d_animation
+        if video_format != "dynamic_3d_animation":
+            # Select output directory based on video format
+            if video_format == "3d_only":
+                input_frames_dir = DIR_POSE3D
+                logger.info(f"Creating 3D-only video from {input_frames_dir}")
+            else:  # "combined"
+                input_frames_dir = DIR_COMBINED_FRAMES
+                logger.info(f"Creating combined video format from {input_frames_dir}")
+                
+            output_video_path = img2video(
+                video_path = input_video_path,
+                input_frames_dir = input_frames_dir,
+            )
+        else:
+            # For dynamic_3d_animation, we don't create a video file
+            output_video_path = None
+            logger.info("Skipping video generation for dynamic_3d_animation format")
 
         # Complete job
         self.update_state(state='PROGRESS', meta={'progress': 100}, message="Video processing completed.")
@@ -243,10 +252,10 @@ def process_video_task(
         
         return {
             "input_path": input_video_path,
-            "output_path": str(output_video_path),
+            "output_path": str(output_video_path) if output_video_path else None,
             "output_dir": str(DIR_OUTPUT_BASE),
             "original_filename": os.path.basename(input_video_path),
-            "file_size": os.path.getsize(output_video_path),
+            "file_size": os.path.getsize(output_video_path) if output_video_path else 0,
             "status": "completed"
         }
 

@@ -424,7 +424,7 @@ async def list_pro_keypoints():
 
 
 @app.get("/videos/{task_id}/keypoints/user")
-async def get_user_keypoints(task_id: str):
+async def get_user_keypoints(task_id: str, format: str = Query("npy", description="Output format: npy (default) or flattened for SkeletonViewer")):
     """Get user 3D keypoints data from processed video task"""
     import numpy as np
     import json
@@ -451,15 +451,25 @@ async def get_user_keypoints(task_id: str):
         if not user_keypoints_path.exists():
             raise HTTPException(status_code=404, detail="User 3D keypoints file not found")
 
-        # Load and return the keypoints data as JSON
+        # Load and return the keypoints data
         keypoints_data = np.load(user_keypoints_path)
-        keypoints_list = keypoints_data.tolist()  # Convert numpy array to Python list for JSON
+        
+        if format == "flattened":
+            # Check if data needs to be flattened for SkeletonViewer component
+            if keypoints_data.ndim == 3 and keypoints_data.shape[1:] == (17, 3):
+                # Flatten each frame to a 1D list of 51 floats (same as npy_to_json.py)
+                keypoints_list = keypoints_data.reshape((keypoints_data.shape[0], -1)).tolist()
+            else:
+                raise HTTPException(status_code=400, detail=f"Expected shape (nframes, 17, 3) for flattened format, got {keypoints_data.shape}")
+        else:
+            keypoints_list = keypoints_data.tolist()  # Convert numpy array to Python list for JSON
 
         return {
             "task_id": task_id,
             "keypoints": keypoints_list,
             "shape": keypoints_data.shape,
-            "dtype": str(keypoints_data.dtype)
+            "dtype": str(keypoints_data.dtype),
+            "format": format
         }
 
     except Exception as e:
@@ -468,7 +478,7 @@ async def get_user_keypoints(task_id: str):
 
 
 @app.get("/videos/{task_id}/keypoints/pro")
-async def get_pro_keypoints(task_id: str):
+async def get_pro_keypoints(task_id: str, format: str = Query("npy", description="Output format: npy (default) or flattened for SkeletonViewer")):
     """Get professional 3D keypoints data from processed video task"""
     import numpy as np
     import json
@@ -495,15 +505,25 @@ async def get_pro_keypoints(task_id: str):
         if not pro_keypoints_path.exists():
             raise HTTPException(status_code=404, detail="Professional 3D keypoints file not found")
 
-        # Load and return the keypoints data as JSON
+        # Load and return the keypoints data
         keypoints_data = np.load(pro_keypoints_path)
-        keypoints_list = keypoints_data.tolist()  # Convert numpy array to Python list for JSON
+        
+        if format == "flattened":
+            # Check if data needs to be flattened for SkeletonViewer component
+            if keypoints_data.ndim == 3 and keypoints_data.shape[1:] == (17, 3):
+                # Flatten each frame to a 1D list of 51 floats (same as npy_to_json.py)
+                keypoints_list = keypoints_data.reshape((keypoints_data.shape[0], -1)).tolist()
+            else:
+                raise HTTPException(status_code=400, detail=f"Expected shape (nframes, 17, 3) for flattened format, got {keypoints_data.shape}")
+        else:
+            keypoints_list = keypoints_data.tolist()  # Convert numpy array to Python list for JSON
 
         return {
             "task_id": task_id,
             "keypoints": keypoints_list,
             "shape": keypoints_data.shape,
-            "dtype": str(keypoints_data.dtype)
+            "dtype": str(keypoints_data.dtype),
+            "format": format
         }
 
     except Exception as e:
