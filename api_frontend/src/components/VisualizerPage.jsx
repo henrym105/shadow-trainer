@@ -143,17 +143,78 @@ function VisualizerPage() {
             minWidth: '60%'
           }}>
             {userKeypoints && proKeypoints ? (
-              <SkeletonViewer
-                keypointFrames={userKeypoints}
-                proKeypointFrames={proKeypoints}
-                playing={playing}
-                showUserSkeleton={showUserSkeleton}
-                showProSkeleton={showProSkeleton}
-                frame={frame}
-                turntable={turntable}
-                playbackSpeed={playbackSpeed}
-                onFrameChange={setFrame}
-              />
+              <>
+                <SkeletonViewer
+                  keypointFrames={userKeypoints}
+                  proKeypointFrames={proKeypoints}
+                  playing={playing}
+                  showUserSkeleton={showUserSkeleton}
+                  showProSkeleton={showProSkeleton}
+                  frame={frame}
+                  turntable={turntable}
+                  playbackSpeed={playbackSpeed}
+                  onFrameChange={setFrame}
+                />
+                
+                {/* Skeleton Legend - Bottom Single Row */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: '20px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'rgba(255, 255, 255, 0.9)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: '8px',
+                  padding: '15px 30px',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  zIndex: 100,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '30px'
+                }}>
+                  <h4 style={{
+                    margin: 0,
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#333'
+                  }}>Skeleton Legend:</h4>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontSize: '12px',
+                    color: '#555'
+                  }}>
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      border: '2px solid rgba(255, 255, 255, 0.8)',
+                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                      background: '#ff4444'
+                    }}></div>
+                    <span>Your Movement</span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontSize: '12px',
+                    color: '#555'
+                  }}>
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      border: '2px solid rgba(255, 255, 255, 0.8)',
+                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                      background: '#888888'
+                    }}></div>
+                    <span>Professional Reference</span>
+                  </div>
+                </div>
+              </>
             ) : (
               <div style={{ 
                 display: 'flex', 
