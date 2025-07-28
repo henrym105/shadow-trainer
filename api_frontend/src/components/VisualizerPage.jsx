@@ -8,6 +8,14 @@ function VisualizerPage() {
   const [proKeypoints, setProKeypoints] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Controls state
+  const [playing, setPlaying] = useState(true);
+  const [showUserSkeleton, setShowUserSkeleton] = useState(true);
+  const [showProSkeleton, setShowProSkeleton] = useState(true);
+  const [frame, setFrame] = useState(0);
+  const [turntable, setTurntable] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   useEffect(() => {
     const fetchKeypoints = async () => {
@@ -71,39 +79,287 @@ function VisualizerPage() {
     );
   }
 
+  const totalFrames = userKeypoints?.length || 1;
+
+  // Handle playback control
+  const handlePlayPause = () => {
+    setPlaying(!playing);
+  };
+
+  // Handle frame slider
+  const handleFrameChange = (e) => {
+    setPlaying(false);
+    setFrame(Number(e.target.value));
+  };
+
+  // Handle playback speed
+  const handleSpeedChange = (e) => {
+    setPlaybackSpeed(Number(e.target.value));
+  };
+
+  // Handle skeleton visibility
+  const handleUserSkeletonToggle = (e) => {
+    setShowUserSkeleton(e.target.checked);
+  };
+
+  const handleProSkeletonToggle = (e) => {
+    setShowProSkeleton(e.target.checked);
+  };
+
+  // Handle turntable rotation
+  const handleTurntableToggle = () => {
+    setTurntable(!turntable);
+  };
+
   return (
-    <div style={{ height: '100vh', position: 'relative' }}>
-      <div style={{ 
-        position: 'absolute', 
-        top: '10px', 
-        left: '50%', 
-        transform: 'translateX(-50%)',
-        zIndex: 100,
-        background: 'rgba(255,255,255,0.9)', 
-        padding: '10px 20px',
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        fontSize: '16px',
-        fontWeight: 'bold',
-        fontFamily: 'Arial, sans-serif'
-      }}>
-        Shadow Trainer - 3D Motion Visualization
-      </div>
-      {userKeypoints && proKeypoints ? (
-        <SkeletonViewer
-          keypointFrames={userKeypoints}
-          proKeypointFrames={proKeypoints}
-        />
-      ) : (
+    <div className="app" style={{ width: '100vw', maxWidth: 'none' }}>
+      <div style={{ width: '95vw', margin: '0 auto', padding: '2rem' }}>
+        {/* Header */}
         <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh' 
+          textAlign: 'center',
+          background: 'rgba(255,255,255,0.9)', 
+          padding: '15px 30px',
+          borderRadius: '12px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          fontSize: '20px',
+          fontWeight: 'bold',
+          fontFamily: 'Arial, sans-serif',
+          marginBottom: '20px',
+          color: '#333'
         }}>
-          <div>Loading keypoints data...</div>
+          Shadow Trainer - 3D Motion Visualization
         </div>
-      )}
+        
+        {/* Main Content Area - Animation + Controls Side by Side */}
+        <div style={{ display: 'flex', gap: '20px', height: '75vh' }}>
+          {/* Visualization Box */}
+          <div style={{ 
+            flex: '1',
+            height: '100%', 
+            position: 'relative', 
+            background: 'white', 
+            borderRadius: '16px', 
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+            minWidth: '60%'
+          }}>
+            {userKeypoints && proKeypoints ? (
+              <SkeletonViewer
+                keypointFrames={userKeypoints}
+                proKeypointFrames={proKeypoints}
+                playing={playing}
+                showUserSkeleton={showUserSkeleton}
+                showProSkeleton={showProSkeleton}
+                frame={frame}
+                turntable={turntable}
+                playbackSpeed={playbackSpeed}
+                onFrameChange={setFrame}
+              />
+            ) : (
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                height: '100%' 
+              }}>
+                <div>Loading keypoints data...</div>
+              </div>
+            )}
+          </div>
+          
+          {/* Visualization Controls Section - Now on the side */}
+          <div style={{ 
+            width: '350px',
+            background: 'rgba(255, 255, 255, 0.95)',
+            borderRadius: '16px',
+            padding: '2rem',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            height: 'fit-content'
+          }}>
+            <h3 style={{
+              color: '#333',
+              fontSize: '1.3rem',
+              marginBottom: '1.5rem',
+              textAlign: 'center',
+              fontWeight: '600',
+              position: 'relative'
+            }}>Visualization Controls</h3>
+            
+            {/* Control Groups */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {/* Playback Controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontWeight: '600', color: '#333' }}>Playback Speed:</label>
+                  <select 
+                    value={playbackSpeed} 
+                    onChange={handleSpeedChange}
+                    style={{
+                      padding: '0.75rem',
+                      border: '2px solid #e0e0e0',
+                      borderRadius: '8px',
+                      fontSize: '1rem',
+                      background: 'white',
+                      cursor: 'pointer',
+                      transition: 'border-color 0.3s',
+                      width: '100%'
+                    }}
+                  >
+                    <option value={0.25}>0.25x</option>
+                    <option value={0.5}>0.5x</option>
+                    <option value={1}>1x (Normal)</option>
+                    <option value={1.5}>1.5x</option>
+                    <option value={2}>2x</option>
+                  </select>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontWeight: '600', color: '#333' }}>Playback:</label>
+                  <button 
+                    onClick={handlePlayPause}
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      background: playing ? '#f44336' : '#4CAF50',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      width: '100%'
+                    }}
+                  >
+                    {playing ? 'Pause' : 'Play'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Skeleton Visibility Controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
+                  <label style={{ fontWeight: '600', color: '#333' }}>Show User Skeleton:</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
+                    <span style={{ fontWeight: '500', color: !showUserSkeleton ? '#4CAF50' : '#666', fontSize: '0.9rem' }}>Hidden</span>
+                    <label style={{ position: 'relative', display: 'inline-block', width: '50px', height: '24px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={showUserSkeleton} 
+                        onChange={handleUserSkeletonToggle}
+                        style={{ opacity: 0, width: 0, height: 0 }}
+                      />
+                      <span style={{
+                        position: 'absolute',
+                        cursor: 'pointer',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: showUserSkeleton ? '#4CAF50' : '#ccc',
+                        transition: '.4s',
+                        borderRadius: '24px'
+                      }}>
+                        <span style={{
+                          position: 'absolute',
+                          height: '18px',
+                          width: '18px',
+                          left: showUserSkeleton ? '29px' : '3px',
+                          bottom: '3px',
+                          backgroundColor: 'white',
+                          transition: '.4s',
+                          borderRadius: '50%'
+                        }}></span>
+                      </span>
+                    </label>
+                    <span style={{ fontWeight: '500', color: showUserSkeleton ? '#4CAF50' : '#666', fontSize: '0.9rem' }}>Visible</span>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
+                  <label style={{ fontWeight: '600', color: '#333' }}>Show Pro Skeleton:</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
+                    <span style={{ fontWeight: '500', color: !showProSkeleton ? '#4CAF50' : '#666', fontSize: '0.9rem' }}>Hidden</span>
+                    <label style={{ position: 'relative', display: 'inline-block', width: '50px', height: '24px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={showProSkeleton} 
+                        onChange={handleProSkeletonToggle}
+                        style={{ opacity: 0, width: 0, height: 0 }}
+                      />
+                      <span style={{
+                        position: 'absolute',
+                        cursor: 'pointer',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: showProSkeleton ? '#4CAF50' : '#ccc',
+                        transition: '.4s',
+                        borderRadius: '24px'
+                      }}>
+                        <span style={{
+                          position: 'absolute',
+                          height: '18px',
+                          width: '18px',
+                          left: showProSkeleton ? '29px' : '3px',
+                          bottom: '3px',
+                          backgroundColor: 'white',
+                          transition: '.4s',
+                          borderRadius: '50%'
+                        }}></span>
+                      </span>
+                    </label>
+                    <span style={{ fontWeight: '500', color: showProSkeleton ? '#4CAF50' : '#666', fontSize: '0.9rem' }}>Visible</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Camera and Frame Controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontWeight: '600', color: '#333' }}>Auto Rotation:</label>
+                  <button 
+                    onClick={handleTurntableToggle}
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      background: turntable ? '#f44336' : '#2196F3',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      width: '100%'
+                    }}
+                  >
+                    {turntable ? 'Stop Rotation' : 'Start Rotation'}
+                  </button>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontWeight: '600', color: '#333', textAlign: 'center' }}>Frame: {frame + 1} / {totalFrames}</label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={totalFrames - 1}
+                    value={frame}
+                    onChange={handleFrameChange}
+                    style={{ 
+                      width: '100%',
+                      height: '6px',
+                      borderRadius: '5px',
+                      background: '#ddd',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

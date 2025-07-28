@@ -94,78 +94,42 @@ function TurntableControls() {
   return null;
 }
 
-export default function SkeletonViewer({ keypointFrames, proKeypointFrames }) {
-  const [playing, setPlaying] = useState(true);
-  const [showSkeleton, setShowSkeleton] = useState(true); // user skeleton
-  const [showProSkeleton, setShowProSkeleton] = useState(true); // pro skeleton default true
-  const [frame, setFrame] = useState(0);
-  const [turntable, setTurntable] = useState(false);
-
+export default function SkeletonViewer({ 
+  keypointFrames, 
+  proKeypointFrames, 
+  playing = true,
+  showUserSkeleton = true,
+  showProSkeleton = true,
+  frame = 0,
+  turntable = false,
+  playbackSpeed = 1,
+  onFrameChange
+}) {
   const totalFrames = keypointFrames?.length || 1;
 
-  // Animation loop using setInterval
+  // Animation loop using setInterval with playback speed
   useEffect(() => {
     if (!playing) return;
+    const frameRate = 33 / playbackSpeed; // Adjust frame rate based on speed
     const id = setInterval(() => {
-      setFrame(prev => (prev + 1) % totalFrames);
-    }, 33); // ~30fps
+      const newFrame = (frame + 1) % totalFrames;
+      if (onFrameChange) {
+        onFrameChange(newFrame);
+      }
+    }, frameRate);
     return () => clearInterval(id);
-  }, [playing, totalFrames]);
-
-  // Pause animation when slider is used
-  const handleSliderChange = (e) => {
-    setPlaying(false);
-    setFrame(Number(e.target.value));
-  };
+  }, [playing, totalFrames, playbackSpeed, frame, onFrameChange]);
 
   return (
-    <>
-      <div style={{ position: 'absolute', zIndex: 1, padding: 10, background: 'rgba(255,255,255,0.8)', borderRadius: 8 }}>
-        <button onClick={() => setPlaying(!playing)} style={{ marginRight: '10px' }}>
-          {playing ? 'Pause' : 'Play'}
-        </button>
-        <button onClick={() => setTurntable(t => !t)} style={{ marginRight: '10px' }}>
-          {turntable ? 'Stop Auto Rotation' : 'Start Auto Rotation'}
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={totalFrames - 1}
-          value={frame}
-          onChange={handleSliderChange}
-          style={{ verticalAlign: 'middle', marginRight: 10, width: 200 }}
-        />
-        <span style={{ marginRight: 15 }}>
-          Frame: {frame + 1} / {totalFrames}
-        </span>
-        <label style={{ marginRight: '10px' }}>
-          <input
-            type="checkbox"
-            checked={showSkeleton}
-            onChange={(e) => setShowSkeleton(e.target.checked)}
-          />
-          Show User Skeleton
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={showProSkeleton}
-            onChange={(e) => setShowProSkeleton(e.target.checked)}
-          />
-          Show Pro Skeleton
-        </label>
-      </div>
-
-      <Canvas camera={{ position: [2, 0, 1], up: [0, 0, 1] }}>
-        <ambientLight />
-        {turntable ? <TurntableControls /> : <FixedZOrbitControls />}
-        {showSkeleton && (
-          <Skeleton frames={keypointFrames} color="red" frame={frame} />
-        )}
-        {showProSkeleton && proKeypointFrames && (
-          <Skeleton frames={proKeypointFrames} color="black" frame={frame} />
-        )}
-      </Canvas>
-    </>
+    <Canvas camera={{ position: [2, 0, 1.2], up: [0, 0, 1] }} style={{ width: '100%', height: '100%' }}>
+      <ambientLight />
+      {turntable ? <TurntableControls /> : <FixedZOrbitControls />}
+      {showUserSkeleton && (
+        <Skeleton frames={keypointFrames} color="red" frame={frame} />
+      )}
+      {showProSkeleton && proKeypointFrames && (
+        <Skeleton frames={proKeypointFrames} color="black" frame={frame} />
+      )}
+    </Canvas>
   );
 }
