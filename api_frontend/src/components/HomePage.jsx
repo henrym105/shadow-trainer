@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import FileUpload from './FileUpload';
 import ProKeypointsSelector from './ProKeypointsSelector';
 import KeypointsUpload from './KeypointsUpload';
+import LogoSection from './LogoSection';
 import VideoAPI from '../services/videoApi';
 
 const MODEL_SIZES = [
@@ -91,13 +92,7 @@ function HomePage() {
     <div className="app">
       <div className="app-container">
         <header className="app-header">
-          <div className="logo-section">
-            <img src="/Shadow Trainer Logo.png" alt="Shadow Trainer Logo" className="logo" />
-            <div className="logo-text">
-              <h1>Shadow Trainer</h1>
-              <p>AI-Powered Motion Analysis</p>
-            </div>
-          </div>
+          <LogoSection />
         </header>
         <main className="app-main">
           <div className="tab-navigation">
@@ -177,7 +172,7 @@ function HomePage() {
                 </div>
                 <button className="upload-btn" onClick={handleUpload} disabled={!selectedFile || isUploading}>
                   <span className="btn-icon">⬆️</span>
-                  {isUploading ? <span className="btn-spinner" /> : 'Upload Video'}
+                  {isUploading ? <span className="btn-spinner" /> : 'Create Your Shadow!'}
                 </button>
                 <div className="divider"><span>or</span></div>
                 <button className="sample-video-btn" onClick={handleSampleVideo} disabled={isUploading}>

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import SkeletonViewer from './Skeletonviewer';
+import LogoSection from './LogoSection';
+import './VisualizerPage.css';
 
 function VisualizerPage() {
   const { taskId } = useParams();
+  const navigate = useNavigate();
   const [userKeypoints, setUserKeypoints] = useState(null);
   const [proKeypoints, setProKeypoints] = useState(null);
   const [taskInfo, setTaskInfo] = useState(null);
@@ -124,27 +127,13 @@ function VisualizerPage() {
       <div style={{ width: '95vw', margin: '0 auto', padding: '2rem' }}>
         {/* Header */}
         <header className="app-header">
-          <div className="logo-section">
-            <img src="/Shadow Trainer Logo.png" alt="Shadow Trainer Logo" className="logo" />
-            <div className="logo-text">
-              <h1>Shadow Trainer</h1>
-              <p>3D Motion Visualization</p>
-            </div>
-        </div>
-</header>
+          <LogoSection />
+        </header>
         
         {/* Main Content Area - Animation + Controls Side by Side */}
-        <div style={{ display: 'flex', gap: '20px', height: '75vh' }}>
+        <div className="main-content-container">
           {/* Visualization Box */}
-          <div style={{ 
-            flex: '1',
-            height: '100%', 
-            position: 'relative', 
-            background: 'white', 
-            borderRadius: '16px', 
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-            minWidth: '60%'
-          }}>
+          <div className="visualization-box">
             {userKeypoints && proKeypoints ? (
               <>
                 <SkeletonViewer
@@ -231,16 +220,7 @@ function VisualizerPage() {
           </div>
           
           {/* Visualization Controls Section - Now on the side */}
-          <div style={{ 
-            width: '350px',
-            background: 'rgba(255, 255, 255, 0.95)',
-            borderRadius: '16px',
-            padding: '2rem',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            height: 'fit-content'
-          }}>
+          <div className="controls-container">
             <h3 style={{
               color: '#333',
               fontSize: '1.3rem',
@@ -252,54 +232,6 @@ function VisualizerPage() {
             
             {/* Control Groups */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              {/* Playback Controls */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontWeight: '600', color: '#333' }}>Playback Speed:</label>
-                  <select 
-                    value={playbackSpeed} 
-                    onChange={handleSpeedChange}
-                    style={{
-                      padding: '0.75rem',
-                      border: '2px solid #e0e0e0',
-                      borderRadius: '8px',
-                      fontSize: '1rem',
-                      background: 'white',
-                      cursor: 'pointer',
-                      transition: 'border-color 0.3s',
-                      width: '100%'
-                    }}
-                  >
-                    <option value={0.25}>0.25x</option>
-                    <option value={0.5}>0.5x</option>
-                    <option value={1}>1x (Normal)</option>
-                    <option value={1.5}>1.5x</option>
-                    <option value={2}>2x</option>
-                  </select>
-                </div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontWeight: '600', color: '#333' }}>Playback:</label>
-                  <button 
-                    onClick={handlePlayPause}
-                    style={{
-                      padding: '0.75rem 1.5rem',
-                      background: playing ? '#f44336' : '#4CAF50',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '1rem',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.3s ease',
-                      width: '100%'
-                    }}
-                  >
-                    {playing ? 'Pause' : 'Play'}
-                  </button>
-                </div>
-              </div>
-
               {/* Skeleton Visibility Controls */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
@@ -379,46 +311,92 @@ function VisualizerPage() {
                 </div>
               </div>
 
-              {/* Camera and Frame Controls */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontWeight: '600', color: '#333' }}>Auto Rotation:</label>
-                  <button 
-                    onClick={handleTurntableToggle}
-                    style={{
-                      padding: '0.75rem 1.5rem',
-                      background: turntable ? '#f44336' : '#2196F3',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '1rem',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.3s ease',
-                      width: '100%'
-                    }}
-                  >
-                    {turntable ? 'Stop Rotation' : 'Start Rotation'}
-                  </button>
-                </div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontWeight: '600', color: '#333', textAlign: 'center' }}>Frame: {frame + 1} / {totalFrames}</label>
-                  <input
-                    type="range"
-                    min={0}
-                    max={totalFrames - 1}
-                    value={frame}
-                    onChange={handleFrameChange}
-                    style={{ 
-                      width: '100%',
-                      height: '6px',
-                      borderRadius: '5px',
-                      background: '#ddd',
-                      outline: 'none'
-                    }}
-                  />
-                </div>
+              {/* Playback Speed Control */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontWeight: '600', color: '#333' }}>Playback Speed:</label>
+                <select 
+                  value={playbackSpeed} 
+                  onChange={handleSpeedChange}
+                  style={{
+                    padding: '0.75rem',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    background: 'white',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.3s',
+                    width: '100%'
+                  }}
+                >
+                  <option value={0.25}>0.25x</option>
+                  <option value={0.5}>0.5x</option>
+                  <option value={1}>1x (Normal)</option>
+                  <option value={1.5}>1.5x</option>
+                  <option value={2}>2x</option>
+                </select>
+              </div>
+
+              {/* Auto Rotation Control */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontWeight: '600', color: '#333' }}>Auto Rotation:</label>
+                <button 
+                  onClick={handleTurntableToggle}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: turntable ? '#f44336' : '#2196F3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    width: '100%'
+                  }}
+                >
+                  {turntable ? 'Stop Rotation' : 'Start Rotation'}
+                </button>
+              </div>
+
+              {/* Frame Control */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontWeight: '600', color: '#333', textAlign: 'center' }}>Frame: {frame + 1} / {totalFrames}</label>
+                <input
+                  type="range"
+                  min={0}
+                  max={totalFrames - 1}
+                  value={frame}
+                  onChange={handleFrameChange}
+                  style={{ 
+                    width: '100%',
+                    height: '6px',
+                    borderRadius: '5px',
+                    background: '#ddd',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Playback Control */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontWeight: '600', color: '#333' }}>Playback:</label>
+                <button 
+                  onClick={handlePlayPause}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: playing ? '#f44336' : '#4CAF50',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    width: '100%'
+                  }}
+                >
+                  {playing ? 'Pause' : 'Play'}
+                </button>
               </div>
             </div>
           </div>

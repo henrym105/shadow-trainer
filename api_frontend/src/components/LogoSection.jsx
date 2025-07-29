@@ -1,0 +1,26 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+
+function LogoSection() {
+  const navigate = useNavigate();
+
+  return (
+    <div
+      className="logo-section"
+      onClick={() => navigate('/')}
+      style={{ cursor: 'pointer' }}
+    >
+      <img 
+        src="/Shadow Trainer Logo.png" 
+        alt="Shadow Trainer Logo" 
+        className="logo"
+      />
+      <div className="logo-text">
+        <h1>Shadow Trainer</h1>
+        <p>AI-Powered Motion Analysis</p>
+      </div>
+    </div>
+  );
+}
+
+export default LogoSection;

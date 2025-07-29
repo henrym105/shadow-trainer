@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import VideoResult from './VideoResult';
+import LogoSection from './LogoSection';
 
 function ResultsPage() {
   const { taskId } = useParams();
@@ -25,13 +26,7 @@ function ResultsPage() {
     <div className="app">
       <div className="app-container">
         <header className="app-header">
-          <div className="logo-section">
-            <img src="/Shadow Trainer Logo.png" alt="Shadow Trainer Logo" className="logo" />
-            <div className="logo-text">
-              <h1>Shadow Trainer</h1>
-              <p>AI-Powered Motion Analysis</p>
-            </div>
-          </div>
+          <LogoSection />
         </header>
         <main className="app-main">
           <VideoResult
