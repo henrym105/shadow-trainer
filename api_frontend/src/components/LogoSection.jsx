@@ -17,7 +17,7 @@ function LogoSection() {
       />
       <div className="logo-text">
         <h1>Shadow Trainer</h1>
-        <p>AI-Powered Motion Analysis</p>
+        <p>AI-Powered 3D Motion Analysis</p>
       </div>
     </div>
   );

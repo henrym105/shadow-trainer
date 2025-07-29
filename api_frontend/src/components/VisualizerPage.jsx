@@ -232,6 +232,28 @@ function VisualizerPage() {
             
             {/* Control Groups */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {/* Auto Rotation Control */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontWeight: '600', color: '#333' }}>Auto Rotation:</label>
+                <button 
+                  onClick={handleTurntableToggle}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: turntable ? '#f44336' : '#2196F3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    width: '100%'
+                  }}
+                >
+                  {turntable ? 'Stop Rotation' : 'Start Rotation'}
+                </button>
+              </div>
+
               {/* Skeleton Visibility Controls */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
@@ -334,28 +356,6 @@ function VisualizerPage() {
                   <option value={1.5}>1.5x</option>
                   <option value={2}>2x</option>
                 </select>
-              </div>
-
-              {/* Auto Rotation Control */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontWeight: '600', color: '#333' }}>Auto Rotation:</label>
-                <button 
-                  onClick={handleTurntableToggle}
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    background: turntable ? '#f44336' : '#2196F3',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    width: '100%'
-                  }}
-                >
-                  {turntable ? 'Stop Rotation' : 'Start Rotation'}
-                </button>
               </div>
 
               {/* Frame Control */}
