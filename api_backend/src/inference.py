@@ -120,14 +120,13 @@ def get_joint_colors(color='R', use_0_255_range=False):
     return (lcolor, rcolor)
 
 
-def show2Dpose(kps: np.ndarray, img: np.ndarray, color='R', is_lefty: bool = False) -> np.ndarray:
+def show2Dpose(kps: np.ndarray, img: np.ndarray, color='R') -> np.ndarray:
     """Draws a 2D human pose skeleton on the given image using the provided keypoints.
 
     Args:
         kps (np.ndarray): An array of shape (17, 3) containing the 2D coordinates and confidence scores (x, y, conf) for all 17 keypoints in this image. 
         img (np.ndarray): The image (as a NumPy array) on which to draw the skeleton.
         color (str): Color scheme to use for the skeleton.
-        is_lefty (bool): If True, mark left foot (index 6) as front foot; else right foot (index 3).
 
     Returns:
         np.ndarray: The image with the 2D pose skeleton drawn on it.
@@ -146,10 +145,6 @@ def show2Dpose(kps: np.ndarray, img: np.ndarray, color='R', is_lefty: bool = Fal
     thickness = 3
     assert kps.shape == (17,3), "Keypoints should be a 2D array with shape (n_person, n_frames, 17, 3). Received shape: {}".format(kps.shape)
 
-    # Determine front foot keypoint index based on is_lefty
-    front_foot_idx = 3 if is_lefty else 6
-    green_color = (0, 255, 0)  # Green color in BGR format
-
     for j,c in enumerate(connections):
         # EXAMPLE: c = [5,6] --> connecting 5th keypoint (left knee) to 6th keypoint (left ankle)
         #          kps[c[1]] = kps[6] = (x,y) coordinated of the left ankle
@@ -160,10 +155,6 @@ def show2Dpose(kps: np.ndarray, img: np.ndarray, color='R', is_lefty: bool = Fal
         cv2.line(img, (start[0], start[1]), (end[0], end[1]), lcolor if LR[j] else rcolor, thickness)
         cv2.circle(img, (start[0], start[1]), thickness=-1, color=(0, 0, 0), radius=3)
         cv2.circle(img, (end[0], end[1]), thickness=-1, color=(0, 0, 0), radius=3)
-
-    # Draw the front foot in green
-    front_foot = kps[front_foot_idx]
-    cv2.circle(img, (front_foot[0], front_foot[1]), thickness=-1, color=green_color, radius=5)
 
     return img
 
@@ -359,9 +350,14 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
 
     # Pro keypoints should already be standardized, but do it again here just in case
     pro_keypoints_npy = np.array([standardize_3d_keypoints(frame, apply_rotation=False) for frame in pro_keypoints_npy])
+    
+    # Apply flip_data transformation for left-handed users (flip pro keypoints to match user handedness)
+    if is_lefty:
+        if DEBUG: logger.info("Applying flip_data transformation for left-handed user")
+        pro_keypoints_npy = flip_data(pro_keypoints_npy)
 
     # ------------------ Find motion start for both user and pro, then crop ------------------
-    user_start, user_end = get_start_end_info(user_keypoints_npy, is_lefty=is_lefty)
+    user_start, user_end = get_start_end_info(user_keypoints_npy)
     user_keypoints_npy = user_keypoints_npy[user_start : user_end]
 
     if DEBUG: 
@@ -418,7 +414,6 @@ def create_3d_pose_images_from_array(
     user_3d_keypoints_filepath: str,
     output_dir: str,
     pro_keypoints_filepath: str = None,
-    is_lefty: bool = False,
     pro_player_name: str = None
 ) -> None:
     """
@@ -428,7 +423,6 @@ def create_3d_pose_images_from_array(
         user_3d_keypoints (str): Path to a numpy array of shape (N, 17, 3) containing the 3D keypoints for 17 body points and N frames of the user's input video.
         output_dir (str): Output directory to save the images.
         pro_keypoints_filepath (str, optional): Path to the professional keypoints file (for debug/logging).
-        is_lefty (bool): If True, flip the professional keypoints horizontally.
     """
     USE_BODY_PART = "hips"
 
@@ -490,7 +484,7 @@ def create_3d_pose_images_from_array(
 #         logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
 
 
-def get_start_end_info(arr, is_lefty: bool = False) -> tuple:
+def get_start_end_info(arr) -> tuple:
     """Determine the start and end points of the motion based on the ankle positions in the 3D keypoints array.
 
     Args:
@@ -623,7 +617,7 @@ def get_frame_size(cap: cv2.VideoCapture) -> tuple:
     return (height, width, 3)  # Assuming 3 channels (RGB)
 
 
-def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir_2D: str, is_lefty: bool = False) -> str:
+def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir_2D: str) -> str:
     # output_dir_2D = pjoin(output_dir, 'pose2D')
     # os.makedirs(output_dir_2D, exist_ok=True)
     """Create 2D pose images from keypoints and save them to the specified directory.
@@ -638,7 +632,7 @@ def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir_2D
         if not is_valid:
             continue
         keypoints_2D_this_frame = keypoints[0][i]
-        image_w_keypoints = show2Dpose(keypoints_2D_this_frame, copy.deepcopy(img), is_lefty=is_lefty)
+        image_w_keypoints = show2Dpose(keypoints_2D_this_frame, copy.deepcopy(img))
         output_path_img_2D = pjoin(output_dir_2D, f"{i:04d}_2D.png")
         cv2.imwrite(output_path_img_2D, image_w_keypoints)
 

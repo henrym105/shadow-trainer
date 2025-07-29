@@ -174,7 +174,7 @@ def process_video_task(
         if visualization_type == "combined":
             cap = cv2.VideoCapture(input_video_path)
             keypoints_2d = np.load(FILE_POSE2D)
-            create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
+            create_2D_images(cap, keypoints_2d, DIR_POSE2D)
             cap.release()
 
         # Step 3: Generate 3D poses (50% progress)
@@ -227,7 +227,6 @@ def process_video_task(
                 user_3d_keypoints_filepath = user_kpts_path,
                 pro_keypoints_filepath = pro_kpts_path,
                 output_dir = DIR_POSE3D,
-                is_lefty = is_lefty,
                 pro_player_name = pro_player_name
             )
 
