@@ -11,6 +11,8 @@ function VisualizerPage() {
   const [proKeypoints, setProKeypoints] = useState(null);
   const [taskInfo, setTaskInfo] = useState(null);
   const [jointEvaluation, setJointEvaluation] = useState(null);
+  const [evaluationLoading, setEvaluationLoading] = useState(false);
+  const [evaluationTaskId, setEvaluationTaskId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -43,10 +45,8 @@ function VisualizerPage() {
             const infoData = await infoRes.json();
             setTaskInfo(infoData);
             
-            // Check if joint evaluation text is available in info
-            if (infoData.joint_evaluation_text) {
-              setJointEvaluation(infoData.joint_evaluation_text);
-            }
+            // Don't automatically load joint evaluation text anymore
+            // User will click button to generate it
           }
         } else {
           setError('Failed to load keypoints data');
@@ -126,6 +126,65 @@ function VisualizerPage() {
   // Handle turntable rotation
   const handleTurntableToggle = () => {
     setTurntable(!turntable);
+  };
+
+  const handleGenerateEvaluation = async () => {
+    if (!taskId) return;
+    
+    setEvaluationLoading(true);
+    try {
+      const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiBaseUrl}/videos/${taskId}/generate-evaluation`, {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setEvaluationTaskId(data.evaluation_task_id);
+        
+        // Poll for evaluation completion
+        const pollEvaluation = setInterval(async () => {
+          try {
+            const statusResponse = await fetch(`${apiBaseUrl}/status/${data.evaluation_task_id}`);
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              
+              if (statusData.status === 'SUCCESS') {
+                // Fetch updated info to get the motion feedback
+                const infoResponse = await fetch(`${apiBaseUrl}/videos/${taskId}/info`);
+                if (infoResponse.ok) {
+                  const infoData = await infoResponse.json();
+                  if (infoData.motion_feedback) {
+                    setJointEvaluation(infoData.motion_feedback);
+                  }
+                }
+                setEvaluationLoading(false);
+                clearInterval(pollEvaluation);
+              } else if (statusData.status === 'FAILURE') {
+                console.error('Evaluation failed:', statusData.error);
+                setEvaluationLoading(false);
+                clearInterval(pollEvaluation);
+              }
+            }
+          } catch (error) {
+            console.error('Error polling evaluation status:', error);
+          }
+        }, 2000);
+        
+        // Clean up polling after 5 minutes
+        setTimeout(() => {
+          clearInterval(pollEvaluation);
+          setEvaluationLoading(false);
+        }, 300000);
+        
+      } else {
+        console.error('Failed to start evaluation generation');
+        setEvaluationLoading(false);
+      }
+    } catch (error) {
+      console.error('Error generating evaluation:', error);
+      setEvaluationLoading(false);
+    }
   };
 
   return (
@@ -405,11 +464,33 @@ function VisualizerPage() {
                 </button>
               </div>
             </div>
+            
+            {/* Generate Analysis Button */}
+            <div style={{ marginTop: '2rem' }}>
+              <button 
+                onClick={handleGenerateEvaluation}
+                disabled={evaluationLoading}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: evaluationLoading ? '#ccc' : '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  cursor: evaluationLoading ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.3s ease',
+                  width: '100%'
+                }}
+              >
+                {evaluationLoading ? 'Generating Analysis...' : 'Generate Movement Analysis'}
+              </button>
+            </div>
           </div>
         </div>
         
         {/* Joint Evaluation Results Box */}
-        {jointEvaluation && (
+        {(jointEvaluation || evaluationLoading) && (
           <div className="joint-evaluation-box" style={{
             width: '95vw',
             margin: '2rem auto 0',
@@ -425,22 +506,45 @@ function VisualizerPage() {
               marginBottom: '1.5rem',
               fontWeight: '600',
               textAlign: 'center'
-            }}>Joint Movement Analysis</h3>
+            }}>Movement Feedback</h3>
             
-            <pre style={{
-              background: '#f8f9fa',
-              padding: '1.5rem',
-              borderRadius: '8px',
-              fontSize: '14px',
-              lineHeight: '1.5',
-              overflow: 'auto',
-              whiteSpace: 'pre-wrap',
-              fontFamily: 'Monaco, Consolas, "Lucida Console", monospace',
-              color: '#333',
-              border: '1px solid #e9ecef'
-            }}>
-              {jointEvaluation}
-            </pre>
+            {evaluationLoading ? (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '2rem',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #e9ecef'
+              }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  border: '4px solid #e3e3e3',
+                  borderTop: '4px solid #4CAF50',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  marginBottom: '1rem'
+                }}></div>
+                <p style={{ margin: 0, color: '#666' }}>Generating personalized movement feedback...</p>
+              </div>
+            ) : (
+              <div style={{
+                background: '#f8f9fa',
+                padding: '1.5rem',
+                borderRadius: '8px',
+                fontSize: '16px',
+                lineHeight: '1.6',
+                overflow: 'auto',
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                color: '#333',
+                border: '1px solid #e9ecef'
+              }}>
+                {jointEvaluation}
+              </div>
+            )}
           </div>
         )}
       </div>
