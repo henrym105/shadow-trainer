@@ -6,6 +6,7 @@ function VisualizerPage() {
   const { taskId } = useParams();
   const [userKeypoints, setUserKeypoints] = useState(null);
   const [proKeypoints, setProKeypoints] = useState(null);
+  const [taskInfo, setTaskInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -21,9 +22,10 @@ function VisualizerPage() {
     const fetchKeypoints = async () => {
       try {
         const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-        const [userRes, proRes] = await Promise.all([
+        const [userRes, proRes, infoRes] = await Promise.all([
           fetch(`${apiBaseUrl}/videos/${taskId}/keypoints/user?format=flattened`),
-          fetch(`${apiBaseUrl}/videos/${taskId}/keypoints/pro?format=flattened`)
+          fetch(`${apiBaseUrl}/videos/${taskId}/keypoints/pro?format=flattened`),
+          fetch(`${apiBaseUrl}/videos/${taskId}/info`)
         ]);
         
         if (userRes.ok && proRes.ok) {
@@ -31,6 +33,12 @@ function VisualizerPage() {
           const proData = await proRes.json();
           setUserKeypoints(userData.keypoints);
           setProKeypoints(proData.keypoints);
+          
+          // Get task info (pro name) - don't fail if this doesn't work
+          if (infoRes.ok) {
+            const infoData = await infoRes.json();
+            setTaskInfo(infoData);
+          }
         } else {
           setError('Failed to load keypoints data');
         }
@@ -211,7 +219,7 @@ function VisualizerPage() {
                       boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
                       background: '#888888'
                     }}></div>
-                    <span>Professional Reference</span>
+                    <span>{taskInfo?.pro_name || 'Professional Reference'}</span>
                   </div>
                 </div>
               </>

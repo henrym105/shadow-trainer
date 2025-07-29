@@ -477,11 +477,55 @@ async def get_user_keypoints(task_id: str, format: str = Query("npy", descriptio
         raise HTTPException(status_code=500, detail=f"Failed to get user keypoints: {str(e)}")
 
 
+@app.get("/videos/{task_id}/info")
+async def get_task_info(task_id: str):
+    """Get task info including pro name from info.json file"""
+    import json
+    
+    try:
+        result = AsyncResult(task_id, app=celery_app)
+        if not result.ready() or not result.successful():
+            raise HTTPException(status_code=400, detail="Task not completed successfully")
+
+        # Get the output directory from task result
+        task_result = result.result
+        if isinstance(task_result, dict) and 'output_dir' in task_result:
+            output_dir = Path(task_result['output_dir'])
+        elif isinstance(task_result, dict) and 'output_path' in task_result:
+            # Fallback: infer output directory from output_path for older tasks
+            output_path = Path(task_result['output_path'])
+            output_dir = output_path.parent
+        else:
+            raise HTTPException(status_code=404, detail="Task output directory not found")
+
+        # Look for info.json file
+        info_file_path = output_dir / 'info.json'
+        
+        if not info_file_path.exists():
+            # Return default info if file doesn't exist (for backwards compatibility)
+            return {
+                "task_id": task_id,
+                "pro_name": "Blake Snell"
+            }
+
+        # Load and return the info data
+        with open(info_file_path, 'r') as f:
+            info_data = json.load(f)
+        
+        return {
+            "task_id": task_id,
+            **info_data
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting task info for task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get task info: {str(e)}")
+
+
 @app.get("/videos/{task_id}/keypoints/pro")
 async def get_pro_keypoints(task_id: str, format: str = Query("npy", description="Output format: npy (default) or flattened for SkeletonViewer")):
     """Get professional 3D keypoints data from processed video task"""
     import numpy as np
-    import json
     
     try:
         result = AsyncResult(task_id, app=celery_app)

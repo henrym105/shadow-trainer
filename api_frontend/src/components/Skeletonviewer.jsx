@@ -76,6 +76,15 @@ function FixedZOrbitControls() {
 }
 
 // Add this component for turntable animation
+function FloorGrid() {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -0.5]}>
+      <planeGeometry args={[4, 4, 20, 20]} />
+      <meshBasicMaterial color="#cccccc" wireframe={true} opacity={0.3} transparent={true} />
+    </mesh>
+  );
+}
+
 function TurntableControls() {
   const { camera } = useThree();
   const radius = useRef(camera.position.length());
@@ -123,6 +132,7 @@ export default function SkeletonViewer({
   return (
     <Canvas camera={{ position: [2, 0, 1.2], up: [0, 0, 1] }} style={{ width: '100%', height: '100%' }}>
       <ambientLight />
+      <FloorGrid />
       {turntable ? <TurntableControls /> : <FixedZOrbitControls />}
       {showUserSkeleton && (
         <Skeleton frames={keypointFrames} color="red" frame={frame} />

@@ -288,6 +288,25 @@ export class VideoAPI {
       );
     }
   }
+
+  /**
+   * Get task info including pro name from info.json
+   * @param {string} taskId - Task identifier
+   * @returns {Promise<Object>} Task info including pro_name
+   */
+  static async getTaskInfo(taskId) {
+    try {
+      const response = await api.get(`/videos/${taskId}/info`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get task info:', error);
+      throw new APIError(
+        error.response?.data?.detail || 'Failed to get task info',
+        error.response?.status,
+        error.response
+      );
+    }
+  }
 }
 
 // Custom hook for job polling

@@ -202,6 +202,15 @@ def process_video_task(
             pro_player_name = pro_info.get("name", player_key)
             logger.info(f"Professional player: {pro_player_name}")
 
+        # Create info.json file with pro_name
+        import json
+        info_data = {
+            "pro_name": pro_player_name if pro_player_name else "Blake Snell"
+        }
+        info_file_path = DIR_OUTPUT_BASE / "info.json"
+        with open(info_file_path, 'w') as f:
+            json.dump(info_data, f, indent=2)
+        logger.info(f"Created info.json with pro_name: {info_data['pro_name']}")
 
         # step 4.1: crop align the user keypoints to the same n_frames as the pro keypoints: 
         self.update_state(state='PROGRESS', meta={'progress': 60}, message="Aligning user keypoints with pro keypoints...")
