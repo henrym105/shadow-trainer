@@ -99,6 +99,16 @@ services:
       resources:
         limits:
           memory: 512M
+    develop:
+      watch:
+        - action: sync
+          path: ./api_frontend/src
+          target: /app/src
+        - action: sync
+          path: ./api_frontend/public
+          target: /app/public
+        - action: rebuild
+          path: ./api_frontend/package.json
 
   # Nginx Reverse Proxy
   nginx:
