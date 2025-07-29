@@ -575,6 +575,52 @@ async def get_pro_keypoints(task_id: str, format: str = Query("npy", description
         raise HTTPException(status_code=500, detail=f"Failed to get pro keypoints: {str(e)}")
 
 
+@app.get("/videos/{task_id}/joint_evaluation")
+async def get_joint_evaluation(task_id: str):
+    """Get joint evaluation text from processed video task"""
+    import numpy as np
+    from kpts_analysis import evaluate_all_joints_text
+    
+    try:
+        result = AsyncResult(task_id, app=celery_app)
+        if not result.ready() or not result.successful():
+            raise HTTPException(status_code=400, detail="Task not completed successfully")
+
+        # Get the output directory from task result
+        task_result = result.result
+        if isinstance(task_result, dict) and 'output_dir' in task_result:
+            output_dir = Path(task_result['output_dir'])
+        elif isinstance(task_result, dict) and 'output_path' in task_result:
+            # Fallback: infer output directory from output_path for older tasks
+            output_path = Path(task_result['output_path'])
+            output_dir = output_path.parent
+        else:
+            raise HTTPException(status_code=404, detail="Task output directory not found")
+
+        # Look for keypoints files
+        user_keypoints_path = output_dir / 'raw_keypoints' / 'user_3D_keypoints.npy'
+        pro_keypoints_path = output_dir / 'raw_keypoints' / 'pro_3D_keypoints.npy'
+        
+        if not user_keypoints_path.exists() or not pro_keypoints_path.exists():
+            raise HTTPException(status_code=404, detail="Keypoints files not found")
+
+        # Load keypoints data
+        user_kps = np.load(user_keypoints_path)
+        pro_kps = np.load(pro_keypoints_path)
+        
+        # Run joint evaluation and get text
+        joint_text = evaluate_all_joints_text(user_kps, pro_kps)
+        
+        return {
+            "task_id": task_id,
+            "joint_evaluation_text": joint_text
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting joint evaluation for task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get joint evaluation: {str(e)}")
+
+
 @app.post("/videos/{task_id}/terminate")
 async def terminate_video_task(task_id: str):
     """Terminate a running video processing task"""

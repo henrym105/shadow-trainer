@@ -10,6 +10,7 @@ function VisualizerPage() {
   const [userKeypoints, setUserKeypoints] = useState(null);
   const [proKeypoints, setProKeypoints] = useState(null);
   const [taskInfo, setTaskInfo] = useState(null);
+  const [jointEvaluation, setJointEvaluation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -41,6 +42,11 @@ function VisualizerPage() {
           if (infoRes.ok) {
             const infoData = await infoRes.json();
             setTaskInfo(infoData);
+            
+            // Check if joint evaluation text is available in info
+            if (infoData.joint_evaluation_text) {
+              setJointEvaluation(infoData.joint_evaluation_text);
+            }
           }
         } else {
           setError('Failed to load keypoints data');
@@ -257,7 +263,7 @@ function VisualizerPage() {
               {/* Skeleton Visibility Controls */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
-                  <label style={{ fontWeight: '600', color: '#333' }}>Show User Skeleton:</label>
+                  <label style={{ fontWeight: '600', color: '#333' }}>User Skeleton:</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
                     <span style={{ fontWeight: '500', color: !showUserSkeleton ? '#4CAF50' : '#666', fontSize: '0.9rem' }}>Hidden</span>
                     <label style={{ position: 'relative', display: 'inline-block', width: '50px', height: '24px' }}>
@@ -295,7 +301,7 @@ function VisualizerPage() {
                 </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
-                  <label style={{ fontWeight: '600', color: '#333' }}>Show Pro Skeleton:</label>
+                  <label style={{ fontWeight: '600', color: '#333' }}>Pro Skeleton:</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
                     <span style={{ fontWeight: '500', color: !showProSkeleton ? '#4CAF50' : '#666', fontSize: '0.9rem' }}>Hidden</span>
                     <label style={{ position: 'relative', display: 'inline-block', width: '50px', height: '24px' }}>
@@ -401,6 +407,42 @@ function VisualizerPage() {
             </div>
           </div>
         </div>
+        
+        {/* Joint Evaluation Results Box */}
+        {jointEvaluation && (
+          <div className="joint-evaluation-box" style={{
+            width: '95vw',
+            margin: '2rem auto 0',
+            padding: '2rem',
+            background: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+            border: '1px solid #e0e0e0'
+          }}>
+            <h3 style={{
+              color: '#333',
+              fontSize: '1.5rem',
+              marginBottom: '1.5rem',
+              fontWeight: '600',
+              textAlign: 'center'
+            }}>Joint Movement Analysis</h3>
+            
+            <pre style={{
+              background: '#f8f9fa',
+              padding: '1.5rem',
+              borderRadius: '8px',
+              fontSize: '14px',
+              lineHeight: '1.5',
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'Monaco, Consolas, "Lucida Console", monospace',
+              color: '#333',
+              border: '1px solid #e9ecef'
+            }}>
+              {jointEvaluation}
+            </pre>
+          </div>
+        )}
       </div>
     </div>
   );

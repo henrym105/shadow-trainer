@@ -246,6 +246,69 @@ def evaluate_all_joints(user_kps, pro_kps, plot=False):
     return results
 
 
+def evaluate_all_joints_text(user_kps, pro_kps):
+    """Generate a text summary of joint evaluation results"""
+    EXCLUDED_JOINTS = [0, 7, 8, 9, 10]  # Pelvis, Spine, Thorax, Neck, Head
+    joints_to_eval = [j for j in range(user_kps.shape[1]) if j not in EXCLUDED_JOINTS]
+
+    output = []
+    output.append("Joint Movement Analysis Summary")
+    output.append("=" * 35)
+    output.append("")
+
+    # Hip torsion special case
+    mae, score, _, _ = joint_similarity_score(user_kps, pro_kps, joint_idx=-1, plot=False)
+    output.append("Hip Torsion:")
+    if not np.isnan(mae):
+        output.append(f"  • Mean Absolute Error: {mae:.3f} deg/s")
+    else:
+        output.append("  • Mean Absolute Error: N/A")
+    
+    if not np.isnan(score):
+        output.append(f"  • Similarity Score: {score:.3f}")
+    else:
+        output.append("  • Similarity Score: N/A")
+    output.append("")
+
+    for j in joints_to_eval:
+        avg_dist, dist_score, avg_angle_diff, angle_score = joint_similarity_score(
+            user_kps, pro_kps, joint_idx=j, plot=False)
+        joint_name = JOINT_NAMES.get(j, f'Joint {j}')
+        
+        output.append(f"{joint_name}:")
+        
+        # Distance metrics
+        if not np.isnan(avg_dist):
+            output.append(f"  • Average Distance: {avg_dist:.4f}m")
+        else:
+            output.append("  • Average Distance: N/A")
+            
+        if not np.isnan(dist_score):
+            output.append(f"  • Distance Score: {dist_score:.3f}")
+        else:
+            output.append("  • Distance Score: N/A")
+            
+        # Angle metrics
+        if not np.isnan(avg_angle_diff):
+            output.append(f"  • Average Angle Difference: {avg_angle_diff:.2f}°")
+        else:
+            output.append("  • Average Angle Difference: N/A")
+            
+        if not np.isnan(angle_score):
+            output.append(f"  • Angle Score: {angle_score:.3f}")
+        else:
+            output.append("  • Angle Score: N/A")
+            
+        output.append("")
+
+    output.append("Interpretation:")
+    output.append("• Distance scores show how closely your joint positions match the professional's")
+    output.append("• Angle scores indicate how well your joint movements replicate the professional's technique")
+    output.append("• Higher scores (closer to 1.0) indicate better similarity to the professional athlete")
+
+    return "\n".join(output)
+
+
 
 
 if __name__ == "__main__":

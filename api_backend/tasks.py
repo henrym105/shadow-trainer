@@ -262,6 +262,33 @@ def process_video_task(
             output_video_path = None
             logger.info("Skipping video generation for dynamic_3d_animation format")
 
+        # Step 7: Run joint evaluation for dynamic_3d_animation (98% progress)
+        if visualization_type == "dynamic_3d_animation":
+            self.update_state(state='PROGRESS', meta={'progress': 98}, message="Running joint evaluation analysis...")
+            try:
+                from kpts_analysis import evaluate_all_joints_text
+                
+                # Load keypoints for evaluation
+                user_kps = np.load(user_kpts_path)
+                pro_kps = np.load(pro_kpts_path)
+                
+                # Run joint evaluation and get text output
+                joint_text = evaluate_all_joints_text(user_kps, pro_kps)
+                
+                # Update info.json with joint evaluation text
+                with open(info_file_path, 'r') as f:
+                    info_data = json.load(f)
+                
+                info_data['joint_evaluation_text'] = joint_text
+                
+                with open(info_file_path, 'w') as f:
+                    json.dump(info_data, f, indent=2)
+                
+                logger.info("Joint evaluation completed and added to info.json")
+                
+            except Exception as e:
+                logger.warning(f"Joint evaluation failed, skipping: {e}")
+
         # Complete job
         self.update_state(state='PROGRESS', meta={'progress': 100}, message="Video processing completed.")
         logger.info(f"Video processing completed for job {task_id}: {output_video_path}")
