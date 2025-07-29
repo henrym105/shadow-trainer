@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
 import VideoAPI from '../services/videoApi';
-import MotionViewer3D from './MotionViewer3D';
 import './VideoResult.css';
 
 const VideoResult = ({ taskId, jobStatus, onReset }) => {
-  const [show3DViewer, setShow3DViewer] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const downloadUrl = VideoAPI.getDownloadUrl(taskId);
   const previewUrl = VideoAPI.getPreviewUrl(taskId);
@@ -14,15 +12,6 @@ const VideoResult = ({ taskId, jobStatus, onReset }) => {
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
   };
-
-  if (show3DViewer) {
-    return (
-      <MotionViewer3D 
-        taskId={taskId} 
-        onBack={() => setShow3DViewer(false)} 
-      />
-    );
-  }
 
   return (
     <div className="video-result-card">
@@ -34,9 +23,6 @@ const VideoResult = ({ taskId, jobStatus, onReset }) => {
         <a href={downloadUrl} download className="download-btn">Download Video</a>
         <button className="copy-btn" onClick={handleCopy}>
           {copySuccess ? 'Copied!' : 'Copy Download Link'}
-        </button>
-        <button className="view-3d-btn" onClick={() => setShow3DViewer(true)}>
-          🎯 View 3D Motion
         </button>
         <button className="reset-btn" onClick={onReset}>Process Another Video</button>
       </div>
