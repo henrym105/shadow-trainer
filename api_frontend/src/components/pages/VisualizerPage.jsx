@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import SkeletonViewer from './Skeletonviewer';
-import LogoSection from './LogoSection';
-import './VisualizerPage.css';
+import SkeletonViewer from '../Skeletonviewer';
+import LogoSection from '../ui/LogoSection';
+import '../../styles/VisualizerPage.css';
 
 function VisualizerPage() {
   const { taskId } = useParams();
@@ -216,60 +216,14 @@ function VisualizerPage() {
                 />
                 
                 {/* Skeleton Legend - Bottom Single Row */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: '20px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  background: 'rgba(255, 255, 255, 0.9)',
-                  backdropFilter: 'blur(10px)',
-                  borderRadius: '8px',
-                  padding: '15px 30px',
-                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
-                  border: '1px solid rgba(255, 255, 255, 0.3)',
-                  zIndex: 100,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '30px'
-                }}>
-                  <h4 style={{
-                    margin: 0,
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#333'
-                  }}>Skeleton Legend:</h4>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    fontSize: '12px',
-                    color: '#555'
-                  }}>
-                    <div style={{
-                      width: '16px',
-                      height: '16px',
-                      borderRadius: '50%',
-                      border: '2px solid rgba(255, 255, 255, 0.8)',
-                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                      background: '#ff4444'
-                    }}></div>
+                <div className="skeleton-legend">
+                  <h4>Skeleton Legend:</h4>
+                  <div className="legend-item">
+                    <div className="legend-color user"></div>
                     <span>You</span>
                   </div>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    fontSize: '12px',
-                    color: '#555'
-                  }}>
-                    <div style={{
-                      width: '16px',
-                      height: '16px',
-                      borderRadius: '50%',
-                      border: '2px solid rgba(255, 255, 255, 0.8)',
-                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                      background: '#888888'
-                    }}></div>
+                  <div className="legend-item">
+                    <div className="legend-color pro"></div>
                     <span>{taskInfo?.pro_name || 'Professional Reference'}</span>
                   </div>
                 </div>
@@ -288,134 +242,63 @@ function VisualizerPage() {
           
           {/* Visualization Controls Section - Now on the side */}
           <div className="controls-container">
-            <h3 style={{
-              color: '#333',
-              fontSize: '1.3rem',
-              marginBottom: '1.5rem',
-              textAlign: 'center',
-              fontWeight: '600',
-              position: 'relative'
-            }}>Visualization Controls</h3>
+            <h3 className="controls-title">Visualization Controls</h3>
             
             {/* Control Groups */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div className="flex flex-col gap-xl">
               {/* Auto Rotation Control */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontWeight: '600', color: '#333' }}>Auto Rotation:</label>
+              <div className="control-group">
+                <label className="control-label">Auto Rotation:</label>
                 <button 
                   onClick={handleTurntableToggle}
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    background: turntable ? '#f44336' : '#2196F3',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    width: '100%'
-                  }}
+                  className={`btn ${turntable ? 'btn-danger' : 'btn-secondary'}`}
                 >
                   {turntable ? 'Stop Rotation' : 'Start Rotation'}
                 </button>
               </div>
 
               {/* Skeleton Visibility Controls */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
-                  <label style={{ fontWeight: '600', color: '#333' }}>User Skeleton:</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
-                    <span style={{ fontWeight: '500', color: '#666', fontSize: '0.9rem' }}>Hidden</span>
-                    <label style={{ position: 'relative', display: 'inline-block', width: '50px', height: '24px' }}>
+              <div className="flex flex-col gap-lg">
+                <div className="control-group text-center">
+                  <label className="control-label">User Skeleton:</label>
+                  <div className="toggle-container">
+                    <span className={`toggle-label ${!showUserSkeleton ? 'active' : ''}`}>Hidden</span>
+                    <label className="toggle-switch">
                       <input 
                         type="checkbox" 
                         checked={showUserSkeleton} 
                         onChange={handleUserSkeletonToggle}
-                        style={{ opacity: 0, width: 0, height: 0 }}
                       />
-                      <span style={{
-                        position: 'absolute',
-                        cursor: 'pointer',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: showUserSkeleton ? '#4CAF50' : '#ccc',
-                        transition: '.4s',
-                        borderRadius: '24px'
-                      }}>
-                        <span style={{
-                          position: 'absolute',
-                          height: '18px',
-                          width: '18px',
-                          left: showUserSkeleton ? '29px' : '3px',
-                          bottom: '3px',
-                          backgroundColor: 'white',
-                          transition: '.4s',
-                          borderRadius: '50%'
-                        }}></span>
-                      </span>
+                      <span className="toggle-slider"></span>
                     </label>
-                    <span style={{ fontWeight: '500', color: '#4CAF50', fontSize: '0.9rem' }}>Visible</span>
+                    <span className={`toggle-label ${showUserSkeleton ? 'active' : ''}`}>Visible</span>
                   </div>
                 </div>
                 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
-                  <label style={{ fontWeight: '600', color: '#333' }}>Pro Skeleton:</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
-                    <span style={{ fontWeight: '500', color: '#666', fontSize: '0.9rem' }}>Hidden</span>
-                    <label style={{ position: 'relative', display: 'inline-block', width: '50px', height: '24px' }}>
+                <div className="control-group text-center">
+                  <label className="control-label">Pro Skeleton:</label>
+                  <div className="toggle-container">
+                    <span className={`toggle-label ${!showProSkeleton ? 'active' : ''}`}>Hidden</span>
+                    <label className="toggle-switch">
                       <input 
                         type="checkbox" 
                         checked={showProSkeleton} 
                         onChange={handleProSkeletonToggle}
-                        style={{ opacity: 0, width: 0, height: 0 }}
                       />
-                      <span style={{
-                        position: 'absolute',
-                        cursor: 'pointer',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: showProSkeleton ? '#4CAF50' : '#ccc',
-                        transition: '.4s',
-                        borderRadius: '24px'
-                      }}>
-                        <span style={{
-                          position: 'absolute',
-                          height: '18px',
-                          width: '18px',
-                          left: showProSkeleton ? '29px' : '3px',
-                          bottom: '3px',
-                          backgroundColor: 'white',
-                          transition: '.4s',
-                          borderRadius: '50%'
-                        }}></span>
-                      </span>
+                      <span className="toggle-slider"></span>
                     </label>
-                    <span style={{ fontWeight: '500', color: '#4CAF50', fontSize: '0.9rem' }}>Visible</span>
+                    <span className={`toggle-label ${showProSkeleton ? 'active' : ''}`}>Visible</span>
                   </div>
                 </div>
               </div>
 
               {/* Playback Speed Control */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontWeight: '600', color: '#333' }}>Playback Speed:</label>
+              <div className="control-group">
+                <label className="control-label">Playback Speed:</label>
                 <select 
                   value={playbackSpeed} 
                   onChange={handleSpeedChange}
-                  style={{
-                    padding: '0.75rem',
-                    border: '2px solid #e0e0e0',
-                    borderRadius: '8px',
-                    fontSize: '1rem',
-                    background: 'white',
-                    cursor: 'pointer',
-                    transition: 'border-color 0.3s',
-                    width: '100%'
-                  }}
+                  className="form-select"
                 >
                   <option value={0.25}>0.25x</option>
                   <option value={0.5}>0.5x</option>
@@ -426,41 +309,24 @@ function VisualizerPage() {
               </div>
 
               {/* Frame Control */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontWeight: '600', color: '#333', textAlign: 'center' }}>Frame: {frame + 1} / {totalFrames}</label>
+              <div className="control-group frame-control">
+                <label className="control-label">Frame: {frame + 1} / {totalFrames}</label>
                 <input
                   type="range"
                   min={0}
                   max={totalFrames - 1}
                   value={frame}
                   onChange={handleFrameChange}
-                  style={{ 
-                    width: '100%',
-                    height: '6px',
-                    borderRadius: '5px',
-                    background: '#ddd',
-                    outline: 'none'
-                  }}
+                  className="frame-slider"
                 />
               </div>
 
               {/* Playback Control */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontWeight: '600', color: '#333' }}>Playback:</label>
+              <div className="control-group">
+                <label className="control-label">Playback:</label>
                 <button 
                   onClick={handlePlayPause}
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    background: playing ? '#f44336' : '#4CAF50',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    width: '100%'
-                  }}
+                  className={`btn ${playing ? 'btn-danger' : 'btn-primary'}`}
                 >
                   {playing ? 'Pause' : 'Play'}
                 </button>
@@ -468,22 +334,11 @@ function VisualizerPage() {
             </div>
             
             {/* Generate Analysis Button */}
-            <div style={{ marginTop: '2rem' }}>
+            <div className="m-xl">
               <button 
                 onClick={handleGenerateEvaluation}
                 disabled={evaluationLoading}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  background: evaluationLoading ? '#ccc' : '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  fontWeight: '600',
-                  cursor: evaluationLoading ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.3s ease',
-                  width: '100%'
-                }}
+                className="btn btn-primary"
               >
                 {evaluationLoading ? 'Generating Analysis...' : 'Generate Movement Analysis'}
               </button>
@@ -493,57 +348,16 @@ function VisualizerPage() {
         
         {/* Joint Evaluation Results Box */}
         {(jointEvaluation || evaluationLoading) && (
-          <div className="joint-evaluation-box" style={{
-            width: '95vw',
-            margin: '2rem auto 0',
-            padding: '2rem',
-            background: 'white',
-            borderRadius: '12px',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-            border: '1px solid #e0e0e0'
-          }}>
-            <h3 style={{
-              color: '#333',
-              fontSize: '1.5rem',
-              marginBottom: '1.5rem',
-              fontWeight: '600',
-              textAlign: 'center'
-            }}>Movement Feedback</h3>
+          <div className="joint-evaluation-box">
+            <h3 className="evaluation-title">Movement Feedback</h3>
             
             {evaluationLoading ? (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                padding: '2rem',
-                background: '#f8f9fa',
-                borderRadius: '8px',
-                border: '1px solid #e9ecef'
-              }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  border: '4px solid #e3e3e3',
-                  borderTop: '4px solid #4CAF50',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                  marginBottom: '1rem'
-                }}></div>
-                <p style={{ margin: 0, color: '#666' }}>Generating personalized movement feedback...</p>
+              <div className="evaluation-loading">
+                <div className="spinner spinner-large"></div>
+                <p>Generating personalized movement feedback...</p>
               </div>
             ) : (
-              <div style={{
-                background: '#f8f9fa',
-                padding: '1.5rem',
-                borderRadius: '8px',
-                fontSize: '16px',
-                lineHeight: '1.6',
-                overflow: 'auto',
-                whiteSpace: 'pre-wrap',
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                color: '#333',
-                border: '1px solid #e9ecef'
-              }}>
+              <div className="evaluation-content">
                 {jointEvaluation}
               </div>
             )}

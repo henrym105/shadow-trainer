@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import ProgressBar from './ProgressBar';
-import LogoSection from './LogoSection';
-import VideoAPI, { useJobPolling } from '../services/videoApi';
+import ProgressBar from '../ui/ProgressBar';
+import LogoSection from '../ui/LogoSection';
+import VideoAPI, { useJobPolling } from '../../services/videoApi';
 
 function ProcessingPage() {
   const { taskId } = useParams();

@@ -1,5 +1,5 @@
 import React from 'react';
-import './ProgressBar.css';
+import '../../styles/ProgressBar.css';
 const STATUS_MAP = {
   queued: { color: '#ffa500', icon: '⏰', label: 'Queued' },
   processing: { color: '#4CAF50', icon: '⚙️', label: 'Processing' },

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import FileUpload from './FileUpload';
 import ProgressBar from './ProgressBar';
-import VideoAPI, { useJobPolling } from '../services/videoApi';
-import './KeypointsUpload.css';
+import VideoAPI, { useJobPolling } from '../../services/videoApi';
+import '../../styles/KeypointsUpload.css';
 
 const KeypointsUpload = () => {
   const [selectedFile, setSelectedFile] = useState(null);

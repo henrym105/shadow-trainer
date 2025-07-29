@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import VideoAPI from '../services/videoApi';
-import './VideoResult.css';
+import VideoAPI from '../../services/videoApi';
+import '../../styles/VideoResult.css';
 
 const VideoResult = ({ taskId, jobStatus, onReset }) => {
   const [copySuccess, setCopySuccess] = useState(false);

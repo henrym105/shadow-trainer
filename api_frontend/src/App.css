@@ -1,20 +1,6 @@
 /* Shadow Trainer - Main Application Styles */
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #366e2f 0%, #2e4c2b 100%);
-  min-height: 100vh;
-}
+@import './styles/globals.css';
+@import './styles/components.css';
 
 .app {
   min-height: 100vh;
@@ -22,27 +8,19 @@ body {
   flex-direction: column;
 }
 
-.app-container {
-  max-width: 1500px;
-  margin: 0 auto;
-  padding: 2rem;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
 /* Header Styles */
 .app-header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: var(--spacing-2xl);
 }
 
 .logo-section {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  cursor: pointer;
 }
 
 .logo {
@@ -51,15 +29,15 @@ body {
 }
 
 .logo-text h1 {
-  color: white;
-  font-size: 2.5rem;
+  color: var(--white);
+  font-size: var(--font-size-4xl);
   font-weight: 700;
   margin: 0;
 }
 
 .logo-text p {
   color: rgba(255, 255, 255, 0.9);
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   margin: 0;
 }
 
@@ -71,55 +49,22 @@ body {
   align-items: center;
 }
 
-/* Tab Navigation */
-.tab-navigation {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 2rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 8px;
-  gap: 4px;
-}
-
-.tab-button {
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.7);
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.tab-button:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.tab-button.active {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-
 /* Section Headers */
 .section-header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: var(--spacing-xl);
 }
 
 .section-header h2 {
-  color: #000;
-  font-size: 2rem;
+  color: var(--gray-900);
+  font-size: var(--font-size-3xl);
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--spacing-sm);
 }
 
 .section-header p {
-  color: #000;
-  font-size: 1.1rem;
+  color: var(--gray-900);
+  font-size: var(--font-size-lg);
   max-width: 600px;
   margin: 0 auto;
 }
@@ -129,9 +74,9 @@ body {
   width: 100%;
   max-width: 800px;
   background: rgba(255, 255, 255, 0.95);
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-xl);
   backdrop-filter: blur(10px);
 }
 

@@ -1,17 +1,17 @@
 /* FileUpload.css */
 .file-upload-container {
   width: 100%;
-  margin: 1rem 0;
+  margin: var(--spacing-md) 0;
 }
 
 .file-upload-zone {
-  border: 2px dashed #aaa;
-  border-radius: 12px;
-  background: #f8f8f8;
-  padding: 2rem;
+  border: 2px dashed var(--gray-400);
+  border-radius: var(--radius-lg);
+  background: var(--gray-50);
+  padding: var(--spacing-xl);
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
   min-height: 200px;
   display: flex;
   align-items: center;
@@ -19,7 +19,7 @@
 }
 
 .file-upload-zone:hover {
-  border-color: #366e2f;
+  border-color: var(--primary-green);
   background-color: #f0f8f0;
 }
 

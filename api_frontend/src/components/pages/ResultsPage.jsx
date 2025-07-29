@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import VideoResult from './VideoResult';
-import LogoSection from './LogoSection';
+import VideoResult from '../ui/VideoResult';
+import LogoSection from '../ui/LogoSection';
 
 function ResultsPage() {
   const { taskId } = useParams();

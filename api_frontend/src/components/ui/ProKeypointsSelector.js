@@ -1,6 +1,5 @@
 import React from 'react';
-import './ProKeypointsSelector.css';
-import './ProKeypointsSelector.css';
+import '../../styles/ProKeypointsSelector.css';
 
 const ProKeypointsSelector = ({ options, value, onChange, disabled }) => {
   return (

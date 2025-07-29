@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import FileUpload from './FileUpload';
-import ProKeypointsSelector from './ProKeypointsSelector';
-import KeypointsUpload from './KeypointsUpload';
-import LogoSection from './LogoSection';
-import VideoAPI from '../services/videoApi';
+import FileUpload from '../ui/FileUpload';
+import ProKeypointsSelector from '../ui/ProKeypointsSelector';
+import KeypointsUpload from '../ui/KeypointsUpload';
+import LogoSection from '../ui/LogoSection';
+import VideoAPI from '../../services/videoApi';
 
 const MODEL_SIZES = [
   { value: 'xs', label: 'Small/Fast' },
