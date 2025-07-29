@@ -227,7 +227,7 @@ def joint_similarity_score(user_kps, pro_kps, joint_idx, threshold=0.5, angle_th
     return avg_distance, dist_score, avg_angle_diff, angle_score
 
 
-def evaluate_all_joints(user_kps, pro_kps, plot=False):
+def evaluate_all_joints(user_kps, pro_kps, plot=False) -> dict:
     EXCLUDED_JOINTS = [0, 7, 8, 9, 10]  # Pelvis, Spine, Thorax, Neck, Head
     joints_to_eval = [j for j in range(user_kps.shape[1]) if j not in EXCLUDED_JOINTS]
 
@@ -251,7 +251,7 @@ def evaluate_all_joints(user_kps, pro_kps, plot=False):
     return results
 
 
-def evaluate_all_joints_text(user_kps, pro_kps):
+def evaluate_all_joints_text(user_kps, pro_kps) -> str:
     """Generate a text summary of joint evaluation results"""
     EXCLUDED_JOINTS = [0, 7, 8, 9, 10]  # Pelvis, Spine, Thorax, Neck, Head
     joints_to_eval = [j for j in range(user_kps.shape[1]) if j not in EXCLUDED_JOINTS]
@@ -314,10 +314,9 @@ def evaluate_all_joints_text(user_kps, pro_kps):
     return "\n".join(output)
 
 
-
-def summarize_joint_results(results_dict):
+def summarize_joint_results(joint_text) -> str:
     """
-    Generates a prompt summarizing results_dict in plain English without metric repetition.
+    Generates a prompt summarizing joint_text in plain English without metric repetition.
     """
     prompt = (
         "Summarize this information for someone who wants quick insights. "
@@ -326,25 +325,15 @@ def summarize_joint_results(results_dict):
         "the user can follow to better match the professional's form.\n\n"
         "Avoid repeating metrics or scores — focus on real-world movement insights. "
         "Do not include emojis. Keep the language simple and practical.\n\n"
-        "Here is the data:\n"
+        "Here is the data:\n\n"
+        f"{joint_text}\n"
+        "\nLimit your response to 5 bullet points maximum."
     )
-
-    for joint, metrics in results_dict.items():
-        prompt += f"\nJoint: {joint}\n"
-        for key, value in metrics.items():
-            if isinstance(value, (np.float32, np.float64)):
-                if math.isnan(value):
-                    continue
-                value = float(value)
-            prompt += f"- {key}: {value:.3f}\n"
-
-    prompt += "\nLimit your response to 5 bullet points maximum."
-
     return prompt
 
 
-def generate_motion_feedback(results_dict):
-    prompt = summarize_joint_results(results_dict)
+def generate_motion_feedback(joint_text) -> str:
+    prompt = summarize_joint_results(joint_text)
     # set API key from .env file
     dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
     if os.path.exists(dotenv_path):
@@ -373,9 +362,12 @@ if __name__ == "__main__":
     print("Pro shape:", pro_kps.shape)
 
     # Evaluate all joints and print results
-    results = evaluate_all_joints(user_kps, pro_kps, plot=True)
-    for joint, metrics in results.items():
-        print(f"{joint}: {metrics}")
+    # results = evaluate_all_joints(user_kps, pro_kps, plot=True)
+    # for joint, metrics in results.items():
+    #     print(f"{joint}: {metrics}")
+
+    results = evaluate_all_joints_text(user_kps, pro_kps)
+    print(results)
 
     print("-"*100)
     feedback = generate_motion_feedback(results)
