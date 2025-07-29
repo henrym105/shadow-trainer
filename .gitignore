@@ -12,6 +12,9 @@
 **.npz
 **.npy
 
+**/api_backend/output/*_output/info.json
+
+
 
 # Node modules
 node_modules/
