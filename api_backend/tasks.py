@@ -262,33 +262,6 @@ def process_video_task(
             output_video_path = None
             logger.info("Skipping video generation for dynamic_3d_animation format")
 
-        # Step 7: Run joint evaluation for dynamic_3d_animation (98% progress)
-        if visualization_type == "dynamic_3d_animation":
-            self.update_state(state='PROGRESS', meta={'progress': 98}, message="Running joint evaluation analysis...")
-            try:
-                from kpts_analysis import evaluate_all_joints_text
-                
-                # Load keypoints for evaluation
-                user_kps = np.load(user_kpts_path)
-                pro_kps = np.load(pro_kpts_path)
-                
-                # Run joint evaluation and get text output
-                joint_text = evaluate_all_joints_text(user_kps, pro_kps)
-                
-                # Update info.json with joint evaluation text
-                with open(info_file_path, 'r') as f:
-                    info_data = json.load(f)
-                
-                info_data['joint_evaluation_text'] = joint_text
-                
-                with open(info_file_path, 'w') as f:
-                    json.dump(info_data, f, indent=2)
-                
-                logger.info("Joint evaluation completed and added to info.json")
-                
-            except Exception as e:
-                logger.warning(f"Joint evaluation failed, skipping: {e}")
-
         # Complete job
         self.update_state(state='PROGRESS', meta={'progress': 100}, message="Video processing completed.")
         logger.info(f"Video processing completed for job {task_id}: {output_video_path}")
@@ -356,6 +329,84 @@ def generate_3d_keypoints_from_video_task(self, input_video_path: str, model_siz
         logger.error(f"Failed to generate 3D keypoints: {e}")
         raise e
 
+
+
+@celery_app.task(bind=True)
+def generate_joint_evaluation_task(self, task_id: str) -> str:
+    """Generate joint evaluation analysis for a processed video task"""
+    try:
+        # Update progress
+        self.update_state(state='PROGRESS', meta={'progress': 10}, message="Initializing joint evaluation...")
+        
+        # Construct paths based on task_id
+        DIR_OUTPUT_BASE = OUTPUT_DIR / f"{task_id}_output"
+        DIR_KEYPOINTS = DIR_OUTPUT_BASE / "raw_keypoints"
+        FILE_USER_3D = DIR_KEYPOINTS / "user_3D_keypoints.npy"
+        FILE_PRO_3D = DIR_KEYPOINTS / "pro_3D_keypoints.npy"
+        info_file_path = DIR_OUTPUT_BASE / "info.json"
+        
+        # Check if required files exist
+        if not FILE_USER_3D.exists() or not FILE_PRO_3D.exists():
+            raise Exception("Required keypoint files not found")
+        
+        # Update progress
+        self.update_state(state='PROGRESS', meta={'progress': 30}, message="Loading keypoint data...")
+        
+        # Load keypoints
+        user_kps = np.load(FILE_USER_3D)
+        pro_kps = np.load(FILE_PRO_3D)
+        
+        # Update progress
+        self.update_state(state='PROGRESS', meta={'progress': 60}, message="Analyzing joint movements...")
+        
+        # Run joint evaluation
+        from kpts_analysis import evaluate_all_joints_text, generate_motion_feedback
+        joint_text = evaluate_all_joints_text(user_kps, pro_kps)
+        
+        # Update progress
+        self.update_state(state='PROGRESS', meta={'progress': 70}, message="Generating AI feedback...")
+        
+        # Generate human-readable feedback using OpenAI
+        try:
+            motion_feedback = generate_motion_feedback(joint_text)
+            logger.info("OpenAI motion feedback generated successfully")
+        except Exception as e:
+            logger.warning(f"Failed to generate OpenAI feedback: {e}")
+            motion_feedback = "Unable to generate personalized feedback at this time."
+        
+        # Update progress
+        self.update_state(state='PROGRESS', meta={'progress': 80}, message="Saving analysis results...")
+        
+        # Update info.json with both joint evaluation text and AI feedback
+        if info_file_path.exists():
+            with open(info_file_path, 'r') as f:
+                info_data = json.load(f)
+        else:
+            info_data = {}
+        
+        info_data['joint_evaluation_text'] = joint_text
+        info_data['motion_feedback'] = motion_feedback
+        
+        with open(info_file_path, 'w') as f:
+            json.dump(info_data, f, indent=2)
+        
+        # Update progress
+        self.update_state(state='PROGRESS', meta={'progress': 100}, message="Joint evaluation completed!")
+        
+        logger.info(f"Joint evaluation completed for task {task_id}")
+        
+        return {
+            "task_id": task_id,
+            "joint_evaluation_text": joint_text,
+            "motion_feedback": motion_feedback,
+            "status": "completed"
+        }
+        
+    except Exception as e:
+        error_msg = f"Joint evaluation failed: {str(e)}"
+        logger.error(f"Joint evaluation task failed for {task_id}: {error_msg}")
+        self.update_state(state='FAILED', meta={'error': error_msg})
+        raise e
 
 
 @celery_app.task

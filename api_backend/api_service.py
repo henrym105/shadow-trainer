@@ -21,6 +21,7 @@ from tasks import (
     validate_video_file, 
     list_s3_pro_keypoints, 
     add_task,
+    generate_joint_evaluation_task,
 )
 
 logger = get_task_logger(__name__)
@@ -619,6 +620,25 @@ async def get_joint_evaluation(task_id: str):
     except Exception as e:
         logger.error(f"Error getting joint evaluation for task {task_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get joint evaluation: {str(e)}")
+
+
+@app.post("/videos/{task_id}/generate-evaluation")
+async def generate_evaluation(task_id: str):
+    """Generate joint evaluation analysis for a processed video task"""
+    try:
+        # Start the joint evaluation task
+        evaluation_task = generate_joint_evaluation_task.delay(task_id)
+        
+        return {
+            "evaluation_task_id": evaluation_task.id,
+            "original_task_id": task_id,
+            "status": "queued",
+            "message": "Joint evaluation generation started"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error starting joint evaluation for task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start joint evaluation: {str(e)}")
 
 
 @app.post("/videos/{task_id}/terminate")
