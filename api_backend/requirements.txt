@@ -29,6 +29,7 @@ cycler==0.12.1
 debugpy==1.8.14
 decorator==5.2.1
 defusedxml==0.7.1
+dotenv==0.9.9
 easydict==1.13
 eval-type-backport==0.2.2
 exceptiongroup==1.3.0
@@ -96,6 +97,7 @@ notebook==7.4.3
 notebook-shim==0.2.4
 numba==0.60.0
 numpy==1.26.4
+openai==1.97.1
 opencv-python==4.11.0.86
 overrides==7.7.0
 packaging==24.2
