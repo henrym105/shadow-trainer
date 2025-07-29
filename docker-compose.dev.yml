@@ -1,0 +1,93 @@
+services:
+  # Database & Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: shadow-trainer-redis-dev
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Backend API
+  api:
+    build:
+      context: ./api_backend
+      dockerfile: Dockerfile
+    container_name: shadow-trainer-api-dev
+    command: uvicorn api_service:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api_backend:/app
+    restart: unless-stopped
+
+  # Celery Worker
+  worker:
+    build:
+      context: ./api_backend
+      dockerfile: Dockerfile
+    container_name: shadow-trainer-worker-dev
+    command: celery -A tasks worker --loglevel=info --concurrency=1
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api_backend:/app
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./api_frontend
+      dockerfile: Dockerfile
+    container_name: shadow-trainer-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # Monitoring
+  flower:
+    image: mher/flower:latest
+    container_name: shadow-trainer-flower-dev
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - FLOWER_UNAUTHENTICATED_API=true
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Redis Management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: shadow-trainer-redis-ui-dev
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped

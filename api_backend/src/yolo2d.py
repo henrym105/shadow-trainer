@@ -2,17 +2,17 @@ import os
 import logging
 
 import cv2
+from matplotlib import pyplot as plt
 import numpy as np
 from tqdm import tqdm
 from ultralytics import YOLO
+from celery.utils.log import get_task_logger
 
+from constants import API_ROOT_DIR, CHECKPOINT_DIR
 from src.utils import get_pytorch_device, get_frame_info
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] in %(name)s.%(funcName)s() --> %(message)s')
-logger = logging.getLogger(__name__)
+logger = get_task_logger(__name__)
 
-BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHECKPOINT_DIR = os.path.join(BACKEND_ROOT, "checkpoint")
 
 class YOLOPoseEstimator:
     def __init__(self, model_name="yolo11x-pose.pt", checkpoint_dir=CHECKPOINT_DIR, device="cpu"):
@@ -37,13 +37,21 @@ class YOLOPoseEstimator:
         Returns:
             np.ndarray: A NumPy array of shape (17, 3) where N is the number of hr_keypoints and each row is [x, y, confidence].
         """
+        if frame is None:
+            raise ValueError("Frame is None, cannot process keypoints")
+            
         pose_results = self.model(frame, verbose=False)
-        if pose_results and pose_results[0].keypoints:
+        keypoints = None
+        
+        if pose_results and pose_results[0].keypoints and len(pose_results[0].keypoints.xyn) > 0:
             # Get keypoints of the first detected pose as numpy array
             keypoints_xy = pose_results[0].keypoints.xyn[0].cpu().numpy()  # shape (N, 2)
             keypoints_conf = pose_results[0].keypoints.conf[0].cpu().numpy()  # shape (N,)
             keypoints = np.concatenate([keypoints_xy, keypoints_conf[:, None]], axis=1)  # shape (N, 3)
 
+        if keypoints is None:
+            raise ValueError("No keypoints detected in frame")
+            
         assert keypoints.shape == (17, 3), "Keypoints should have shape (17, 3) with format (x, y, conf). Received shape: {}".format(keypoints.shape)
 
         return keypoints
@@ -62,7 +70,15 @@ class YOLOPoseEstimator:
                                 of hr_keypoints and each row is [x, y, confidence],
                                 or None if no poses are detected.
         """
-        keypoints = self.get_keypoints(frame)
+        if frame is None:
+            logger.error("Frame is None, cannot process keypoints")
+            return None
+            
+        try:
+            keypoints = self.get_keypoints(frame)
+        except (ValueError, AssertionError) as e:
+            logger.error(f"Failed to get keypoints from frame: {e}")
+            return None
         thorax = ((keypoints[5] + keypoints[6])/2)
         mid_hip = ((keypoints[12] + keypoints[11])/2)
         spine = (mid_hip+thorax)/2
@@ -147,13 +163,24 @@ def rotate_video_until_upright(video_path: str, debug: bool = False) -> int:
     cap = cv2.VideoCapture(video_path)
     ret, frame = cap.read()
     keypoints = yoloEstimator.get_points_from_frame(frame)
+    
+    if keypoints is None:
+        logger.warning(f"No keypoints detected in first frame of {video_path}. Assuming video is upright.")
+        cap.release()
+        return 0
+    
     is_upright = is_person_upright(keypoints)
 
-    while not is_upright:
-        logger.info(f"Incorrect Orientation Detected. Rotating {clockwise_rotations_needed} degrees and check again...")
+    while not is_upright and clockwise_rotations_needed < 4:
+        logger.info(f"Incorrect Orientation Detected. Rotating {clockwise_rotations_needed * 90} degrees and check again...")
         frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         clockwise_rotations_needed += 1
         keypoints = yoloEstimator.get_points_from_frame(frame)
+        
+        if keypoints is None:
+            logger.warning(f"No keypoints detected after rotation. Assuming current orientation is correct.")
+            break
+            
         is_upright = is_person_upright(keypoints)
     cap.release()
     assert not cap.isOpened()
@@ -239,11 +266,60 @@ def is_person_upright(keypoints: np.ndarray) -> bool:
     return (head_y < shoulders_y < hips_y < knees_y < feet_y)
 
 
+
+def mirror_video_for_lefty(video_path: str, debug: bool = False) -> str:
+    """Mirrors the video horizontally to simulate a left-handed view.
+
+    Args:
+        video_path (str): Path to the input video file.
+        debug (bool): If True, saves a debug copy of the mirrored video.
+
+    Returns:
+        str: Path to the mirrored video file.
+    """
+    logger.info(f"Mirroring video for left-handed view: {video_path}")
+    
+    cap = cv2.VideoCapture(video_path)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    # Always use a temporary file to avoid overwriting the input while reading
+    temp_output_path = os.path.join(os.path.dirname(video_path), "temp_mirrored_" + os.path.basename(video_path))
+    
+    output_cap = cv2.VideoWriter(filename=temp_output_path, fourcc=fourcc, fps=fps, frameSize=(original_width, original_height))
+
+    for _ in tqdm(range(frame_count), desc="Mirroring Video"):
+        ret, frame = cap.read()
+        if not ret:
+            break
+        mirrored_frame = cv2.flip(frame, 1)  # Flip horizontally
+        output_cap.write(mirrored_frame)
+
+    cap.release()
+    output_cap.release()
+    
+    # Determine final output path
+    if debug:
+        final_output_path = os.path.join(os.path.dirname(video_path), "mirrored_" + os.path.basename(video_path))
+        os.rename(temp_output_path, final_output_path)
+    else:
+        final_output_path = video_path
+        os.replace(temp_output_path, video_path)
+    
+    logger.info(f"Video mirrored for left-handed view. Saved to: {final_output_path}")
+    
+    return final_output_path
+
+
 if __name__ == "__main__":    
     # Example usage
     import torch
     estimator = YOLOPoseEstimator(
-        checkpoint_dir=os.path.join(BACKEND_ROOT, "checkpoint"),
+        checkpoint_dir=os.path.join(API_ROOT_DIR, "checkpoint"),
         model_name="yolo11n-pose.pt",
         device= "mps" if torch.backends.mps.is_available() else "cpu"
     )
@@ -252,11 +328,13 @@ if __name__ == "__main__":
     logger.info(f"Number of frames processed: {len(keypoints)}")
     logger.info(f"Keypoints shape first frame: {keypoints[0].shape if keypoints[0] is not None else 'No keypoints detected'}")
 
-    logger.info(f"Keypoints shape: {keypoints.shape}")
+    # logger.info(f"Keypoints shape: {keypoints.shape}")
 
     # Save the keypoints to a file or process them further as needed
     # For example, you can save them to a .npy file:
-    output_file = os.path.join(BACKEND_ROOT, "tmp_api_output", "output_keypoints_2d_yolov11.npy")
+    output_file = os.path.join(API_ROOT_DIR, "tmp_api_output", "output_keypoints_2d_yolov11.npy")
    
-    np.save(output_file, keypoints)
-    logger.info(f"Keypoints saved to {output_file}")
+    # np.save(output_file, keypoints)
+    # logger.info(f"Keypoints saved to {output_file}")
+
+    pass

@@ -17,6 +17,8 @@ api_backend/videos/**
 api_backend/**.mp4
 api_backend/*_output/
 
+**output/
+
 # Ignore temporary and log files
 *.log
 *.tmp
@@ -26,6 +28,8 @@ api_backend/*_output/
 .aws/
 *.env
 .env*
+**.venv/
+**.env/
 
 # Ignore test and notebook files
 *.ipynb
@@ -54,3 +58,5 @@ run_docker_container.sh
 shadow-trainer-taskdef.json
 **tmp_api/
 **tmp_api_output/
+
+

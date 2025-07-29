@@ -1,0 +1,152 @@
+services:
+  # Database & Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: shadow-trainer-redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - shadow-trainer-network
+
+  # Backend API
+  api:
+    build:
+      context: ./api_backend
+      dockerfile: Dockerfile.prod
+    container_name: shadow-trainer-api
+    command: uvicorn api_service:app --host 0.0.0.0 --port 8000 --workers 2
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - PYTHONPATH=/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api_backend/uploads:/app/uploads
+      - ./api_backend/tmp_api_output:/app/tmp_api_output
+      - ./api_backend/output:/app/output
+    restart: unless-stopped
+    networks:
+      - shadow-trainer-network
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Celery Worker
+  worker:
+    build:
+      context: ./api_backend
+      dockerfile: Dockerfile.prod
+    container_name: shadow-trainer-worker
+    command: celery -A tasks worker --loglevel=warning --concurrency=1 --max-tasks-per-child=1
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - PYTHONPATH=/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    volumes:
+      - ./api_backend/uploads:/app/uploads
+      - ./api_backend/tmp_api_output:/app/tmp_api_output
+      - ./api_backend/output:/app/output
+      - ./api_backend/checkpoint:/app/checkpoint
+    restart: unless-stopped
+    networks:
+      - shadow-trainer-network
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Frontend
+  frontend:
+    build:
+      context: ./api_frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: https://api.shadow-trainer.com
+    container_name: shadow-trainer-frontend
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - shadow-trainer-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    develop:
+      watch:
+        - action: sync
+          path: ./api_frontend/src
+          target: /app/src
+        - action: sync
+          path: ./api_frontend/public
+          target: /app/public
+        - action: rebuild
+          path: ./api_frontend/package.json
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: shadow-trainer-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./api_backend/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt/live/shadow-trainer.com/fullchain.pem:/etc/nginx/certs/fullchain.pem:ro
+      - /etc/letsencrypt/live/shadow-trainer.com/privkey.pem:/etc/nginx/certs/privkey.pem:ro
+    depends_on:
+      - api
+      - frontend
+    restart: unless-stopped
+    networks:
+      - shadow-trainer-network
+
+  # Monitoring
+  flower:
+    image: mher/flower:2.0.1
+    container_name: shadow-trainer-flower
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - FLOWER_UNAUTHENTICATED_API=true
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - shadow-trainer-network
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  shadow-trainer-network:
+    driver: bridge
