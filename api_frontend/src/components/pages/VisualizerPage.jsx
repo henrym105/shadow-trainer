@@ -44,10 +44,7 @@ function VisualizerPage() {
           if (infoRes.ok) {
             const infoData = await infoRes.json();
             setTaskInfo(infoData);
-            
-            // Don't automatically load joint evaluation text anymore
-            // User will click button to generate it
-          }
+                      }
         } else {
           setError('Failed to load keypoints data');
         }
@@ -242,10 +239,10 @@ function VisualizerPage() {
           
           {/* Visualization Controls Section - Now on the side */}
           <div className="controls-container">
-            <h3 className="controls-title">Visualization Controls</h3>
+            <h3 className="controls-title">Visualization Controls: </h3>
             
             {/* Control Groups */}
-            <div className="flex flex-col gap-xl">
+            <div className="controls-content">
               {/* Auto Rotation Control */}
               <div className="control-group">
                 <label className="control-label">Auto Rotation:</label>
@@ -332,23 +329,22 @@ function VisualizerPage() {
                 </button>
               </div>
             </div>
-            
-            {/* Generate Analysis Button */}
-            <div className="m-xl">
-              <button 
-                onClick={handleGenerateEvaluation}
-                disabled={evaluationLoading}
-                className="btn btn-primary"
-              >
-                {evaluationLoading ? 'Generating Analysis...' : 'Generate Movement Analysis'}
-              </button>
-            </div>
           </div>
         </div>
         
-        {/* Joint Evaluation Results Box */}
-        {(jointEvaluation || evaluationLoading) && (
-          <div className="joint-evaluation-box">
+        {/* Generate Analysis Button or Movement Feedback Box */}
+        {!jointEvaluation && !evaluationLoading ? (
+          <div className="visualization-box analysis-button-container">
+            <button 
+              onClick={handleGenerateEvaluation}
+              disabled={evaluationLoading}
+              className="analysis-button"
+            >
+              Generate Movement Analysis
+            </button>
+          </div>
+        ) : (
+          <div className="visualization-box analysis-button-container">
             <h3 className="evaluation-title">Movement Feedback</h3>
             
             {evaluationLoading ? (
