@@ -17,7 +17,8 @@ from src.utils import get_pytorch_device
 from src.yolo2d import rotate_video_until_upright
 from src.inference import (
     create_2D_images, 
-    create_3d_pose_images_from_array, 
+    create_3d_pose_images_from_array,
+    crop_align_3d_keypoints, 
     flip_rgb_to_bgr, 
     generate_output_combined_frames, 
     get_pose2D, 
@@ -61,7 +62,7 @@ celery_app.conf.update(
 def process_video_task_small(
         self, input_video_path: str, model_size: str = "xs", 
         is_lefty: bool = False, pro_keypoints_filename: Optional[str] = None,
-        video_format: str = "combined"
+        visualization_type: str = "combined"
     ) -> str:
     """Process video with progress updates"""
     logger.info(f" ---> [ process_video_task_small ]")
@@ -110,7 +111,7 @@ def process_video_task(
         model_size: str = "xs", 
         is_lefty: bool = False, 
         pro_keypoints_filename: str = None,
-        video_format: str = "combined"
+        visualization_type: str = "dynamic_3d_animation"
     ) -> str:
     """Process video with pose estimation and keypoint overlays
     
@@ -119,7 +120,7 @@ def process_video_task(
         model_size: Model size to use for processing
         is_lefty: Whether the user is left-handed
         pro_keypoints_filename: str
-        video_format: str ("combined", "3d_only", dynamic)
+        visualization_type: str ("combined", "3d_only", "dynamic_3d_animation")
     
     Returns:
         Path to output video file
@@ -170,7 +171,7 @@ def process_video_task(
 
         # Step 2: Create 2D visualization frames (35% progress)
         self.update_state(state='PROGRESS', meta={'progress': 35}, message="Creating 2D visualization frames...")
-        if video_format == "combined":
+        if visualization_type == "combined":
             cap = cv2.VideoCapture(input_video_path)
             keypoints_2d = np.load(FILE_POSE2D)
             create_2D_images(cap, keypoints_2d, DIR_POSE2D, is_lefty)
@@ -187,34 +188,43 @@ def process_video_task(
             yaml_path=model_config_path
         )
 
-        # Step 4: Download pro keypoints if specified
+        # Step 4: Download pro keypoints if specified, otherwise use temporary file (Blake Snell)
         pro_keypoints_path = TMP_PRO_KEYPOINTS_FILE
         pro_player_name = None
         if pro_keypoints_filename:
             logger.info(f"Downloading pro keypoints file from S3: {pro_keypoints_filename}")
             download_pro_keypoints_from_s3(pro_keypoints_filename, FILE_POSE3D_PRO)
             pro_keypoints_path = FILE_POSE3D_PRO
-            
+
             # Extract player name from filename
             player_key = pro_keypoints_filename.replace("_median.npy", "").replace(".npy", "")
             pro_info = PRO_TEAMS_MAP.get(player_key, {})
             pro_player_name = pro_info.get("name", player_key)
             logger.info(f"Professional player: {pro_player_name}")
 
-        # Step 4: Create 3D visualization frames (70% progress)
+
+        # step 4.1: crop align the user keypoints to the same n_frames as the pro keypoints: 
+        self.update_state(state='PROGRESS', meta={'progress': 60}, message="Aligning user keypoints with pro keypoints...")
+        pro_kpts_path, user_kpts_path = crop_align_3d_keypoints(
+            user_3d_keypoints_filepath=FILE_POSE3D,
+            pro_keypoints_filepath=pro_keypoints_path,
+            is_lefty=is_lefty
+        )
+
+        # Step 4.5: Create 3D visualization frames (70% progress)
         self.update_state(state='PROGRESS', meta={'progress': 70}, message="Creating 3D visualization frames...")
-        if video_format != "dynamic_3d_animation":
+        if visualization_type in ["3d_only", "combined"]:
             create_3d_pose_images_from_array(
-                user_3d_keypoints_filepath = FILE_POSE3D,
+                user_3d_keypoints_filepath = user_kpts_path,
+                pro_keypoints_filepath = pro_kpts_path,
                 output_dir = DIR_POSE3D,
-                pro_keypoints_filepath = pro_keypoints_path,
                 is_lefty = is_lefty,
                 pro_player_name = pro_player_name
             )
 
         # # Step 5: Generate combined frames (85% progress)
         self.update_state(state='PROGRESS', meta={'progress': 85}, message="Combining frames with original video...")
-        if video_format == "combined":
+        if visualization_type == "combined":
             generate_output_combined_frames(
                 output_dir_2D=DIR_POSE2D,
                 output_dir_3D=DIR_POSE3D,
@@ -225,9 +235,9 @@ def process_video_task(
         self.update_state(state='PROGRESS', meta={'progress': 95}, message="Generating final video...")
         
         # Skip video generation for dynamic_3d_animation
-        if video_format != "dynamic_3d_animation":
+        if visualization_type in ["3d_only", "combined"]:
             # Select output directory based on video format
-            if video_format == "3d_only":
+            if visualization_type == "3d_only":
                 input_frames_dir = DIR_POSE3D
                 logger.info(f"Creating 3D-only video from {input_frames_dir}")
             else:  # "combined"

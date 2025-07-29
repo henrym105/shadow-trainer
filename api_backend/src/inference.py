@@ -340,58 +340,36 @@ def get_pose3D_no_vis(
 
 
 
-def create_3d_pose_images_from_array(
-    user_3d_keypoints_filepath: str,
-    output_dir: str,
-    pro_keypoints_filepath: str = None,
-    is_lefty: bool = False,
-    pro_player_name: str = None
-) -> None:
-    """
-    Create 3D pose frame visualizations for each frame in the given 3D keypoints array.
+def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filepath: str, is_lefty: bool = False, body_part_to_align: str = "hips") -> tuple:
+    """Crops, aligns, and standardizes 3D keypoint sequences for a user and a professional, ensuring temporal and spatial alignment.
 
     Args:
-        user_3d_keypoints (str): Path to a numpy array of shape (N, 17, 3) containing the 3D keypoints for 17 body points and N frames of the user's input video.
-        output_dir (str): Output directory to save the images.
-        pro_keypoints_filepath (str, optional): Path to the professional keypoints file (for debug/logging).
-        is_lefty (bool): If True, flip the professional keypoints horizontally.
+        user_3d_keypoints_filepath (str): File path to the user's 3D keypoints (.npy file).
+        pro_keypoints_filepath (str): File path to the professional's 3D keypoints (.npy file).
+        is_lefty (bool, optional): Whether the user is left-handed. If True, flips the professional's keypoints. Defaults to False.
+    
+    Returns:
+        tuple: (user_keypoints_npy, pro_keypoints_aligned)
+            - user_keypoints_npy (np.ndarray): Cropped and resampled user 3D keypoints.
+            - pro_keypoints_aligned (np.ndarray): Cropped, resampled, and hip-aligned professional 3D keypoints.
     """
-    angle_adjustment = 0.0
-    # USE_BODY_PART = "feet"
-    # USE_BODY_PART = "shoulders"
-    USE_BODY_PART = "hips"
-
     # Load professional keypoints and prepare for alignment
     user_keypoints_npy = load_npy_file(user_3d_keypoints_filepath)
     pro_keypoints_npy = load_npy_file(pro_keypoints_filepath)
 
-    # Flip pro keypoints if is_lefty is True
-    if is_lefty:
-        pro_keypoints_npy = flip_data(pro_keypoints_npy)
-
     # Pro keypoints should already be standardized, but do it again here just in case
     pro_keypoints_npy = np.array([standardize_3d_keypoints(frame, apply_rotation=False) for frame in pro_keypoints_npy])
 
-    if DEBUG: logger.info(f"User keypoints shape: {user_keypoints_npy.shape}")
-    if DEBUG: logger.info(f"Professional keypoints shape: {pro_keypoints_npy.shape}")
-    if DEBUG: logger.info(f"user_keypoints_npy dtype: {user_keypoints_npy.dtype}")
-    if DEBUG: logger.info(f"pro_keypoints_npy dtype: {pro_keypoints_npy.dtype}")
-
     # ------------------ Find motion start for both user and pro, then crop ------------------
-    user_start, user_end = get_start_end_info(user_keypoints_npy, is_lefty=is_lefty, output_dir = pjoin(output_dir, "user"))
-    # pro_start, pro_end = get_start_end_info(pro_keypoints_npy, is_lefty=is_lefty, output_dir = pjoin(output_dir, "pro"))
-
-    if DEBUG:
-        logger.info(f"User motion starts at frame: {user_start}, ends at frame: {user_end}")
-        # logger.info(f"Pro motion starts at frame: {pro_start}, ends at frame: {pro_end}")
-
+    user_start, user_end = get_start_end_info(user_keypoints_npy, is_lefty=is_lefty)
     user_keypoints_npy = user_keypoints_npy[user_start : user_end]
-    # pro_keypoints_npy = pro_keypoints_npy[pro_start : pro_end]
 
-    # Note: output_dir points to the 'pose' directory, but pose2D is at the job root level
-    job_output_dir = os.path.dirname(output_dir)  # Go up one level from 'pose' to job output root
-    pose2d_dir = pjoin(job_output_dir, 'pose2D')
-    remove_images_before_after_motion(pose2d_dir, user_start, user_end)
+    if DEBUG: 
+        logger.info(f"User keypoints shape: {user_keypoints_npy.shape}")
+        logger.info(f"Professional keypoints shape: {pro_keypoints_npy.shape}")
+        logger.info(f"user_keypoints_npy dtype: {user_keypoints_npy.dtype}")
+        logger.info(f"pro_keypoints_npy dtype: {pro_keypoints_npy.dtype}")
+        logger.info(f"User motion starts at frame: {user_start}, ends at frame: {user_end}")
 
     # Set video_length to the minimum of number of frames between user and pro keypoints files
     num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
@@ -409,19 +387,18 @@ def create_3d_pose_images_from_array(
     num_frames = user_keypoints_npy.shape[0]
 
     # Calculate hip alignment angle adjustment from first frame
-    user_angle = get_stance_angle(user_keypoints_npy[0], USE_BODY_PART)
-    pro_angle = get_stance_angle(pro_keypoints_npy[0], USE_BODY_PART)
+    user_angle = get_stance_angle(user_keypoints_npy[0], body_part_to_align)
+    pro_angle = get_stance_angle(pro_keypoints_npy[0], body_part_to_align)
     angle_adjustment = user_angle - pro_angle
     if DEBUG:
-        logger.info(f"Angle between {USE_BODY_PART} in first frame of USER VIDEO: {user_angle:.2f} degrees")
-        logger.info(f"Angle between {USE_BODY_PART} in first frame of PROFESSIONAL VIDEO: {pro_angle:.2f} degrees")
+        logger.info(f"Angle between {body_part_to_align} in first frame of USER VIDEO: {user_angle:.2f} degrees")
+        logger.info(f"Angle between {body_part_to_align} in first frame of PROFESSIONAL VIDEO: {pro_angle:.2f} degrees")
         logger.info(f"Angle adjustment: {int(angle_adjustment)}")
 
     # Apply hip alignment rotation to all pro keyframes
     pro_keypoints_aligned = np.array([rotate_along_z(frame, angle_adjustment) for frame in pro_keypoints_npy])
     
     # Save original pro keypoints for reference (with _original suffix)
-    job_output_dir = os.path.dirname(os.path.dirname(pro_keypoints_filepath))
     raw_keypoints_dir = os.path.dirname(pro_keypoints_filepath)
     pro_original_filepath = pjoin(raw_keypoints_dir, "pro_3D_keypoints_original.npy")
     np.save(pro_original_filepath, pro_keypoints_npy)
@@ -433,6 +410,33 @@ def create_3d_pose_images_from_array(
         logger.info(f"Original professional 3D keypoints saved to {pro_original_filepath}, with shape {pro_keypoints_npy.shape}")
         logger.info(f"Hip-aligned professional 3D keypoints saved to {pro_keypoints_filepath}, with shape {pro_keypoints_aligned.shape}")
 
+    return user_3d_keypoints_filepath, pro_keypoints_filepath
+
+
+
+def create_3d_pose_images_from_array(
+    user_3d_keypoints_filepath: str,
+    output_dir: str,
+    pro_keypoints_filepath: str = None,
+    is_lefty: bool = False,
+    pro_player_name: str = None
+) -> None:
+    """
+    Create 3D pose frame visualizations for each frame in the given 3D keypoints array.
+
+    Args:
+        user_3d_keypoints (str): Path to a numpy array of shape (N, 17, 3) containing the 3D keypoints for 17 body points and N frames of the user's input video.
+        output_dir (str): Output directory to save the images.
+        pro_keypoints_filepath (str, optional): Path to the professional keypoints file (for debug/logging).
+        is_lefty (bool): If True, flip the professional keypoints horizontally.
+    """
+    USE_BODY_PART = "hips"
+
+    # # # Load professional keypoints and prepare for alignment
+    user_keypoints_npy = load_npy_file(user_3d_keypoints_filepath)
+    pro_keypoints_npy = load_npy_file(pro_keypoints_filepath)
+    num_frames = min(user_keypoints_npy.shape[0], pro_keypoints_npy.shape[0])
+
     for frame_id in tqdm(range(num_frames), desc="Creating 3D pose images", unit="frame"):
         # Create a new figure for this frame
         fig = plt.figure(figsize=(9.6, 5.4))
@@ -442,11 +446,11 @@ def create_3d_pose_images_from_array(
 
         user_keypoints_this_frame = user_keypoints_npy[frame_id]
 
-        if pro_keypoints_aligned is None:
+        if pro_keypoints_npy is None:
             show3Dpose(user_keypoints_this_frame, ax)
         else:
             # Use the already-aligned pro keypoints
-            pro_keypoints_this_frame = pro_keypoints_aligned[frame_id]
+            pro_keypoints_this_frame = pro_keypoints_npy[frame_id]
             # Create the pose overlay image with the user and aligned pro keypoints
             create_pose_overlay_image(
                 data1 = user_keypoints_this_frame, 
@@ -457,20 +461,6 @@ def create_3d_pose_images_from_array(
                 show_hip_reference_line = False,
                 pro_player_name = pro_player_name
             )
-            
-            # # Add title with professional player name
-            # if pro_player_name:
-            #     plt.title(f"Shadow comparison with {pro_player_name}", fontsize=14, pad=20)
-            # else:
-            #     plt.title("Shadow comparison with professional pitcher", fontsize=14, pad=20)
-                
-            # # Add legend
-            # from matplotlib.lines import Line2D
-            # legend_elements = [
-            #     Line2D([0], [0], color='gray', lw=3, label='Professional'),
-            #     Line2D([0], [0], color='red', lw=3, label='User')
-            # ]
-            # ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.0, 1.0))
 
         # Save this 3D pose image
         output_path_3D_this_frame = pjoin(output_dir, f"{frame_id:04d}_3D.png")
@@ -478,29 +468,29 @@ def create_3d_pose_images_from_array(
         plt.close(fig)
 
 
-def remove_images_before_after_motion(pose_img_dir, delete_before_idx = 0, delete_after_idx = None):
-    """ Remove pose2D images before and after the specified index in the output directory.
+# def remove_images_before_after_motion(pose_img_dir, delete_before_idx = 0, delete_after_idx = None):
+#     """ Remove pose2D images before and after the specified index in the output directory.
     
-    Args:
-        dir_type (str): Type of directory to remove images from ('2D' or '3D').
-        delete_before_idx (int): Index before which images should be deleted.
-        delete_after_idx (int, optional): Index after which images should be deleted. If None, no images will be removed after the specified index.
-    """
-    if os.path.exists(pose_img_dir):
-        print(f"Removing pose2D images before index {delete_before_idx} in directory: {pose_img_dir}")
-        pose2d_imgs = sorted([f for f in os.listdir(pose_img_dir) if f.endswith('.png')])
+#     Args:
+#         dir_type (str): Type of directory to remove images from ('2D' or '3D').
+#         delete_before_idx (int): Index before which images should be deleted.
+#         delete_after_idx (int, optional): Index after which images should be deleted. If None, no images will be removed after the specified index.
+#     """
+#     if os.path.exists(pose_img_dir):
+#         print(f"Removing pose2D images before index {delete_before_idx} in directory: {pose_img_dir}")
+#         pose2d_imgs = sorted([f for f in os.listdir(pose_img_dir) if f.endswith('.png')])
 
-        for i, fname in enumerate(pose2d_imgs):
-            img_is_before_motion_start = (i < delete_before_idx) 
-            img_is_after_motion_ends = (i > delete_after_idx) and (delete_after_idx is not None) 
-            if img_is_before_motion_start or img_is_after_motion_ends:
-                os.remove(pjoin(pose_img_dir, fname))
-                if DEBUG: logger.info(f"Removed pose2D frame: {fname}")
-    else:
-        logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
+#         for i, fname in enumerate(pose2d_imgs):
+#             img_is_before_motion_start = (i < delete_before_idx) 
+#             img_is_after_motion_ends = (i > delete_after_idx) and (delete_after_idx is not None) 
+#             if img_is_before_motion_start or img_is_after_motion_ends:
+#                 os.remove(pjoin(pose_img_dir, fname))
+#                 if DEBUG: logger.info(f"Removed pose2D frame: {fname}")
+#     else:
+#         logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
 
 
-def get_start_end_info(arr, is_lefty: bool = False, output_dir: str = ".") -> tuple:
+def get_start_end_info(arr, is_lefty: bool = False) -> tuple:
     """Determine the start and end points of the motion based on the ankle positions in the 3D keypoints array.
 
     Args:

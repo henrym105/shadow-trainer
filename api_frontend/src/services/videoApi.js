@@ -43,7 +43,7 @@ export class VideoAPI {
         model_size: modelSize,
         is_lefty: isLefty.toString(),
         pro_keypoints_filename: proKeypointsFilename,
-        video_format: videoFormat
+        visualization_type: videoFormat
       });
 
       const response = await api.post(`/videos/upload?${params}`, formData, {
@@ -76,7 +76,7 @@ export class VideoAPI {
         model_size: modelSize,
         is_lefty: 'true',
         pro_keypoints_filename: proKeypointsFilename,
-        video_format: videoFormat
+        visualization_type: videoFormat
       });
 
       const response = await api.post(`/videos/sample-lefty?${params}`);

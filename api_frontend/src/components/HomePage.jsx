@@ -21,7 +21,7 @@ function HomePage() {
   const [isLefty, setIsLefty] = useState(false);
   const [selectedProFile, setSelectedProFile] = useState('BlakeSnell_median.npy');
   const [proOptions, setProOptions] = useState([]);
-  const [videoFormat, setVideoFormat] = useState('combined');
+  const [videoFormat, setVideoFormat] = useState('dynamic_3d_animation');
   const [activeTab, setActiveTab] = useState('video-processing');
 
   // Load pro keypoints options
