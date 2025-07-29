@@ -192,7 +192,7 @@ function VisualizerPage() {
                       boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
                       background: '#ff4444'
                     }}></div>
-                    <span>Your Movement</span>
+                    <span>You</span>
                   </div>
                   <div style={{
                     display: 'flex',
@@ -265,7 +265,7 @@ function VisualizerPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
                   <label style={{ fontWeight: '600', color: '#333' }}>User Skeleton:</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
-                    <span style={{ fontWeight: '500', color: !showUserSkeleton ? '#4CAF50' : '#666', fontSize: '0.9rem' }}>Hidden</span>
+                    <span style={{ fontWeight: '500', color: '#666', fontSize: '0.9rem' }}>Hidden</span>
                     <label style={{ position: 'relative', display: 'inline-block', width: '50px', height: '24px' }}>
                       <input 
                         type="checkbox" 
@@ -296,14 +296,14 @@ function VisualizerPage() {
                         }}></span>
                       </span>
                     </label>
-                    <span style={{ fontWeight: '500', color: showUserSkeleton ? '#4CAF50' : '#666', fontSize: '0.9rem' }}>Visible</span>
+                    <span style={{ fontWeight: '500', color: '#4CAF50', fontSize: '0.9rem' }}>Visible</span>
                   </div>
                 </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
                   <label style={{ fontWeight: '600', color: '#333' }}>Pro Skeleton:</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
-                    <span style={{ fontWeight: '500', color: !showProSkeleton ? '#4CAF50' : '#666', fontSize: '0.9rem' }}>Hidden</span>
+                    <span style={{ fontWeight: '500', color: '#666', fontSize: '0.9rem' }}>Hidden</span>
                     <label style={{ position: 'relative', display: 'inline-block', width: '50px', height: '24px' }}>
                       <input 
                         type="checkbox" 
@@ -334,7 +334,7 @@ function VisualizerPage() {
                         }}></span>
                       </span>
                     </label>
-                    <span style={{ fontWeight: '500', color: showProSkeleton ? '#4CAF50' : '#666', fontSize: '0.9rem' }}>Visible</span>
+                    <span style={{ fontWeight: '500', color: '#4CAF50', fontSize: '0.9rem' }}>Visible</span>
                   </div>
                 </div>
               </div>

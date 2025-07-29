@@ -1,5 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import openai
+import numpy as np
+import math
+import os
+from dotenv import load_dotenv
 
 
 # Joint names (unchanged)
@@ -310,6 +315,54 @@ def evaluate_all_joints_text(user_kps, pro_kps):
 
 
 
+def summarize_joint_results(results_dict):
+    """
+    Generates a prompt summarizing results_dict in plain English without metric repetition.
+    """
+    prompt = (
+        "Summarize this information for someone who wants quick insights. "
+        "This is a comparison between the movement of a user and a professional performing the same motion.\n\n"
+        "Respond with just a few bullet points that offer clear, actionable suggestions "
+        "the user can follow to better match the professional's form.\n\n"
+        "Avoid repeating metrics or scores — focus on real-world movement insights. "
+        "Do not include emojis. Keep the language simple and practical.\n\n"
+        "Here is the data:\n"
+    )
+
+    for joint, metrics in results_dict.items():
+        prompt += f"\nJoint: {joint}\n"
+        for key, value in metrics.items():
+            if isinstance(value, (np.float32, np.float64)):
+                if math.isnan(value):
+                    continue
+                value = float(value)
+            prompt += f"- {key}: {value:.3f}\n"
+
+    prompt += "\nLimit your response to 5 bullet points maximum."
+
+    return prompt
+
+
+def generate_motion_feedback(results_dict):
+    prompt = summarize_joint_results(results_dict)
+    # set API key from .env file
+    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+    if os.path.exists(dotenv_path):
+        load_dotenv(dotenv_path)
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+
+    response = openai.chat.completions.create(
+        model="gpt-4o-mini",  # or "gpt-4-mini" if available
+        messages=[
+            {"role": "system", "content": "You are a biomechanics coach giving feedback based on motion analysis."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
+        max_tokens=800,
+    )
+
+    return response.choices[0].message.content
+
 
 if __name__ == "__main__":
     # Example usage
@@ -323,3 +376,9 @@ if __name__ == "__main__":
     results = evaluate_all_joints(user_kps, pro_kps, plot=True)
     for joint, metrics in results.items():
         print(f"{joint}: {metrics}")
+
+    print("-"*100)
+    feedback = generate_motion_feedback(results)
+    print(feedback)
+
+
