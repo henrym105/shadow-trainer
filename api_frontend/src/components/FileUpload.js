@@ -12,9 +12,11 @@ const FileUpload = ({
   const [previewUrl, setPreviewUrl] = useState(null);
   const fileInputRef = useRef(null);
 
+  const maxSize = 15 * 1024 * 1024; // 15MB
+
   const validateFile = (file) => {
     const validTypes = ['.mp4', '.mov', '.avi', '.mkv'];
-    const maxSize = 100 * 1024 * 1024; // 100MB
+
     
     if (!file) {
       return { valid: false, error: 'No file selected' };
@@ -31,7 +33,7 @@ const FileUpload = ({
     if (file.size > maxSize) {
       return { 
         valid: false, 
-        error: 'File size too large. Please upload a video smaller than 100MB' 
+        error: `File size too large. Please upload a video smaller than ${maxSize / (1024 * 1024)}MB` 
       };
     }
 
@@ -134,7 +136,7 @@ const FileUpload = ({
             <p>or click to browse</p>
             <div className="file-requirements">
               <p>Supported formats: MP4, MOV, AVI, MKV</p>
-              <p>Maximum size: 100MB</p>
+              <p>Maximum size: {maxSize / (1024 * 1024)}MB</p>
             </div>
           </div>
         ) : (
