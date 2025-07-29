@@ -506,7 +506,7 @@ async def get_task_info(task_id: str):
             # Return default info if file doesn't exist (for backwards compatibility)
             return {
                 "task_id": task_id,
-                "pro_name": "Blake Snell"
+                "pro_name": "Professional Pitcher"
             }
 
         # Load and return the info data

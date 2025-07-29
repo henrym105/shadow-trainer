@@ -156,6 +156,8 @@ function VisualizerPage() {
                   const infoData = await infoResponse.json();
                   if (infoData.motion_feedback) {
                     setJointEvaluation(infoData.motion_feedback);
+                  } else {
+                    console.log('No motion_feedback found, available keys:', Object.keys(infoData));
                   }
                 }
                 setEvaluationLoading(false);
