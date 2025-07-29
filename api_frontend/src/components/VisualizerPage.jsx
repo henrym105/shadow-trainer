@@ -123,20 +123,15 @@ function VisualizerPage() {
     <div className="app" style={{ width: '100vw', maxWidth: 'none' }}>
       <div style={{ width: '95vw', margin: '0 auto', padding: '2rem' }}>
         {/* Header */}
-        <div style={{ 
-          textAlign: 'center',
-          background: 'rgba(255,255,255,0.9)', 
-          padding: '15px 30px',
-          borderRadius: '12px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          fontSize: '20px',
-          fontWeight: 'bold',
-          fontFamily: 'Arial, sans-serif',
-          marginBottom: '20px',
-          color: '#333'
-        }}>
-          Shadow Trainer - 3D Motion Visualization
+        <header className="app-header">
+          <div className="logo-section">
+            <img src="/Shadow Trainer Logo.png" alt="Shadow Trainer Logo" className="logo" />
+            <div className="logo-text">
+              <h1>Shadow Trainer</h1>
+              <p>3D Motion Visualization</p>
+            </div>
         </div>
+</header>
         
         {/* Main Content Area - Animation + Controls Side by Side */}
         <div style={{ display: 'flex', gap: '20px', height: '75vh' }}>

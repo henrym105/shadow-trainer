@@ -76,11 +76,24 @@ function FixedZOrbitControls() {
 }
 
 // Add this component for turntable animation
-function FloorGrid() {
+function FloorGrid({ keypointFrames }) {
+  // Calculate the lowest z-value from the first frame, accounting for root transformation
+  let minZ = 0;
+  if (keypointFrames && keypointFrames.length > 0) {
+    const firstFrame = keypointFrames[0];
+    const root = [firstFrame[0], firstFrame[1], firstFrame[2]];
+    
+    // Transform all points relative to root and find minimum z
+    for (let i = 0; i < firstFrame.length; i += 3) {
+      const transformedZ = firstFrame[i + 2] - root[2];
+      minZ = Math.min(minZ, transformedZ);
+    }
+  }
+  
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -0.5]}>
-      <planeGeometry args={[4, 4, 20, 20]} />
-      <meshBasicMaterial color="#cccccc" wireframe={true} opacity={0.3} transparent={true} />
+    <mesh position={[0, 0, minZ - 0.1]}>
+      <planeGeometry args={[4, 4, 10, 10]} />
+      <meshBasicMaterial color="#7b7b7bff" wireframe={true} opacity={0.5} transparent={true} wireframeLinewidth={3} />
     </mesh>
   );
 }
@@ -132,7 +145,7 @@ export default function SkeletonViewer({
   return (
     <Canvas camera={{ position: [2, 0, 1.2], up: [0, 0, 1] }} style={{ width: '100%', height: '100%' }}>
       <ambientLight />
-      <FloorGrid />
+      <FloorGrid keypointFrames={keypointFrames} />
       {turntable ? <TurntableControls /> : <FixedZOrbitControls />}
       {showUserSkeleton && (
         <Skeleton frames={keypointFrames} color="red" frame={frame} />
