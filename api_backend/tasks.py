@@ -140,6 +140,7 @@ def process_video_task(
     FILE_POSE3D = DIR_KEYPOINTS / "user_3D_keypoints.npy"
     FILE_POSE3D_PRO = DIR_KEYPOINTS / "pro_3D_keypoints.npy"
     FILE_INFO_JSON = DIR_OUTPUT_BASE / "info.json"
+    FILE_ORIGINAL_VIDEO = DIR_OUTPUT_BASE / f"original{Path(input_video_path).suffix}"
 
     DIR_OUTPUT_BASE.mkdir(exist_ok=True)
     DIR_POSE2D.mkdir(exist_ok=True)
@@ -155,6 +156,11 @@ def process_video_task(
         logger.info(f"Starting video processing for task {task_id}")
         logger.info(f"User handedness preference: {'Left-handed' if is_lefty else 'Right-handed'}")
         cleanup_old_files(OUTPUT_DIR, retention_seconds=RESULT_EXPIRES)
+
+        # Copy original video to task directory for consistent access
+        logger.info(f"Copying original video to task directory: {FILE_ORIGINAL_VIDEO}")
+        shutil.copy2(input_video_path, FILE_ORIGINAL_VIDEO)
+        input_video_path = str(FILE_ORIGINAL_VIDEO)
 
         # Get device for processing
         device = get_pytorch_device()
@@ -272,6 +278,7 @@ def process_video_task(
         
         return {
             "input_path": input_video_path,
+            "original_video_path": str(FILE_ORIGINAL_VIDEO),
             "output_path": str(output_video_path) if output_video_path else None,
             "output_dir": str(DIR_OUTPUT_BASE),
             "original_filename": os.path.basename(input_video_path),

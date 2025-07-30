@@ -16,6 +16,7 @@ api_backend/tmp_api_output/**
 api_backend/videos/**
 api_backend/**.mp4
 api_backend/*_output/
+api_backend/output/**
 
 **output/
 

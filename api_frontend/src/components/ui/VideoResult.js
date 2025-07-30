@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import VideoAPI from '../../services/videoApi';
+import VideoPreview from './VideoPreview';
 import '../../styles/VideoResult.css';
 
 const VideoResult = ({ taskId, jobStatus, onReset }) => {
   const [copySuccess, setCopySuccess] = useState(false);
   const downloadUrl = VideoAPI.getDownloadUrl(taskId);
-  const previewUrl = VideoAPI.getPreviewUrl(taskId);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(downloadUrl);
@@ -15,10 +15,12 @@ const VideoResult = ({ taskId, jobStatus, onReset }) => {
 
   return (
     <div className="video-result-card">
-      <h3>Processed Video</h3>
-      <div className="video-player">
-        <video src={previewUrl} controls width="400" height="300" />
-      </div>
+      <VideoPreview 
+        taskId={taskId}
+        title="Processed Video"
+        width={400}
+        height={300}
+      />
       <div className="result-actions">
         <a href={downloadUrl} download className="download-btn">Download Video</a>
         <button className="copy-btn" onClick={handleCopy}>

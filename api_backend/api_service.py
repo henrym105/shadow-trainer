@@ -2,6 +2,7 @@
 Shadow Trainer API Service
 Professional video processing API for pose estimation and motion analysis.
 """
+import json
 from pathlib import Path
 import uuid
 
@@ -12,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from tasks import generate_3d_keypoints_from_video_task
 
-from constants import TMP_PRO_KEYPOINTS_FILE_S3
+from constants import TMP_PRO_KEYPOINTS_FILE_S3, OUTPUT_DIR
 from tasks import (
     celery_app, 
     process_video_task,
@@ -354,10 +355,10 @@ async def download_file(task_id: str):
     )
 
 
-@app.get("/videos/{task_id}/preview")
-async def get_video_preview(task_id: str):
+@app.get("/videos/{task_id}/preview/processed")
+async def get_processed_video_preview(task_id: str):
     """
-    Stream video for preview in browser from Celery task result.
+    Stream processed video for preview in browser from Celery task result.
     """
     result = AsyncResult(task_id, app=celery_app)
     if not result.ready() or not result.successful():
@@ -377,9 +378,60 @@ async def get_video_preview(task_id: str):
         media_type="video/mp4",
         headers={
             "Accept-Ranges": "bytes",
-            "Content-Disposition": "inline; filename=preview.mp4"
+            "Content-Disposition": "inline; filename=processed_preview.mp4"
         }
     )
+
+
+@app.get("/videos/{task_id}/preview/original")
+async def get_original_video_preview(task_id: str):
+    """Stream original uploaded video for preview in browser."""
+    result = AsyncResult(task_id, app=celery_app)
+    
+    # Get original video path from completed task result
+    original_video_path = None
+    if result.result and isinstance(result.result, dict) and 'original_video_path' in result.result:
+        original_video_path = result.result['original_video_path']
+    else:
+        # For running/pending tasks, look in expected location: {task_id}_output/original.{ext}
+        task_output_dir = OUTPUT_DIR / f"{task_id}_output"
+        for ext in ['.mp4', '.mov', '.avi', '.mkv']:
+            potential_path = task_output_dir / f"original{ext}"
+            if potential_path.exists():
+                original_video_path = str(potential_path)
+                break
+    
+    if not original_video_path or not Path(original_video_path).exists():
+        raise HTTPException(status_code=404, detail="Original video file not found")
+    
+    # Determine media type from file extension
+    file_extension = Path(original_video_path).suffix.lower()
+    media_type_map = {
+        '.mp4': 'video/mp4',
+        '.mov': 'video/quicktime', 
+        '.avi': 'video/x-msvideo',
+        '.mkv': 'video/x-matroska'
+    }
+    media_type = media_type_map.get(file_extension, 'video/mp4')
+    
+    return FileResponse(
+        path=original_video_path,
+        media_type=media_type,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Disposition": f"inline; filename=original_preview{file_extension}"
+        }
+    )
+
+
+# Keep the old endpoint for backward compatibility
+@app.get("/videos/{task_id}/preview")
+async def get_video_preview(task_id: str):
+    """
+    Stream video for preview in browser from Celery task result.
+    (Backward compatibility - returns processed video)
+    """
+    return await get_processed_video_preview(task_id)
 
 
 
@@ -429,7 +481,6 @@ async def list_pro_keypoints():
 async def get_user_keypoints(task_id: str, format: str = Query("npy", description="Output format: npy (default) or flattened for SkeletonViewer")):
     """Get user 3D keypoints data from processed video task"""
     import numpy as np
-    import json
     
     try:
         result = AsyncResult(task_id, app=celery_app)
@@ -482,7 +533,6 @@ async def get_user_keypoints(task_id: str, format: str = Query("npy", descriptio
 @app.get("/videos/{task_id}/info")
 async def get_task_info(task_id: str):
     """Get task info including pro name from info.json file"""
-    import json
     
     try:
         result = AsyncResult(task_id, app=celery_app)

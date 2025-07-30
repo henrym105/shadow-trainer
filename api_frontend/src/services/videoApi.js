@@ -125,7 +125,16 @@ export class VideoAPI {
    * @returns {string} Preview URL
    */
   static getPreviewUrl(taskId) {
-    return `${API_BASE_URL}/videos/${taskId}/preview`;
+    return `${API_BASE_URL}/videos/${taskId}/preview/processed`;
+  }
+
+  /**
+   * Get original uploaded video URL
+   * @param {string} taskId - Task identifier
+   * @returns {string} Original video URL
+   */
+  static getOriginalVideoUrl(taskId) {
+    return `${API_BASE_URL}/videos/${taskId}/preview/original`;
   }
 
   /**

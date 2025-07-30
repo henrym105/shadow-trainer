@@ -80,7 +80,7 @@ function ProcessingPage() {
                 message={jobStatus.message}
               />
               
-              <VideoPreview taskId={taskId} title="Your Uploaded Video" />
+              <VideoPreview taskId={taskId} title="Your Uploaded Video" showOriginal={true} />
               
               <div className="processing-info">
                 <p className="job-id">Job ID: {taskId}</p>

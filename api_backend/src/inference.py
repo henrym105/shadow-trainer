@@ -675,7 +675,7 @@ def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:
 def create_pose_overlay_image(
     data1: np.ndarray, data2: np.ndarray, ax: matplotlib.axis,
     angle_adjustment: float = 0.0, use_body_part: str = "hips",
-    show_hip_reference_line: bool = False, pro_player_name: str = None
+    show_hip_reference_line: bool = False, pro_player_name: str = "Pro"
 ) -> str:
     """Create a single image with 3D pose keypoints from data1 and data2 overlaid on the same axis.
     Both data1 and data2 are standardized before plotting.
@@ -710,23 +710,19 @@ def create_pose_overlay_image(
         draw_reference_angle_line(ax, d1_angle, color='blue', linewidth=2)
         draw_reference_angle_line(ax, d2_angle, color='green', linewidth=2)
 
-    # Visualize the aligned poses
     # Plot the user on top of the pro pose
     show3Dpose(data2, ax, color='blk')
     show3Dpose(data1, ax, color='R')
 
     # Add title with professional player name
-    if pro_player_name:
-        ax.set_title(f"Shadow comparison with {pro_player_name}", fontsize=14, pad=20)
-    else:
-        ax.set_title("Shadow comparison with professional pitcher", fontsize=14, pad=20)
+    ax.set_title(f"Shadow comparison with {pro_player_name}", fontsize=14, pad=20)
 
     # Add legend
     legend_elements = [
-        Line2D([0], [0], color='gray', lw=3, label='Professional'),
+        Line2D([0], [0], color='gray', lw=3, label=pro_player_name),
         Line2D([0], [0], color='red', lw=3, label='User')
     ]
-    ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.0, 1.0))
+    ax.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, 1.05))
 
     return None
 
@@ -852,7 +848,7 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         axs[0].imshow(img2d)
         axs[0].set_title("Input Video", fontsize=FONT_SIZE)
         axs[1].imshow(img3d)
-        axs[1].set_title(f"User and {pro_player_name} in 3D", fontsize=FONT_SIZE)
+        axs[1].set_title(f"3D motion with {pro_player_name}", fontsize=FONT_SIZE)
         plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
         plt.margins(0, 0)
         
