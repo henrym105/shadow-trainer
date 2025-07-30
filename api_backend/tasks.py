@@ -72,29 +72,39 @@ def process_video_task_small(
     logger.info(f"{is_lefty=}")
     logger.info(f"{pro_keypoints_filename=}")
 
+    task_id = self.request.id
+
     try:
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 10})
         
+        # Create task output directory
+        DIR_OUTPUT_BASE = OUTPUT_DIR / f"{task_id}_output"
+        DIR_OUTPUT_BASE.mkdir(exist_ok=True)
+        
+        # Copy original video to task directory for consistent access
+        FILE_ORIGINAL_VIDEO = DIR_OUTPUT_BASE / f"original{Path(input_video_path).suffix.lower()}"
+        logger.info(f"Copying original video to task directory: {FILE_ORIGINAL_VIDEO}")
+        shutil.copy2(input_video_path, FILE_ORIGINAL_VIDEO)
+        
         # Generate output path
         input_path = Path(input_video_path)
         output_filename = f"processed_{uuid.uuid4()}.mp4"
-        output_path = Path("/app/output") / output_filename
-
-        # Ensure output directory exists
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path = DIR_OUTPUT_BASE / output_filename
 
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 50})
 
-        flip_rgb_to_bgr(input_video_path, str(output_path))
+        flip_rgb_to_bgr(str(FILE_ORIGINAL_VIDEO), str(output_path))
 
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 100})
 
         return {
-            "input_path": input_video_path,
+            "input_path": str(FILE_ORIGINAL_VIDEO),
+            "original_video_path": str(FILE_ORIGINAL_VIDEO),
             "output_path": str(output_path),
+            "output_dir": str(DIR_OUTPUT_BASE),
             "original_filename": input_path.name,
             "file_size": os.path.getsize(output_path),
             "status": "completed"
@@ -140,7 +150,7 @@ def process_video_task(
     FILE_POSE3D = DIR_KEYPOINTS / "user_3D_keypoints.npy"
     FILE_POSE3D_PRO = DIR_KEYPOINTS / "pro_3D_keypoints.npy"
     FILE_INFO_JSON = DIR_OUTPUT_BASE / "info.json"
-    FILE_ORIGINAL_VIDEO = DIR_OUTPUT_BASE / f"original{Path(input_video_path).suffix}"
+    FILE_ORIGINAL_VIDEO = DIR_OUTPUT_BASE / f"original{Path(input_video_path).suffix.lower()}"
 
     DIR_OUTPUT_BASE.mkdir(exist_ok=True)
     DIR_POSE2D.mkdir(exist_ok=True)

@@ -811,9 +811,7 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
     # Efficient batch processing for demo video generation
     # Accept both *_2D.png and *.png for 2D images (for compatibility)
     logger.info('\n\nGenerating demo video frames...')
-    image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*_2D.png')))
-    if not image_2d_paths:
-        image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*.png')))
+    image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*.png')))
     image_3d_paths = sorted(glob.glob(pjoin(output_dir_3D, '*.png')))
 
     n_frames = min(len(image_2d_paths), len(image_3d_paths))
@@ -834,10 +832,6 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         # Defensive: if after crop, shape is invalid, skip crop
         if img2d.shape[0] == 0 or img2d.shape[1] == 0:
             img2d = plt.imread(image_2d_paths[i])
-        # Crop 3D as before
-        edge3d = 130
-        if img3d.shape[0] > 2 * edge3d and img3d.shape[1] > 2 * edge3d:
-            img3d = img3d[edge3d:img3d.shape[0] - edge3d, edge3d:img3d.shape[1] - edge3d]
 
         fig, axs = plt.subplots(1, 2, figsize=(15.0, 5.4))
         # Remove axes for both

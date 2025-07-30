@@ -18,8 +18,8 @@ const VideoResult = ({ taskId, jobStatus, onReset }) => {
       <VideoPreview 
         taskId={taskId}
         title="Processed Video"
-        width={400}
-        height={300}
+        width={600}
+        height={400}
       />
       <div className="result-actions">
         <a href={downloadUrl} download className="download-btn">Download Video</a>
