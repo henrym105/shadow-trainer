@@ -11,8 +11,8 @@ function LogoSection() {
       style={{ cursor: 'pointer' }}
     >
       <img 
-        src="/Shadow Trainer Logo.png" 
-        alt="Shadow Trainer Logo" 
+        src="/Shadow Trainer Logo Only.png" 
+        alt="Shadow Trainer Logo Only" 
         className="logo"
       />
       <div className="logo-text">
