@@ -20,7 +20,7 @@ function HomePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [modelSize, setModelSize] = useState('xs');
   const [isLefty, setIsLefty] = useState(false);
-  const [selectedProFile, setSelectedProFile] = useState('BlakeSnell_median.npy');
+  const [selectedProFile, setSelectedProFile] = useState('DeanKremer_median.npy');
   const [proOptions, setProOptions] = useState([]);
   const [videoFormat, setVideoFormat] = useState('dynamic_3d_animation');
   const [activeTab, setActiveTab] = useState('video-processing');
@@ -162,9 +162,9 @@ function HomePage() {
                       <div className="video-format-selection">
                         <label htmlFor="video-format" className="option-header">Output Format:</label>
                         <select id="video-format" value={videoFormat} onChange={e => setVideoFormat(e.target.value)} disabled={isUploading}>
+                          <option value="dynamic_3d_animation">Dynamic 3D Animation</option>
                           <option value="combined">2D + 3D Side by Side</option>
                           <option value="3d_only">3D Skeleton Only</option>
-                          <option value="dynamic_3d_animation">Dynamic 3D Animation</option>
                         </select>
                       </div>
                     </div>
