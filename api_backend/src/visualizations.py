@@ -214,7 +214,7 @@ def get_frame_info(frame: np.ndarray) -> dict:
 
 
 
-def rotate_along_z(kpts: np.ndarray, degrees: float) -> np.ndarray:
+def rotate_around_z(kpts: np.ndarray, degrees: float) -> np.ndarray:
     """
     Rotates a set of 3D keypoints around the Z-axis.
 
@@ -381,7 +381,7 @@ def process_pose_file(data):
     angle = find_angle(ankle_points[0:2], ankle_points[2:4])
     if valid:
         for i in range(len(data)):
-            data[i] = rotate_along_z(data[i], 135 - angle)
+            data[i] = rotate_around_z(data[i], 135 - angle)
         data = shift_data_time(data, switch_point, max_y_pt)
     return valid, data, switch_point, max_y_pt, ankle_points, angle
 

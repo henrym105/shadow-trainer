@@ -394,7 +394,7 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
         logger.info(f"Angle adjustment: {int(angle_adjustment)}")
 
     # Apply hip alignment rotation to all pro keyframes
-    pro_keypoints_aligned = np.array([rotate_along_z(frame, angle_adjustment) for frame in pro_keypoints_npy])
+    pro_keypoints_aligned = np.array([rotate_around_z(frame, angle_adjustment) for frame in pro_keypoints_npy])
     
     # Save original pro keypoints for reference (with _original suffix)
     raw_keypoints_dir = os.path.dirname(pro_keypoints_filepath)
@@ -586,28 +586,22 @@ def get_start_end_info(arr) -> tuple:
             break
     logger.info(f"Motion detection results: start point: {low_point}, end point: {end_point}")
 
-    #plot the joints
-    # plt.plot(left_ankle_arr, label="Left Ankle")
-    # plt.plot(right_ankle_arr, label="Right Ankle")
-    # plt.legend()
-    # plt.show()
-
     return (low_point, end_point)
 
 def get_frame_info(frame):
-  joint_names = [
-    "Hip", "Right Hip", "Right Knee", "Right Ankle",
-    "Left Hip", "Left Knee", "Left Ankle", "Spine",
-    "Thorax", "Neck", "Head", "Left Shoulder",
-    "Left Elbow", "Left Wrist", "Right Shoulder",
-    "Right Elbow", "Right Wrist"
-    ]
-  #frame is of shape 17, 3 for each joint print the x, y and z coordinates
-  joints = {}
-  for i in range(len(frame)):
-    #print(f"{joint_names[i]}: {frame[i]}")
-    joints[joint_names[i]] = frame[i]
-  return joints
+    joint_names = [
+        "Hip", "Right Hip", "Right Knee", "Right Ankle",
+        "Left Hip", "Left Knee", "Left Ankle", "Spine",
+        "Thorax", "Neck", "Head", "Left Shoulder",
+        "Left Elbow", "Left Wrist", "Right Shoulder",
+        "Right Elbow", "Right Wrist"
+        ]
+    #frame is of shape 17, 3 for each joint print the x, y and z coordinates
+    joints = {}
+    for i in range(len(frame)):
+        #print(f"{joint_names[i]}: {frame[i]}")
+        joints[joint_names[i]] = frame[i]
+    return joints
 
 
 
@@ -631,8 +625,6 @@ def get_frame_size(cap: cv2.VideoCapture) -> tuple:
 
 
 def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir_2D: str) -> str:
-    # output_dir_2D = pjoin(output_dir, 'pose2D')
-    # os.makedirs(output_dir_2D, exist_ok=True)
     """Create 2D pose images from keypoints and save them to the specified directory.
     Returns:
         str: Path to the output directory containing the 2D pose images.    
@@ -704,7 +696,7 @@ def create_pose_overlay_image(
     # Rotate the pro pose to align with the user pose based on the angle adjustment from the first frame
     # Only apply rotation if angle_adjustment is non-zero (for backward compatibility)
     if angle_adjustment != 0.0:
-        data2 = rotate_along_z(data2, angle_adjustment)
+        data2 = rotate_around_z(data2, angle_adjustment)
 
     # Recenter both poses on their left ankles
     # 6 is left ankle, 0 is sacrum (middle of hips)
@@ -811,12 +803,18 @@ def standardize_3d_keypoints(keypoints: np.ndarray, apply_rotation: bool = True)
     return keypoints
 
 
-def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir_combined: str, pro_player_name: str = None) -> None:
-    """Generate a demo video showing 2D input and 3D reconstruction side by side."""
-    logger.info('\n\nGenerating demo video frames...')
+def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir_combined: str, pro_player_name: str = "Professional") -> None:
+    """Generate a demo video showing 2D input and 3D reconstruction side by side.
     
+    Args:
+        output_dir_2D (str): Directory containing 2D pose images.
+        output_dir_3D (str): Directory containing 3D pose images.
+        output_dir_combined (str): Directory to save the combined output images.
+        pro_player_name (str, optional): Name of the professional player for the title in the
+    """
     # Efficient batch processing for demo video generation
     # Accept both *_2D.png and *.png for 2D images (for compatibility)
+    logger.info('\n\nGenerating demo video frames...')
     image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*_2D.png')))
     if not image_2d_paths:
         image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*.png')))
@@ -828,8 +826,6 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         return
 
     logger.info('\n\nGenerating demo...')
-    # output_dir_pose = pjoin(output_dir, 'pose')
-    # os.makedirs(output_dir_pose, exist_ok=True)
 
     FONT_SIZE = 12
     for i in tqdm(range(n_frames), desc="Generating output video frames", unit="frame"):
@@ -854,22 +850,23 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
             ax.set_yticks([])
             ax.axis('off')
         axs[0].imshow(img2d)
-        axs[0].set_title("Input", fontsize=FONT_SIZE)
+        axs[0].set_title("Input Video", fontsize=FONT_SIZE)
         axs[1].imshow(img3d)
-        axs[1].set_title("Reconstruction", fontsize=FONT_SIZE)
+        axs[1].set_title(f"User and {pro_player_name} in 3D", fontsize=FONT_SIZE)
         plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
         plt.margins(0, 0)
+        
         output_path_pose_thisimg = pjoin(output_dir_combined, f"{i:04d}_pose.png")
         fig.savefig(output_path_pose_thisimg, dpi=200, bbox_inches='tight')
         plt.close(fig)
 
 
 
-def img2video(video_path: str, input_frames_dir: str) -> str:
+def img2video(user_upload_video_path: str, input_frames_dir: str) -> str:
     """Converts a sequence of pose images into a video.
 
     Args:
-        video_path (str): Path to the original input video (used for FPS and naming).
+        input_video_path (str): Path to the original input video (used for FPS and naming).
         input_frames_dir (str): Directory containing the 'pose' subdirectory with PNG frames.
 
     Raises:
@@ -880,10 +877,8 @@ def img2video(video_path: str, input_frames_dir: str) -> str:
     Returns:
         str: Path to the generated output video file (a .mp4 file).
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    video_name = video_path.split('/')[-1].split('.')[0]
-    cap = cv2.VideoCapture(video_path)
+    video_name = user_upload_video_path.split('/')[-1].split('.')[0]
+    cap = cv2.VideoCapture(user_upload_video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     if not fps or np.isnan(fps):
         fps = 25  # fallback default
@@ -994,9 +989,8 @@ def flip_data(data, left_joints=[1, 2, 3, 14, 15, 16], right_joints=[4, 5, 6, 11
     return flipped_data
     
 
-def rotate_along_z(kpts: np.ndarray, degrees: float) -> np.ndarray:
-    """
-    Rotates a set of 3D keypoints around the Z-axis.
+def rotate_around_z(kpts: np.ndarray, degrees: float) -> np.ndarray:
+    """Rotates a set of 3D keypoints around the Z-axis.
 
     Parameters:
         kpts (np.ndarray): Array of shape (17, 3) containing [x, y, z] keypoints.

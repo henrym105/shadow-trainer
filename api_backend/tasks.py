@@ -139,12 +139,17 @@ def process_video_task(
     FILE_POSE2D = DIR_KEYPOINTS / "2D_keypoints.npy"
     FILE_POSE3D = DIR_KEYPOINTS / "user_3D_keypoints.npy"
     FILE_POSE3D_PRO = DIR_KEYPOINTS / "pro_3D_keypoints.npy"
+    FILE_INFO_JSON = DIR_OUTPUT_BASE / "info.json"
 
     DIR_OUTPUT_BASE.mkdir(exist_ok=True)
     DIR_POSE2D.mkdir(exist_ok=True)
     DIR_POSE3D.mkdir(exist_ok=True)
     DIR_COMBINED_FRAMES.mkdir(exist_ok=True)
     DIR_KEYPOINTS.mkdir(exist_ok=True)
+
+    IS_TYPE_COMBINED = (visualization_type == "combined")
+    IS_TYPE_3D_ONLY = (visualization_type == "3d_only")
+    IS_TYPE_DYNAMIC_3D_ANIMATION = (visualization_type == "dynamic_3d_animation")
 
     try:
         logger.info(f"Starting video processing for task {task_id}")
@@ -155,7 +160,7 @@ def process_video_task(
         device = get_pytorch_device()
 
         # Update job status to processing
-        self.update_state(state='PROGRESS', meta={'progress': 10}, message="Initializing video processing...")
+        self.update_state(state='PROGRESS', meta={'progress': 10, 'message': "Initializing video processing..."})
 
         # Load model configuration
         logger.info(f"Current working directory: {os.getcwd()}")
@@ -167,19 +172,19 @@ def process_video_task(
 
         # Step 1: Extract 2D poses (20% progress)
         self.update_state(state='PROGRESS', meta={'progress': 10})
-        self.update_state(state='PROGRESS', meta={'progress': 20}, message="Extracting 2D poses...")
+        self.update_state(state='PROGRESS', meta={'progress': 20, 'message': "Extracting 2D poses..."})
         get_pose2D(video_path=input_video_path, output_file=FILE_POSE2D, device=device)
 
         # Step 2: Create 2D visualization frames (35% progress)
-        self.update_state(state='PROGRESS', meta={'progress': 35}, message="Creating 2D visualization frames...")
-        if visualization_type == "combined":
+        self.update_state(state='PROGRESS', meta={'progress': 35, 'message': "Creating 2D visualization frames..."})
+        if IS_TYPE_COMBINED:
             cap = cv2.VideoCapture(input_video_path)
             keypoints_2d = np.load(FILE_POSE2D)
             create_2D_images(cap, keypoints_2d, DIR_POSE2D)
             cap.release()
 
         # Step 3: Generate 3D poses (50% progress)
-        self.update_state(state='PROGRESS', meta={'progress': 50}, message="Generating 3D poses...")
+        self.update_state(state='PROGRESS', meta={'progress': 50, 'message': "Generating 3D poses..."})
         get_pose3D_no_vis(
             user_2d_kpts_filepath = FILE_POSE2D,
             output_keypoints_path = FILE_POSE3D,
@@ -204,17 +209,10 @@ def process_video_task(
             logger.info(f"Professional player: {pro_player_name}")
 
         # Create info.json file with pro_name
-        import json
-        info_data = {
-            "pro_name": pro_player_name if pro_player_name else "Blake Snell"
-        }
-        info_file_path = DIR_OUTPUT_BASE / "info.json"
-        with open(info_file_path, 'w') as f:
-            json.dump(info_data, f, indent=2)
-        logger.info(f"Created info.json with pro_name: {info_data['pro_name']}")
+        create_info_file(FILE_INFO_JSON, pro_player_name)
 
         # step 4.1: crop align the user keypoints to the same n_frames as the pro keypoints: 
-        self.update_state(state='PROGRESS', meta={'progress': 60}, message="Aligning user keypoints with pro keypoints...")
+        self.update_state(state='PROGRESS', meta={'progress': 60, 'message': "Aligning user keypoints with pro keypoints..."})
         user_kpts_path, pro_kpts_path, user_start, user_end = crop_align_3d_keypoints(
             user_3d_keypoints_filepath=FILE_POSE3D,
             pro_keypoints_filepath=pro_keypoints_path,
@@ -222,7 +220,7 @@ def process_video_task(
         )
 
         # Remove images before and after motion detection (if pose2D images were created)
-        if visualization_type == "combined":
+        if IS_TYPE_COMBINED:
             logger.info(f"About to remove pose2D images: user_start={user_start}, user_end={user_end}")
             logger.info(f"DIR_POSE2D path: {DIR_POSE2D}")
             try: 
@@ -236,8 +234,8 @@ def process_video_task(
                 logger.error(f"Error removing pose2D images: {e}")
 
         # Step 4.5: Create 3D visualization frames (70% progress)
-        self.update_state(state='PROGRESS', meta={'progress': 70}, message="Creating 3D visualization frames...")
-        if visualization_type in ["3d_only", "combined"]:
+        if IS_TYPE_COMBINED or IS_TYPE_3D_ONLY:
+            self.update_state(state='PROGRESS', meta={'progress': 70, 'message': "Creating 3D visualization frames..."})
             create_3d_pose_images_from_array(
                 user_3d_keypoints_filepath = user_kpts_path,
                 pro_keypoints_filepath = pro_kpts_path,
@@ -246,38 +244,27 @@ def process_video_task(
             )
 
         # # Step 5: Generate combined frames (85% progress)
-        self.update_state(state='PROGRESS', meta={'progress': 85}, message="Combining frames with original video...")
-        if visualization_type == "combined":
+        if IS_TYPE_COMBINED:
+            self.update_state(state='PROGRESS', meta={'progress': 85, 'message': "Combining frames with original video..."})
             generate_output_combined_frames(
                 output_dir_2D=DIR_POSE2D,
                 output_dir_3D=DIR_POSE3D,
-                output_dir_combined=DIR_COMBINED_FRAMES
+                output_dir_combined=DIR_COMBINED_FRAMES,
+                pro_player_name = pro_player_name
             )
 
         # Step 6: Create final video (95% progress)
-        self.update_state(state='PROGRESS', meta={'progress': 95}, message="Generating final video...")
-        
-        # Skip video generation for dynamic_3d_animation
-        if visualization_type in ["3d_only", "combined"]:
-            # Select output directory based on video format
-            if visualization_type == "3d_only":
-                input_frames_dir = DIR_POSE3D
-                logger.info(f"Creating 3D-only video from {input_frames_dir}")
-            else:  # "combined"
-                input_frames_dir = DIR_COMBINED_FRAMES
-                logger.info(f"Creating combined video format from {input_frames_dir}")
-                
-            output_video_path = img2video(
-                video_path = input_video_path,
-                input_frames_dir = input_frames_dir,
-            )
+        self.update_state(state='PROGRESS', meta={'progress': 95, 'message': "Generating final video..."})
+        if IS_TYPE_COMBINED:
+            output_video_path = img2video(input_video_path, DIR_COMBINED_FRAMES)
+        elif IS_TYPE_3D_ONLY:
+            output_video_path = img2video(input_video_path, DIR_POSE3D)
         else:
-            # For dynamic_3d_animation, we don't create a video file
+            # Skip video generation for dynamic_3d_animation
             output_video_path = None
-            logger.info("Skipping video generation for dynamic_3d_animation format")
 
         # Complete job
-        self.update_state(state='PROGRESS', meta={'progress': 100}, message="Video processing completed.")
+        self.update_state(state='PROGRESS', meta={'progress': 100, 'message': "Video processing completed."})
         logger.info(f"Video processing completed for job {task_id}: {output_video_path}")
 
         # Final garbage collection before completion
@@ -312,7 +299,7 @@ def generate_3d_keypoints_from_video_task(self, input_video_path: str, model_siz
         str: Path to the generated 3D keypoints .npy file.
     """
     try:
-        self.update_state(state='PROGRESS', meta={'progress': 10}, message="Initializing 3D keypoints extraction...")
+        self.update_state(state='PROGRESS', meta={'progress': 10, 'message': "Initializing 3D keypoints extraction..."})
         
         device = get_pytorch_device()
         model_config_path = get_model_config_path(model_size)
@@ -323,11 +310,11 @@ def generate_3d_keypoints_from_video_task(self, input_video_path: str, model_siz
         temp_3d_path = temp_dir / "3d_keypoints.npy"
 
         # Step 1: Extract 2D keypoints from video
-        self.update_state(state='PROGRESS', meta={'progress': 50}, message="Extracting 2D poses...")
+        self.update_state(state='PROGRESS', meta={'progress': 50, 'message': "Extracting 2D poses..."})
         get_pose2D(video_path=input_video_path, output_file=temp_2d_path, device=device)
 
         # Step 2: Generate 3D keypoints from 2D keypoints
-        self.update_state(state='PROGRESS', meta={'progress': 90}, message="Generating 3D keypoints...")
+        self.update_state(state='PROGRESS', meta={'progress': 90, 'message': "Generating 3D keypoints..."})
         get_pose3D_no_vis(
             user_2d_kpts_filepath=temp_2d_path,
             output_keypoints_path=temp_3d_path,
@@ -337,7 +324,7 @@ def generate_3d_keypoints_from_video_task(self, input_video_path: str, model_siz
             yaml_path=model_config_path
         )
 
-        self.update_state(state='PROGRESS', meta={'progress': 100}, message="3D keypoints extraction completed!")
+        self.update_state(state='PROGRESS', meta={'progress': 100, 'message': "3D keypoints extraction completed!"})
         return str(temp_3d_path)
     except Exception as e:
         logger.error(f"Failed to generate 3D keypoints: {e}")
@@ -350,7 +337,7 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
     """Generate joint evaluation analysis for a processed video task"""
     try:
         # Update progress
-        self.update_state(state='PROGRESS', meta={'progress': 10}, message="Initializing joint evaluation...")
+        self.update_state(state='PROGRESS', meta={'progress': 10, 'message': "Initializing joint evaluation..."})
         
         # Construct paths based on task_id
         DIR_OUTPUT_BASE = OUTPUT_DIR / f"{task_id}_output"
@@ -364,21 +351,21 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
             raise Exception("Required keypoint files not found")
         
         # Update progress
-        self.update_state(state='PROGRESS', meta={'progress': 30}, message="Loading keypoint data...")
+        self.update_state(state='PROGRESS', meta={'progress': 30, 'message': "Loading keypoint data..."})
         
         # Load keypoints
         user_kps = np.load(FILE_USER_3D)
         pro_kps = np.load(FILE_PRO_3D)
         
         # Update progress
-        self.update_state(state='PROGRESS', meta={'progress': 60}, message="Analyzing joint movements...")
+        self.update_state(state='PROGRESS', meta={'progress': 60, 'message': "Analyzing joint movements..."})
         
         # Run joint evaluation
         from kpts_analysis import evaluate_all_joints_text, generate_motion_feedback
         joint_text = evaluate_all_joints_text(user_kps, pro_kps)
         
         # Update progress
-        self.update_state(state='PROGRESS', meta={'progress': 70}, message="Generating AI feedback...")
+        self.update_state(state='PROGRESS', meta={'progress': 70, 'message': "Generating AI feedback..."})
         
         # Generate human-readable feedback using OpenAI
         try:
@@ -389,7 +376,7 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
             motion_feedback = "Unable to generate personalized feedback at this time."
         
         # Update progress
-        self.update_state(state='PROGRESS', meta={'progress': 80}, message="Saving analysis results...")
+        self.update_state(state='PROGRESS', meta={'progress': 80, 'message': "Saving analysis results..."})
         
         # Update info.json with both joint evaluation text and AI feedback
         if info_file_path.exists():
@@ -405,7 +392,7 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
             json.dump(info_data, f, indent=2)
         
         # Update progress
-        self.update_state(state='PROGRESS', meta={'progress': 100}, message="Joint evaluation completed!")
+        self.update_state(state='PROGRESS', meta={'progress': 100, 'message': "Joint evaluation completed!"})
         
         logger.info(f"Joint evaluation completed for task {task_id}")
         
@@ -462,6 +449,21 @@ def save_uploaded_file(file: UploadFile, file_id: str = None) -> str:
 # ----------------------------------------------------
 
 # ==================== UTILITY FUNCTIONS ====================
+def create_info_file(filepath: Path, pro_name: str) -> None:
+    """Create info.json file, initialize with the pro player's name. 
+    
+    Args:
+        filepath: full path and name, like './output/123-abc/sinfo.json'
+        pro_name: Name of the professional player (if available)
+    """
+    info_data = {
+        "pro_name": pro_name
+    }
+    with open(filepath, 'w') as f:
+        json.dump(info_data, f, indent=2)
+    logger.info(f"Created info.json with pro_name: {pro_name}")
+
+
 def list_s3_pro_keypoints():
     """List available professional keypoints files in S3."""
     import boto3
