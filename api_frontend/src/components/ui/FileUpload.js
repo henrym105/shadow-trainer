@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import VideoPreview from './VideoPreview';
 import '../../styles/FileUpload.css';
 
 const FileUpload = ({ 
@@ -155,12 +156,12 @@ const FileUpload = ({
               </button>
             </div>
             {previewUrl && (
-              <div className="video-preview" onClick={(e) => e.stopPropagation()}>
-                <video
-                  src={previewUrl}
-                  controls
-                  onError={() => setPreviewUrl(null)}
-                  onClick={(e) => e.stopPropagation()}
+              <div onClick={(e) => e.stopPropagation()}>
+                <VideoPreview 
+                  videoUrl={previewUrl}
+                  title="Selected Video"
+                  width={300}
+                  height={200}
                 />
               </div>
             )}

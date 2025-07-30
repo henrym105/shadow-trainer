@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import ProgressBar from '../ui/ProgressBar';
 import LogoSection from '../ui/LogoSection';
+import VideoPreview from '../ui/VideoPreview';
 import VideoAPI, { useJobPolling } from '../../services/videoApi';
 
 function ProcessingPage() {
@@ -78,6 +79,9 @@ function ProcessingPage() {
                 proPlayerName={getProPlayerName()}
                 message={jobStatus.message}
               />
+              
+              <VideoPreview taskId={taskId} title="Your Uploaded Video" />
+              
               <div className="processing-info">
                 <p className="job-id">Job ID: {taskId}</p>
                 <button className="terminate-btn" onClick={handleTerminate}>
