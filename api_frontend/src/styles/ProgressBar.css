@@ -3,7 +3,7 @@
   border-radius: 16px;
   box-shadow: 0 2px 12px rgba(33,150,243,0.08);
   padding: 1.5rem 2rem;
-  max-width: 400px;
+  width: 400px;
   margin: 2rem auto;
   text-align: center;
 }

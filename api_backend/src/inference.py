@@ -714,15 +714,18 @@ def create_pose_overlay_image(
     show3Dpose(data2, ax, color='blk')
     show3Dpose(data1, ax, color='R')
 
-    # Add title with professional player name
-    ax.set_title(f"Shadow comparison with {pro_player_name}", fontsize=14, pad=20)
-
     # Add legend
     legend_elements = [
         Line2D([0], [0], color='gray', lw=3, label=pro_player_name),
         Line2D([0], [0], color='red', lw=3, label='User')
     ]
-    ax.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, 1.05))
+    ax.legend(
+        handles=legend_elements,
+        loc='upper center',
+        bbox_to_anchor=(0.5, 1.05),
+        ncol=2,           # Put legend entries side by side
+        columnspacing=1.5
+    )
 
     return None
 
@@ -808,8 +811,6 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         output_dir_combined (str): Directory to save the combined output images.
         pro_player_name (str, optional): Name of the professional player for the title in the
     """
-    # Efficient batch processing for demo video generation
-    # Accept both *_2D.png and *.png for 2D images (for compatibility)
     logger.info('\n\nGenerating demo video frames...')
     image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*.png')))
     image_3d_paths = sorted(glob.glob(pjoin(output_dir_3D, '*.png')))
@@ -833,17 +834,19 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         if img2d.shape[0] == 0 or img2d.shape[1] == 0:
             img2d = plt.imread(image_2d_paths[i])
 
-        fig, axs = plt.subplots(1, 2, figsize=(15.0, 5.4))
+        fig, axs = plt.subplots(1, 2, figsize=(15.0, 8.0))
         # Remove axes for both
         for ax in axs:
             ax.set_xticks([])
             ax.set_yticks([])
             ax.axis('off')
+
         axs[0].imshow(img2d)
         axs[0].set_title("Input Video", fontsize=FONT_SIZE)
         axs[1].imshow(img3d)
         axs[1].set_title(f"3D motion with {pro_player_name}", fontsize=FONT_SIZE)
-        plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
+
+        plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0.01)  # Reduce wspace to make subplots closer
         plt.margins(0, 0)
         
         output_path_pose_thisimg = pjoin(output_dir_combined, f"{i:04d}_pose.png")
