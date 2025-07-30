@@ -155,13 +155,12 @@ const FileUpload = ({
               </button>
             </div>
             {previewUrl && (
-              <div className="video-preview">
+              <div className="video-preview" onClick={(e) => e.stopPropagation()}>
                 <video
                   src={previewUrl}
                   controls
-                  width="200"
-                  height="150"
                   onError={() => setPreviewUrl(null)}
+                  onClick={(e) => e.stopPropagation()}
                 />
               </div>
             )}
