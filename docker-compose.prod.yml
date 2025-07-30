@@ -21,6 +21,7 @@ services:
       context: ./api_backend
       dockerfile: Dockerfile.prod
     container_name: shadow-trainer-api
+    user: "1000:1000"
     command: uvicorn api_service:app --host 0.0.0.0 --port 8000 --workers 2
     environment:
       - REDIS_URL=redis://redis:6379/0
@@ -53,6 +54,7 @@ services:
       context: ./api_backend
       dockerfile: Dockerfile.prod
     container_name: shadow-trainer-worker
+    user: "1000:1000"
     command: celery -A tasks worker --loglevel=warning --concurrency=1 --max-tasks-per-child=1
     environment:
       - REDIS_URL=redis://redis:6379/0

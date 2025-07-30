@@ -23,7 +23,8 @@ from src.inference import (
     generate_output_combined_frames, 
     get_pose2D, 
     get_pose3D_no_vis, 
-    img2video
+    img2video,
+    remove_images_before_after_motion
 )
 from constants import (
     API_ROOT_DIR,
@@ -214,11 +215,25 @@ def process_video_task(
 
         # step 4.1: crop align the user keypoints to the same n_frames as the pro keypoints: 
         self.update_state(state='PROGRESS', meta={'progress': 60}, message="Aligning user keypoints with pro keypoints...")
-        pro_kpts_path, user_kpts_path = crop_align_3d_keypoints(
+        user_kpts_path, pro_kpts_path, user_start, user_end = crop_align_3d_keypoints(
             user_3d_keypoints_filepath=FILE_POSE3D,
             pro_keypoints_filepath=pro_keypoints_path,
             is_lefty=is_lefty
         )
+
+        # Remove images before and after motion detection (if pose2D images were created)
+        if visualization_type == "combined":
+            logger.info(f"About to remove pose2D images: user_start={user_start}, user_end={user_end}")
+            logger.info(f"DIR_POSE2D path: {DIR_POSE2D}")
+            try: 
+                remove_images_before_after_motion(
+                    pose_img_dir=DIR_POSE2D,
+                    delete_before_idx=user_start,
+                    delete_after_idx=user_end
+                )
+                logger.info("Successfully called remove_images_before_after_motion")
+            except Exception as e:
+                logger.error(f"Error removing pose2D images: {e}")
 
         # Step 4.5: Create 3D visualization frames (70% progress)
         self.update_state(state='PROGRESS', meta={'progress': 70}, message="Creating 3D visualization frames...")

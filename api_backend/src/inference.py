@@ -340,9 +340,11 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
         is_lefty (bool, optional): Whether the user is left-handed. If True, flips the professional's keypoints. Defaults to False.
     
     Returns:
-        tuple: (user_keypoints_npy, pro_keypoints_aligned)
-            - user_keypoints_npy (np.ndarray): Cropped and resampled user 3D keypoints.
-            - pro_keypoints_aligned (np.ndarray): Cropped, resampled, and hip-aligned professional 3D keypoints.
+        tuple: (user_kpts_path, pro_kpts_path, user_start, user_end)
+            - user_kpts_path (str): File path to the cropped and resampled user 3D keypoints.
+            - pro_kpts_path (str): File path to the cropped, resampled, and hip-aligned professional 3D keypoints.
+            - user_start (int): Start frame index for motion detection.
+            - user_end (int): End frame index for motion detection.
     """
     # Load professional keypoints and prepare for alignment
     user_keypoints_npy = load_npy_file(user_3d_keypoints_filepath)
@@ -406,7 +408,7 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
         logger.info(f"Original professional 3D keypoints saved to {pro_original_filepath}, with shape {pro_keypoints_npy.shape}")
         logger.info(f"Hip-aligned professional 3D keypoints saved to {pro_keypoints_filepath}, with shape {pro_keypoints_aligned.shape}")
 
-    return user_3d_keypoints_filepath, pro_keypoints_filepath
+    return user_3d_keypoints_filepath, pro_keypoints_filepath, user_start, user_end
 
 
 
@@ -462,26 +464,37 @@ def create_3d_pose_images_from_array(
         plt.close(fig)
 
 
-# def remove_images_before_after_motion(pose_img_dir, delete_before_idx = 0, delete_after_idx = None):
-#     """ Remove pose2D images before and after the specified index in the output directory.
+def remove_images_before_after_motion(pose_img_dir, delete_before_idx = 0, delete_after_idx = None):
+    """ Remove pose2D images before and after the specified index in the output directory.
     
-#     Args:
-#         dir_type (str): Type of directory to remove images from ('2D' or '3D').
-#         delete_before_idx (int): Index before which images should be deleted.
-#         delete_after_idx (int, optional): Index after which images should be deleted. If None, no images will be removed after the specified index.
-#     """
-#     if os.path.exists(pose_img_dir):
-#         print(f"Removing pose2D images before index {delete_before_idx} in directory: {pose_img_dir}")
-#         pose2d_imgs = sorted([f for f in os.listdir(pose_img_dir) if f.endswith('.png')])
+    Args:
+        dir_type (str): Type of directory to remove images from ('2D' or '3D').
+        delete_before_idx (int): Index before which images should be deleted.
+        delete_after_idx (int, optional): Index after which images should be deleted. If None, no images will be removed after the specified index.
+    """
+    logger.info(f"remove_images_before_after_motion called with: pose_img_dir={pose_img_dir}, delete_before_idx={delete_before_idx}, delete_after_idx={delete_after_idx}")
+    
+    if os.path.exists(pose_img_dir):
+        logger.info(f"Removing pose2D images before index {delete_before_idx} and after index {delete_after_idx} in directory: {pose_img_dir}")
+        pose2d_imgs = sorted([f for f in os.listdir(pose_img_dir) if f.endswith('.png')])
+        logger.info(f"Found {len(pose2d_imgs)} pose2D images to process")
 
-#         for i, fname in enumerate(pose2d_imgs):
-#             img_is_before_motion_start = (i < delete_before_idx) 
-#             img_is_after_motion_ends = (i > delete_after_idx) and (delete_after_idx is not None) 
-#             if img_is_before_motion_start or img_is_after_motion_ends:
-#                 os.remove(pjoin(pose_img_dir, fname))
-#                 if DEBUG: logger.info(f"Removed pose2D frame: {fname}")
-#     else:
-#         logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
+        removed_count = 0
+        for i, fname in enumerate(pose2d_imgs):
+            img_is_before_motion_start = (i < delete_before_idx) 
+            img_is_after_motion_ends = (i > delete_after_idx) and (delete_after_idx is not None) 
+            if img_is_before_motion_start or img_is_after_motion_ends:
+                file_path = pjoin(pose_img_dir, fname)
+                try:
+                    os.remove(file_path)
+                    removed_count += 1
+                    logger.info(f"Removed pose2D frame: {fname} (index {i})")
+                except (PermissionError, OSError) as e:
+                    logger.warning(f"Could not remove pose2D frame {fname}: {e}")
+        
+        logger.info(f"Total removed {removed_count} pose2D images")
+    else:
+        logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
 
 
 def get_start_end_info(arr) -> tuple:
@@ -571,13 +584,13 @@ def get_start_end_info(arr) -> tuple:
         if i > right_max_index:
             end_point = i
             break
-    print(f"start point: {low_point}, end point: {end_point}")
+    logger.info(f"Motion detection results: start point: {low_point}, end point: {end_point}")
 
     #plot the joints
-    plt.plot(left_ankle_arr, label="Left Ankle")
-    plt.plot(right_ankle_arr, label="Right Ankle")
-    plt.legend()
-    plt.show()
+    # plt.plot(left_ankle_arr, label="Left Ankle")
+    # plt.plot(right_ankle_arr, label="Right Ankle")
+    # plt.legend()
+    # plt.show()
 
     return (low_point, end_point)
 
