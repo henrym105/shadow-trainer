@@ -8,7 +8,7 @@ const STATUS_MAP = {
 };
 
 
-const ProgressBar = ({ status, progress, proPlayerName }) => {
+const ProgressBar = ({ status, progress, proPlayerName, message }) => {
   const statusInfo = STATUS_MAP[status] || STATUS_MAP['queued'];
   
   const getProgressMessage = () => {
@@ -36,7 +36,10 @@ const ProgressBar = ({ status, progress, proPlayerName }) => {
           style={{ width: `${progress || 0}%`, background: statusInfo.color }}
         />
       </div>
-      <div className="progress-percent">{progress ? `${progress}%` : '...'}</div>
+      <div className="progress-percent">
+        {progress ? `${progress}%` : '...'}
+        {message && <span className="progress-message"> - {message}</span>}
+      </div>
       <div className="progress-desc">
         {getProgressMessage()}
       </div>

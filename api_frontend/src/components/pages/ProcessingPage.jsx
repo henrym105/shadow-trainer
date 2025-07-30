@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import ProgressBar from '../ui/ProgressBar';
 import LogoSection from '../ui/LogoSection';
@@ -75,7 +75,8 @@ function ProcessingPage() {
               <ProgressBar 
                 status={jobStatus.status} 
                 progress={jobStatus.progress} 
-                proPlayerName={getProPlayerName()} 
+                proPlayerName={getProPlayerName()}
+                message={jobStatus.message}
               />
               <div className="processing-info">
                 <p className="job-id">Job ID: {taskId}</p>

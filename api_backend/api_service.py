@@ -282,6 +282,7 @@ def get_video_task_status(task_id: str):
         # Celery status: PENDING, STARTED, PROGRESS
         if hasattr(result, 'info') and isinstance(result.info, dict):
             response["progress"] = result.info.get('progress', 0)
+            response["message"] = result.info.get('message', None)
         if result.status in ["PROGRESS", "STARTED", "PENDING"]:
             response["status"] = "processing"
     return response
