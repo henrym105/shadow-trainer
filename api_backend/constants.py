@@ -15,6 +15,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 TMP_PRO_KEYPOINTS_FILE = API_ROOT_DIR / "checkpoint" / "example_SnellBlake.npy"
 TMP_PRO_KEYPOINTS_FILE_S3 = "DeanKremer_median.npy"
+# SAMPLE_VIDEO_PATH = API_ROOT_DIR / "sample_videos" / "sample.mov"
 SAMPLE_VIDEO_PATH = API_ROOT_DIR / "sample_videos" / "Left_Hand_Friend_Side.MOV"
 
 # ------------------------------------------------------

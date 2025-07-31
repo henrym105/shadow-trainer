@@ -466,7 +466,7 @@ async def process_sample_lefty_video(
     return {
         "task_id": task.id,
         "file_id": "sample_lefty",
-        "original_filename": "Left_Hand_Friend_Side.MOV",
+        "original_filename": SAMPLE_VIDEO_PATH.name,
         "status": "queued"
     }
 

@@ -53,7 +53,6 @@ services:
     build:
       context: ./api_backend
       dockerfile: Dockerfile.prod
-    container_name: shadow-trainer-worker
     user: "1000:1000"
     command: celery -A tasks worker --loglevel=warning --concurrency=1 --max-tasks-per-child=1
     environment:
