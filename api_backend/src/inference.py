@@ -359,7 +359,7 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
         pro_keypoints_npy = flip_data(pro_keypoints_npy)
 
     # ------------------ Find motion start for both user and pro, then crop ------------------
-    user_start, user_end = get_start_end_info(user_keypoints_npy)
+    user_start, user_end = get_start_end_info(user_keypoints_npy, is_lefty)
     user_keypoints_npy = user_keypoints_npy[user_start : user_end]
 
     if DEBUG: 
@@ -497,96 +497,106 @@ def remove_images_before_after_motion(pose_img_dir, delete_before_idx = 0, delet
         logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
 
 
-def get_start_end_info(arr) -> tuple:
+def get_start_end_info(arr: np.ndarray, is_lefty: bool) -> tuple:
     """Determine the start and end points of the motion based on the ankle positions in the 3D keypoints array.
 
     Args:
         arr (np.ndarray): Input numpy array.
+        is_lefty (bool): Whether the user is left-handed. If True, uses right ankle as front ankle.
 
     Returns:
-    tuple: A tuple containing (min_value, max_value, average_value).
+    tuple: A tuple containing (start_frame, end_frame).
     """
+    
+    # Define front and back ankles based on handedness
+    # For lefty throwers: front ankle is Right Ankle, back ankle is Left Ankle  
+    # For righty throwers: front ankle is Left Ankle, back ankle is Right Ankle
+    front_ankle_name = "Right Ankle" if is_lefty else "Left Ankle"
+    back_ankle_name = "Left Ankle" if is_lefty else "Right Ankle"
 
-    left_ankle_arr = []
-    right_ankle_arr = []
-    higher_ankle_arr = []
-    max_left = 0
-    max_left_index = 0
+    front_ankle_arr = []
+    back_ankle_arr = []
+    max_front_index = 0
     low_point = 0
-    is_valid = True
 
     for i in range(len(arr)):
         joints = get_frame_info(arr[i])
-        left_ankle_z = joints["Left Ankle"][2]
-        right_ankle_z = joints["Right Ankle"][2]
+        front_ankle_z = joints[front_ankle_name][2]
+        back_ankle_z = joints[back_ankle_name][2]
 
-        left_ankle_arr.append(left_ankle_z)
-        right_ankle_arr.append(right_ankle_z)
+        front_ankle_arr.append(front_ankle_z)
+        back_ankle_arr.append(back_ankle_z)
 
     # Smooth the arrays
-    left_ankle_arr = np.array(left_ankle_arr)
-    right_ankle_arr = np.array(right_ankle_arr)
-    left_ankle_arr = np.convolve(left_ankle_arr, np.ones(10)/10, mode='valid')
-    right_ankle_arr = np.convolve(right_ankle_arr, np.ones(10)/10, mode='valid')
+    front_ankle_arr = np.array(front_ankle_arr)
+    back_ankle_arr = np.array(back_ankle_arr)
+    front_ankle_arr = np.convolve(front_ankle_arr, np.ones(10)/10, mode='valid')
+    back_ankle_arr = np.convolve(back_ankle_arr, np.ones(10)/10, mode='valid')
 
-    #go through the left and right ankle arrays and find the local maximums of all and the global maximum of the right ankle
+    # Find local maximums and minimums using sliding window
     window_size = 10  # Number of frames before and after
 
-    left_maxs = []
-    left_mins = [0]
-    right_maxs = []
-    right_mins = []
+    front_maxs = []
+    front_mins = [0]
+    back_maxs = []
+    back_mins = []
 
-    right_max = float('-inf')
-    right_max_index = -1
+    back_max = float('-inf')
+    back_max_index = -1
 
-    for i in range(window_size, len(left_ankle_arr) - window_size):
-        # LEFT ANKLE CHECKS
-        current_val_left = left_ankle_arr[i]
-        window_left = left_ankle_arr[i - window_size:i + window_size + 1]
+    for i in range(window_size, len(front_ankle_arr) - window_size):
+        # FRONT ANKLE CHECKS
+        current_val_front = front_ankle_arr[i]
+        window_front = front_ankle_arr[i - window_size:i + window_size + 1]
 
-        if current_val_left == np.max(window_left) and np.count_nonzero(window_left == current_val_left) == 1:
-            left_maxs.append(i)
+        if current_val_front == np.max(window_front) and np.count_nonzero(window_front == current_val_front) == 1:
+            front_maxs.append(i)
 
-        if current_val_left == np.min(window_left):
-            left_mins.append(i)
+        if current_val_front == np.min(window_front):
+            front_mins.append(i)
 
-        # RIGHT ANKLE CHECKS
-        current_val_right = right_ankle_arr[i]
-        window_right = right_ankle_arr[i - window_size:i + window_size + 1]
+        # BACK ANKLE CHECKS
+        current_val_back = back_ankle_arr[i]
+        window_back = back_ankle_arr[i - window_size:i + window_size + 1]
 
-        if current_val_right == np.max(window_right) and np.count_nonzero(window_right == current_val_right) == 1:
-            if current_val_right > right_max:
-                right_max = current_val_right
-                right_max_index = i
-            right_maxs.append(i)
+        if current_val_back == np.max(window_back) and np.count_nonzero(window_back == current_val_back) == 1:
+            if current_val_back > back_max:
+                back_max = current_val_back
+                back_max_index = i
+            back_maxs.append(i)
 
-        if current_val_right == np.min(window_right):
-            right_mins.append(i)
+        if current_val_back == np.min(window_back):
+            back_mins.append(i)
 
-    print(f"Left Mins: {left_mins}")
-    print(f"Left Maxs: {left_maxs}")
-    print(f"Right Mins: {right_mins}")
-    print(f"Right Maxs: {right_maxs}")
-    print(f"Right Max Index: {right_max_index}")
-    #get the maximum value in left_maxs that is less than right_max_index
-    for i in left_maxs:
-        if i < right_max_index and i > max_left_index:
-            max_left_index = i
-    #get the maximum value in left_mins that is less than max_left_index
+    print(f"Front Ankle ({front_ankle_name}) Mins: {front_mins}")
+    print(f"Front Ankle ({front_ankle_name}) Maxs: {front_maxs}")
+    print(f"Back Ankle ({back_ankle_name}) Mins: {back_mins}")
+    print(f"Back Ankle ({back_ankle_name}) Maxs: {back_maxs}")
+    print(f"Back Ankle ({back_ankle_name}) Max Index: {back_max_index}")
+    
+    # Get the maximum value in front_maxs that is less than back_max_index
+    for i in front_maxs:
+        if i < back_max_index and i > max_front_index:
+            max_front_index = i
+    
+    # Get the maximum value in front_mins that is less than max_front_index
     low_point = 0
-    for i in left_mins:
-        if i < max_left_index and i > low_point:
+    for i in front_mins:
+        if i < max_front_index and i > low_point:
             low_point = i
-    #get the minimum value in right_mins that is greater than right_max_index
-    end_point = len(right_ankle_arr) - 1
-    for i in right_mins:
-        if i > right_max_index:
+    
+    # Get the minimum value in back_mins that is greater than back_max_index
+    end_point = len(back_ankle_arr) - 1
+    for i in back_mins:
+        if i > back_max_index:
             end_point = i
             break
+            
     logger.info(f"Motion detection results: start point: {low_point}, end point: {end_point}")
+    logger.info(f"Using front ankle: {front_ankle_name}, back ankle: {back_ankle_name}")
 
     return (low_point, end_point)
+
 
 def get_frame_info(frame):
     joint_names = [

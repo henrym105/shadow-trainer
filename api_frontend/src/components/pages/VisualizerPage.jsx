@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import SkeletonViewer from '../Skeletonviewer';
+import SkeletonViewer from '../ui/Skeletonviewer';
 import LogoSection from '../ui/LogoSection';
 import '../../styles/VisualizerPage.css';
 
@@ -354,8 +354,8 @@ function VisualizerPage() {
             
             {evaluationLoading ? (
               <div className="evaluation-loading">
-                <div className="spinner spinner-large"></div>
-                <p>Generating personalized movement feedback...</p>
+              <div className="spinner spinner-large"></div>
+              <p>Generating personalized movement feedback...</p>
               </div>
             ) : (
               <div className="evaluation-content">

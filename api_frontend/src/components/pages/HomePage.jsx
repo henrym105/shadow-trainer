@@ -4,6 +4,7 @@ import FileUpload from '../ui/FileUpload';
 import ProKeypointsSelector from '../ui/ProKeypointsSelector';
 import KeypointsUpload from '../ui/KeypointsUpload';
 import LogoSection from '../ui/LogoSection';
+import RecordingTipsPopup from '../ui/RecordingTipsPopup';
 import VideoAPI from '../../services/videoApi';
 
 const MODEL_SIZES = [
@@ -24,6 +25,7 @@ function HomePage() {
   const [proOptions, setProOptions] = useState([]);
   const [videoFormat, setVideoFormat] = useState('dynamic_3d_animation');
   const [activeTab, setActiveTab] = useState('video-processing');
+  const [showRecordingTips, setShowRecordingTips] = useState(false);
 
   // Load pro keypoints options
   useEffect(() => {
@@ -90,6 +92,10 @@ function HomePage() {
 
   return (
     <div className="app">
+      <RecordingTipsPopup 
+        isVisible={showRecordingTips}
+        onClose={() => setShowRecordingTips(false)}
+      />
       <div className="app-container">
         <header className="app-header">
           <LogoSection />
@@ -115,11 +121,21 @@ function HomePage() {
               <button className="sample-video-btn" onClick={handleSampleVideo} disabled={isUploading}>
                 {isUploading ? <span className="btn-spinner" /> : 'Use Sample Video'}
               </button>
-              <div className="sample-video-description" style={{ textAlign: 'center' }}>Try our sample left-handed baseball pitch for a quick demo</div>
+              <div className="sample-video-description" style={{ textAlign: 'center' }}>Try our sample video to see it Shadow Trainer in action!</div>
               <div className="divider"><span>or</span></div>
               <div className="section-header">
                 <h2>Upload Your Training Video</h2>
                 <p>Get detailed motion analysis and pose estimation for your athletic performance</p>
+                <div className="recording-tips-container">
+                  <div className="recording-tips-button">
+                    <button 
+                      className="recording-tips-btn" 
+                      onClick={() => setShowRecordingTips(true)}
+                    >
+                      📹 Recording Tips
+                    </button>
+                  </div>
+                </div>
               </div>
               <FileUpload
                 selectedFile={selectedFile}

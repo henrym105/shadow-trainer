@@ -2,7 +2,7 @@ import React from 'react';
 import '../../styles/ProgressBar.css';
 const STATUS_MAP = {
   queued: { color: '#ffa500', icon: '⏰', label: 'Queued' },
-  processing: { color: '#4CAF50', icon: '⚙️', label: 'Processing' },
+  processing: { color: '#4CAF50', icon: '', label: 'Processing' },
   completed: { color: '#2196F3', icon: '✅', label: 'Completed' },
   failed: { color: '#f44336', icon: '❌', label: 'Failed' }
 };
@@ -27,6 +27,7 @@ const ProgressBar = ({ status, progress, proPlayerName, message }) => {
   return (
     <div className="progress-bar-card">
       <div className="progress-status" style={{ color: statusInfo.color }}>
+        {status === 'processing' && <div className="spinner spinner-large"></div>}
         <span className="status-icon">{statusInfo.icon}</span>
         <span className="status-label">{statusInfo.label}</span>
       </div>
