@@ -87,7 +87,7 @@ async def upload_and_process_video(
     model_size: str = Query("xs", description="Model size: xs, s, m, l"),
     is_lefty: bool = Query(False, description="Whether the user is left-handed"),
     pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3"),
-    visualization_type: str = Query("combined", description="Output video format: combined (2D+3D) or 3d_only")
+    visualization_type: str = Query("combined", description="Output video format: combined (2D+3D), 3d_only, or dynamic_3d_animation")
 ):
     """Upload video file and start processing task"""
     if not validate_video_file(file):
@@ -227,6 +227,41 @@ async def upload_and_process_video(
         "status": "queued"
     }
 
+
+@app.post("/videos/sample-lefty")
+async def process_sample_lefty_video(
+    model_size: str = Query("xs", description="Model size: xs, s, m, l"),
+    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3"),
+    visualization_type: str = Query("combined", description="Output video format: combined (2D+3D) or 3d_only")
+):
+    """Process the sample lefty video with specified parameters"""
+    from constants import SAMPLE_VIDEO_PATH
+    
+    if not Path(SAMPLE_VIDEO_PATH).exists():
+        raise HTTPException(
+            status_code=404, 
+            detail="Sample video not found"
+        )
+
+    try:
+        # Start processing task with sample video
+        task = process_video_task.delay(
+            input_video_path=str(SAMPLE_VIDEO_PATH),
+            model_size=model_size,
+            is_lefty=True,  # Sample is specifically for lefty
+            pro_keypoints_filename=pro_keypoints_filename,
+            visualization_type=visualization_type
+        )
+    except Exception as e:
+        logger.error(f"Error starting sample video processing task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start processing task: {str(e)}")
+
+    return {
+        "task_id": task.id,
+        "file_id": "sample_lefty",
+        "original_filename": SAMPLE_VIDEO_PATH.name,
+        "status": "queued"
+    }
 
 
 @app.get("/status/{task_id}")
@@ -433,42 +468,6 @@ async def get_video_preview(task_id: str):
     """
     return await get_processed_video_preview(task_id)
 
-
-
-@app.post("/videos/sample-lefty")
-async def process_sample_lefty_video(
-    model_size: str = Query("xs", description="Model size: xs, s, m, l"),
-    pro_keypoints_filename: str = Query(TMP_PRO_KEYPOINTS_FILE_S3, description="Professional keypoints filename from S3"),
-    visualization_type: str = Query("combined", description="Output video format: combined (2D+3D) or 3d_only")
-):
-    """Process the sample lefty video with specified parameters"""
-    from constants import SAMPLE_VIDEO_PATH
-    
-    if not Path(SAMPLE_VIDEO_PATH).exists():
-        raise HTTPException(
-            status_code=404, 
-            detail="Sample video not found"
-        )
-
-    try:
-        # Start processing task with sample video
-        task = process_video_task.delay(
-            input_video_path=str(SAMPLE_VIDEO_PATH),
-            model_size=model_size,
-            is_lefty=True,  # Sample is specifically for lefty
-            pro_keypoints_filename=pro_keypoints_filename,
-            visualization_type=visualization_type
-        )
-    except Exception as e:
-        logger.error(f"Error starting sample video processing task: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to start processing task: {str(e)}")
-
-    return {
-        "task_id": task.id,
-        "file_id": "sample_lefty",
-        "original_filename": SAMPLE_VIDEO_PATH.name,
-        "status": "queued"
-    }
 
 
 @app.get("/pro_keypoints/list")
