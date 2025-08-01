@@ -12,8 +12,10 @@ from fastapi import FastAPI, Query, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from tasks import generate_3d_keypoints_from_video_task
+import numpy as np
 
-from constants import TMP_PRO_KEYPOINTS_FILE_S3, OUTPUT_DIR
+from src.kpts_analysis import evaluate_all_joints_text
+from constants import TMP_PRO_KEYPOINTS_FILE_S3, OUTPUT_DIR, SAMPLE_VIDEO_PATH
 from tasks import (
     celery_app, 
     process_video_task,
@@ -235,7 +237,6 @@ async def process_sample_lefty_video(
     visualization_type: str = Query("combined", description="Output video format: combined (2D+3D) or 3d_only")
 ):
     """Process the sample lefty video with specified parameters"""
-    from constants import SAMPLE_VIDEO_PATH
     
     if not Path(SAMPLE_VIDEO_PATH).exists():
         raise HTTPException(
@@ -478,9 +479,7 @@ async def list_pro_keypoints():
 
 @app.get("/videos/{task_id}/keypoints/user")
 async def get_user_keypoints(task_id: str, format: str = Query("npy", description="Output format: npy (default) or flattened for SkeletonViewer")):
-    """Get user 3D keypoints data from processed video task"""
-    import numpy as np
-    
+    """Get user 3D keypoints data from processed video task"""    
     try:
         result = AsyncResult(task_id, app=celery_app)
         if not result.ready() or not result.successful():
@@ -575,9 +574,7 @@ async def get_task_info(task_id: str):
 
 @app.get("/videos/{task_id}/keypoints/pro")
 async def get_pro_keypoints(task_id: str, format: str = Query("npy", description="Output format: npy (default) or flattened for SkeletonViewer")):
-    """Get professional 3D keypoints data from processed video task"""
-    import numpy as np
-    
+    """Get professional 3D keypoints data from processed video task"""    
     try:
         result = AsyncResult(task_id, app=celery_app)
         if not result.ready() or not result.successful():
@@ -629,9 +626,6 @@ async def get_pro_keypoints(task_id: str, format: str = Query("npy", description
 @app.get("/videos/{task_id}/joint_evaluation")
 async def get_joint_evaluation(task_id: str):
     """Get joint evaluation text from processed video task"""
-    import numpy as np
-    from kpts_analysis import evaluate_all_joints_text
-    
     try:
         result = AsyncResult(task_id, app=celery_app)
         if not result.ready() or not result.successful():

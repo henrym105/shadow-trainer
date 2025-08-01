@@ -7,6 +7,7 @@ import time
 from typing import Optional
 import uuid
 
+import boto3
 from celery import Celery
 from celery.utils.log import get_task_logger
 import cv2
@@ -14,6 +15,7 @@ from fastapi import HTTPException, UploadFile
 import numpy as np
 
 from src.utils import get_pytorch_device
+from src.kpts_analysis import evaluate_all_joints_text, generate_motion_feedback
 from src.yolo2d import rotate_video_until_upright
 from src.inference import (
     create_2D_images, 
@@ -378,7 +380,6 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
         self.update_state(state='PROGRESS', meta={'progress': 60, 'message': "Analyzing joint movements..."})
         
         # Run joint evaluation
-        from kpts_analysis import evaluate_all_joints_text, generate_motion_feedback
         joint_text = evaluate_all_joints_text(user_kps, pro_kps)
         
         # Update progress
@@ -483,7 +484,6 @@ def create_info_file(filepath: Path, pro_name: str) -> None:
 
 def list_s3_pro_keypoints():
     """List available professional keypoints files in S3."""
-    import boto3
     s3 = boto3.client("s3")
     response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_PRO_PREFIX)
     files = [
@@ -506,7 +506,6 @@ def list_s3_pro_keypoints():
     return files
 
 def download_pro_keypoints_from_s3(filename, dest_path):
-    import boto3
     s3 = boto3.client("s3")
     logger.info(f"Downloading pro keypoints file {filename} from S3 to {dest_path}")
     logger.info(f"S3 Bucket: {S3_BUCKET}, Prefix: {S3_PRO_PREFIX}, filename: {filename}")
