@@ -494,16 +494,15 @@ def list_s3_pro_keypoints():
     result = []
     for f in files:
         # Extract player name by removing _median.npy suffix
-        player_key = f.replace("_median.npy", "").replace(".npy", "")
-        info = PRO_TEAMS_MAP.get(player_key, {})
+        player_key = f.replace("_median.npy", "").replace("_mean.npy", "").replace(".npy", "")
         result.append({
             "filename": f,
-            "name": info.get("name", player_key),  # Use player_key as fallback if not in map
-            "team": info.get("team", "Unknown"),
-            "city": info.get("city", "Unknown")
+            "name": PRO_TEAMS_MAP.get(player_key, {}).get("name", player_key),  # Use player_key as fallback if not in map
+            "team": PRO_TEAMS_MAP.get(player_key, {}).get("team", "Unknown"),
+            "city": PRO_TEAMS_MAP.get(player_key, {}).get("city", "Unknown")
         })
-    files = result
-    return files
+    return result
+
 
 def download_pro_keypoints_from_s3(filename, dest_path):
     s3 = boto3.client("s3")

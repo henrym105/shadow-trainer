@@ -73,6 +73,7 @@ const VideoPreview = ({
             src={videoSrc} 
             controls 
             muted
+            loop
             width={width} 
             height={height}
             style={{ borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}

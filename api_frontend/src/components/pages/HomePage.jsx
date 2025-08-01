@@ -84,12 +84,6 @@ function HomePage() {
     }
   };
 
-  // Get professional player name from selected file
-  const getProPlayerName = () => {
-    const proOption = proOptions.find(opt => opt.filename === selectedProFile);
-    return proOption?.name || selectedProFile.replace('_median.npy', '').replace(/([A-Z])/g, ' $1').trim();
-  };
-
   return (
     <div className="app">
       <RecordingTipsPopup 
@@ -121,7 +115,7 @@ function HomePage() {
               <button className="sample-video-btn" onClick={handleSampleVideo} disabled={isUploading}>
                 {isUploading ? <span className="btn-spinner" /> : 'Use Sample Video'}
               </button>
-              <div className="sample-video-description" style={{ textAlign: 'center' }}>Try our sample video to see it Shadow Trainer in action!</div>
+              <div className="sample-video-description" style={{ textAlign: 'center' }}>Try our sample video to see Shadow Trainer in action!</div>
               <div className="divider"><span>or</span></div>
               <div className="section-header">
                 <h2>Upload Your Training Video</h2>
