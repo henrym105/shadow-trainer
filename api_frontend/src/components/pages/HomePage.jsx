@@ -112,6 +112,11 @@ function HomePage() {
 
           {activeTab === 'video-processing' && (
             <section className="upload-section">
+              <button className="sample-video-btn" onClick={handleSampleVideo} disabled={isUploading}>
+                {isUploading ? <span className="btn-spinner" /> : 'Use Sample Video'}
+              </button>
+              <div className="sample-video-description" style={{ textAlign: 'center' }}>Try our sample left-handed baseball pitch for a quick demo</div>
+              <div className="divider"><span>or</span></div>
               <div className="section-header">
                 <h2>Upload Your Training Video</h2>
                 <p>Get detailed motion analysis and pose estimation for your athletic performance</p>
@@ -174,12 +179,12 @@ function HomePage() {
                   <span className="btn-icon">⬆️</span>
                   {isUploading ? <span className="btn-spinner" /> : 'Create Your Shadow!'}
                 </button>
-                <div className="divider"><span>or</span></div>
+                {/* <div className="divider"><span>or</span></div>
                 <button className="sample-video-btn" onClick={handleSampleVideo} disabled={isUploading}>
                   <span className="btn-icon">🎯</span>
                   {isUploading ? <span className="btn-spinner" /> : 'Use Sample Video'}
                 </button>
-                <div className="sample-video-description">Try our sample left-handed baseball pitch for a quick demo</div>
+                <div className="sample-video-description">Try our sample left-handed baseball pitch for a quick demo</div> */}
               </div>
               {uploadError && (
                 <div className="error-message">

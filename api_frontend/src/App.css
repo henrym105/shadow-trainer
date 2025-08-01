@@ -335,21 +335,21 @@ input:disabled + .slider:before {
   top: 50%;
   left: 0;
   right: 0;
-  height: 1px;
+  height: 3px;
   background: #ddd;
   z-index: 1;
 }
-
 .divider span {
   background: white;
   padding: 0 1rem;
   color: #666;
-  font-size: 0.9rem;
+  font-size: 1.2rem;
   position: relative;
   z-index: 2;
 }
 
 .sample-video-btn {
+  width: 100%;
   padding: 1rem 2rem;
   background: #2196F3;
   color: white;

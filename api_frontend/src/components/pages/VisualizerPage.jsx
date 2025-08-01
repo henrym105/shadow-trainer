@@ -200,6 +200,12 @@ function VisualizerPage() {
           <div className="visualization-box">
             {userKeypoints && proKeypoints ? (
               <>
+                {/* User Instructions */}
+                <div className="user-instructions">
+                  <div>Click + drag to rotate</div>
+                  <div>Scroll/pinch to zoom</div>
+                </div>
+                
                 <SkeletonViewer
                   keypointFrames={userKeypoints}
                   proKeypointFrames={proKeypoints}
@@ -214,7 +220,6 @@ function VisualizerPage() {
                 
                 {/* Skeleton Legend - Bottom Single Row */}
                 <div className="skeleton-legend">
-                  <h4>Skeleton Legend:</h4>
                   <div className="legend-item">
                     <div className="legend-color user"></div>
                     <span>You</span>

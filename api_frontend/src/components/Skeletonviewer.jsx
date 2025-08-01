@@ -143,7 +143,14 @@ export default function SkeletonViewer({
   }, [playing, totalFrames, playbackSpeed, frame, onFrameChange]);
 
   return (
-    <Canvas camera={{ position: [2, 0, 1.2], up: [0, 0, 1] }} style={{ width: '100%', height: '100%' }}>
+    <Canvas 
+      camera={{ position: [2, 0, 1.2], up: [0, 0, 1] }} 
+      style={{ 
+        width: '100%', 
+        height: '100%',
+        maxHeight: 'min(75vh, 650px)'
+      }}
+    >
       <ambientLight />
       <FloorGrid keypointFrames={keypointFrames} />
       {turntable ? <TurntableControls /> : <FixedZOrbitControls />}
