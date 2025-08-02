@@ -880,8 +880,12 @@ def img2video(user_upload_video_path: str, input_frames_dir: str) -> str:
     Returns:
         str: Path to the generated output video file (a .mp4 file).
     """
+    # NOTE: the output video file still doesn't display properly in Chrome. 
+    # Safari and DuckDuckGo work fine, but Chrome has issues with the video codec 
+    # i think? might need to figure this out eventually, for now just use Safari for demos
     video_name = user_upload_video_path.split('/')[-1].split('.')[0]
     cap = cv2.VideoCapture(user_upload_video_path)
+    input_fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
     fps = cap.get(cv2.CAP_PROP_FPS)
     if not fps or np.isnan(fps):
         fps = 25  # fallback default
@@ -901,9 +905,10 @@ def img2video(user_upload_video_path: str, input_frames_dir: str) -> str:
 
     output_video_name = video_name.replace("input", "output")
     output_path = pjoin(input_frames_dir, output_video_name + '.mp4')
-    logger.info(f"Writing output video to: {output_path}")
-
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    logger.info(f"Writing output video to: {output_path}")
+    logger.info(f"Video FPS: {fps}, Size: {size}, FourCC: {input_fourcc}")
+
     videoWrite = cv2.VideoWriter(output_path, fourcc, fps, size)
 
     for name in pose_filenames:
