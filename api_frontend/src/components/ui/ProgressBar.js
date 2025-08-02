@@ -13,7 +13,7 @@ const ProgressBar = ({ status, progress, proPlayerName, message }) => {
   
   const getProgressMessage = () => {
     if (status === 'processing' && proPlayerName) {
-      return `Rendering ${proPlayerName} as your Shadow...`;
+      return `Rendering your shadow of ${proPlayerName}...`;
     }
     if (status === 'processing') {
       return 'Your video is being analyzed. This may take a few minutes.';

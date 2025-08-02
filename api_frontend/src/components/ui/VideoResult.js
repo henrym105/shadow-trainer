@@ -15,12 +15,14 @@ const VideoResult = ({ taskId, jobStatus, onReset }) => {
 
   return (
     <div className="video-result-card">
-      <VideoPreview 
-        taskId={taskId}
-        title="Processed Video"
-        width={600}
-        height={400}
-      />
+      <div className="processing-section">
+        <VideoPreview 
+          taskId={taskId}
+          title="Processed Video"
+          width={600}
+          height={400}
+        />
+      </div>
       <div className="result-actions">
         <a href={downloadUrl} download className="download-btn">Download Video</a>
         <button className="copy-btn" onClick={handleCopy}>
