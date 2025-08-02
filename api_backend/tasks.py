@@ -226,8 +226,8 @@ def process_video_task(
             pro_player_name = pro_info.get("name", player_key)
             logger.info(f"Professional player: {pro_player_name}")
 
-        # Create info.json file with pro_name
-        create_info_file(FILE_INFO_JSON, pro_player_name)
+        # Create info.json file with pro_name and is_lefty
+        create_info_file(FILE_INFO_JSON, pro_player_name, is_lefty)
 
         # step 4.1: crop align the user keypoints to the same n_frames as the pro keypoints: 
         self.update_state(state='PROGRESS', meta={'progress': 60, 'message': "Aligning user keypoints with pro keypoints..."})
@@ -467,19 +467,21 @@ def save_uploaded_file(file: UploadFile, file_id: str = None) -> str:
 # ----------------------------------------------------
 
 # ==================== UTILITY FUNCTIONS ====================
-def create_info_file(filepath: Path, pro_name: str) -> None:
-    """Create info.json file, initialize with the pro player's name. 
+def create_info_file(filepath: Path, pro_name: str, is_lefty: bool = False) -> None:
+    """Create info.json file, initialize with the pro player's name and handedness. 
     
     Args:
         filepath: full path and name, like './output/123-abc/sinfo.json'
         pro_name: Name of the professional player (if available)
+        is_lefty: Whether the user is left-handed
     """
     info_data = {
-        "pro_name": pro_name
+        "pro_name": pro_name,
+        "is_lefty": is_lefty
     }
     with open(filepath, 'w') as f:
         json.dump(info_data, f, indent=2)
-    logger.info(f"Created info.json with pro_name: {pro_name}")
+    logger.info(f"Created info.json with pro_name: {pro_name}, is_lefty: {is_lefty}")
 
 
 def list_s3_pro_keypoints():

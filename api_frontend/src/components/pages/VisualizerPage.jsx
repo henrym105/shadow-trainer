@@ -216,6 +216,7 @@ function VisualizerPage() {
                   turntable={turntable}
                   playbackSpeed={playbackSpeed}
                   onFrameChange={setFrame}
+                  isLefty={taskInfo?.is_lefty || false}
                 />
                 
                 {/* Skeleton Legend - Bottom Single Row */}

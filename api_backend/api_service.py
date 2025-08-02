@@ -553,9 +553,11 @@ async def get_task_info(task_id: str):
         
         if not info_file_path.exists():
             # Return default info if file doesn't exist (for backwards compatibility)
+            # For existing tasks, default to right-handed (is_lefty = False)
             return {
                 "task_id": task_id,
-                "pro_name": "Professional Pitcher"
+                "pro_name": "Professional Pitcher",
+                "is_lefty": False
             }
 
         # Load and return the info data
