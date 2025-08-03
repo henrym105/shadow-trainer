@@ -69,6 +69,31 @@ def health_check():
         })
 
 
+@app.get("/status/{task_id}")
+def get_processing_status(task_id: str):
+    result = AsyncResult(id=task_id, app=celery_app)
+    response = {
+        "task_id": result.task_id,
+        "status": result.status,
+        "progress": None,
+        "error": None
+    }
+    
+    if result.ready():
+        if result.successful():
+            response["result"] = result.result
+            response["download_ready"] = True
+        else:
+            # Handle failed tasks properly
+            response["error"] = str(result.info) if result.info else "Unknown error"
+    else:
+        # Check for progress updates if your task supports it
+        if hasattr(result, 'info') and isinstance(result.info, dict):
+            response["progress"] = result.info.get('progress', 0)
+    
+    return response
+
+
 
 @app.get("/pro_keypoints/list")
 async def list_pro_keypoints():
