@@ -149,13 +149,11 @@ def compute_rotational_speed_leg(keypoints, joint, fps=30.0):
     # Add zero for first frame (no previous frame to compare)
     return np.array([0.0] + rotational_speeds)
 
-def extended_evaluation(user_kps, pro_kps, plot=True):
+def compute_joint_metrics(user_kps, pro_kps):
+    """Compute per-joint metrics including distance, angle, and angular velocity."""
     T, J, _ = user_kps.shape
-    assert pro_kps.shape == (T, J, 3), "User and pro keypoints must have same shape"
-
     joint_metrics = {}
 
-    # Compute per joint metrics
     for j in range(J):
         if j in EXCLUDE_JOINTS:
             continue
@@ -202,7 +200,10 @@ def extended_evaluation(user_kps, pro_kps, plot=True):
             'ang_vel_mae': ang_vel_mae,
         }
 
-    # Compute group mean values (MAEs)
+    return joint_metrics
+
+def compute_group_metrics(joint_metrics):
+    """Compute group mean values (MAEs) from joint metrics."""
     group_metrics = {}
     for group_name, joint_ids in JOINT_GROUPS.items():
         filtered_ids = [j for j in joint_ids if j in joint_metrics]
@@ -216,8 +217,10 @@ def extended_evaluation(user_kps, pro_kps, plot=True):
             'ang_vel_mae': np.mean(ang_vel_maes) if ang_vel_maes else None,
             'joint_ids': filtered_ids
         }
+    return group_metrics
 
-    # Biomechanical features for spider chart & overall score
+def compute_biomechanical_features(user_kps, pro_kps):
+    """Compute biomechanical features including throwing arm, abduction, and torsion angles."""
     right_arm_joints = JOINT_GROUPS['Right Arm']  # [12, 14, 16]
 
     throwing_arm_user_angles = []
@@ -225,7 +228,6 @@ def extended_evaluation(user_kps, pro_kps, plot=True):
 
     for joint in right_arm_joints:
         if joint in ANGLE_TRIPLETS:
-            # Use rotational speed for throwing arm analysis
             throwing_arm_user_angles.append(compute_rotational_speed_arm(user_kps, joint))
             throwing_arm_pro_angles.append(compute_rotational_speed_arm(pro_kps, joint))
 
@@ -254,7 +256,6 @@ def extended_evaluation(user_kps, pro_kps, plot=True):
     pro_shoulder_torsion = compute_torsion_angle(pro_kps, 11, 12)
     shoulder_torsion_mae = np.mean(np.abs(user_shoulder_torsion - pro_shoulder_torsion))
 
-    # Normalized similarity score function
     def normalized_score(mae, max_val):
         if mae is None:
             return None
@@ -270,6 +271,216 @@ def extended_evaluation(user_kps, pro_kps, plot=True):
     biomech_scores = {k: normalized_score(v, max_val=30) if v is not None else None for k, v in biomech_maes.items()}
     overall_score = np.mean([v for v in biomech_scores.values() if v is not None])
 
+    return {
+        'biomech_maes': biomech_maes,
+        'biomech_scores': biomech_scores,
+        'overall_score': overall_score,
+        'throwing_arm_user_mean_angle': throwing_arm_user_mean_angle,
+        'throwing_arm_pro_mean_angle': throwing_arm_pro_mean_angle,
+        'user_abduction': user_abduction,
+        'pro_abduction': pro_abduction,
+        'user_hip_torsion': user_hip_torsion,
+        'pro_hip_torsion': pro_hip_torsion,
+        'user_shoulder_torsion': user_shoulder_torsion,
+        'pro_shoulder_torsion': pro_shoulder_torsion,
+    }
+
+def generate_plots(joint_metrics, group_metrics, biomech_results):
+    """Generate all plots for the extended evaluation."""
+    # Per-joint plots
+    for j, m in joint_metrics.items():
+        fig, axs = plt.subplots(1, 3, figsize=(18, 4))
+        fig.suptitle(f"Joint: {m['name']}")
+
+        # Distance
+        axs[0].plot(m['dist_t'], label='Distance')
+        axs[0].set_ylabel('Euclidean Distance (meters)')
+        axs[0].set_xlabel('Frame')
+        axs[0].grid(True)
+
+        # Angle
+        if m['user_angles'] is not None and m['pro_angles'] is not None:
+            axs[1].plot(m['user_angles'], label='User Angle (°)')
+            axs[1].plot(m['pro_angles'], label='Pro Angle (°)', alpha=0.7)
+        axs[1].set_ylabel('Angle (degrees)')
+        axs[1].set_xlabel('Frame')
+        axs[1].grid(True)
+
+        # Rotational speed
+        if m['user_ang_vel'] is not None and m['pro_ang_vel'] is not None:
+            axs[2].plot(m['user_ang_vel'], label='User Rotational Speed (°/s)')
+            axs[2].plot(m['pro_ang_vel'], label='Pro Rotational Speed (°/s)', alpha=0.7)
+        axs[2].set_ylabel('Rotational Speed (degrees/second)')
+        axs[2].set_xlabel('Frame')
+        axs[2].grid(True)
+
+        for ax in axs:
+            ax.legend()
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.savefig(f"joint_{j:02d}_{m['name'].replace(' ', '_').lower()}_analysis.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+    # Group mean curves
+    for group_name, group_data in group_metrics.items():
+        joint_ids = group_data['joint_ids']
+        if not joint_ids:
+            continue
+
+        dist_mat = np.array([joint_metrics[j]['dist_t'] for j in joint_ids if joint_metrics[j]['dist_t'] is not None])
+        dist_mean = dist_mat.mean(axis=0) if dist_mat.size > 0 else None
+
+        angle_user_mat = []
+        angle_pro_mat = []
+
+        for j in joint_ids:
+            m = joint_metrics[j]
+            if m['user_angles'] is not None and m['pro_angles'] is not None:
+                angle_user_mat.append(m['user_angles'])
+                angle_pro_mat.append(m['pro_angles'])
+            if m['user_ang_vel'] is not None and m['pro_ang_vel'] is not None:
+                angle_user_mat.append(m['user_ang_vel'])
+                angle_pro_mat.append(m['pro_ang_vel'])
+
+        angle_user_mean = np.mean(angle_user_mat, axis=0) if angle_user_mat else None
+        angle_pro_mean = np.mean(angle_pro_mat, axis=0) if angle_pro_mat else None
+
+        fig, axs = plt.subplots(1, 3, figsize=(18, 4))
+        fig.suptitle(f"Group: {group_name} Mean Curves")
+
+        # Distance
+        if dist_mean is not None:
+            axs[0].plot(dist_mean, label='Mean Distance')
+        axs[0].set_title("Euclidean Distance over Time")
+        axs[0].set_ylabel("Distance (meters)")
+        axs[0].set_xlabel("Frame")
+        axs[0].grid(True)
+
+        # Angle
+        if angle_user_mean is not None and angle_pro_mean is not None:
+            axs[1].plot(angle_user_mean, label='User Mean Angle (°)')
+            axs[1].plot(angle_pro_mean, label='Pro Mean Angle (°)', alpha=0.7)
+        axs[1].set_title("Angle over Time")
+        axs[1].set_ylabel("Angle (degrees)")
+        axs[1].set_xlabel("Frame")
+        axs[1].grid(True)
+
+        # Rotational speed
+        if angle_user_mean is not None and angle_pro_mean is not None:
+            axs[2].plot(angle_user_mean, label='User Mean Rotational Speed (°/s)')
+            axs[2].plot(angle_pro_mean, label='Pro Mean Rotational Speed (°/s)', alpha=0.7)
+        axs[2].set_title("Rotational Speed over Time")
+        axs[2].set_ylabel("Rotational Speed (degrees/second)")
+        axs[2].set_xlabel("Frame")
+        axs[2].grid(True)
+
+        for ax in axs:
+            ax.legend()
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.savefig(f"group_{group_name.replace(' ', '_').lower()}_mean_curves.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+    # Abduction angle plot
+    plt.figure(figsize=(10, 4))
+    plt.plot(biomech_results['user_abduction'], label='User')
+    plt.plot(biomech_results['pro_abduction'], label='Pro', alpha=0.7)
+    plt.title("Right Shoulder Abduction Angle Over Time")
+    plt.ylabel("Angle (degrees)")
+    plt.xlabel("Frame")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("right_shoulder_abduction_angle.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Hip torsion plot
+    plt.figure(figsize=(10, 4))
+    plt.plot(biomech_results['user_hip_torsion'], label='User Hip Torsion')
+    plt.plot(biomech_results['pro_hip_torsion'], label='Pro Hip Torsion', alpha=0.7)
+    plt.title("Hip Torsion Angle Over Time")
+    plt.ylabel("Angle (degrees)")
+    plt.xlabel("Frame")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("hip_torsion_angle.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Shoulder torsion plot
+    plt.figure(figsize=(10, 4))
+    plt.plot(biomech_results['user_shoulder_torsion'], label='User Shoulder Torsion')
+    plt.plot(biomech_results['pro_shoulder_torsion'], label='Pro Shoulder Torsion', alpha=0.7)
+    plt.title("Shoulder Torsion Angle Over Time")
+    plt.ylabel("Angle (degrees)")
+    plt.xlabel("Frame")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("shoulder_torsion_angle.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Overlay plot user hip and shoulder torsion
+    plt.figure(figsize=(10, 4))
+    plt.plot(biomech_results['user_hip_torsion'], label='User Hip Torsion')
+    plt.plot(biomech_results['user_shoulder_torsion'], label='User Shoulder Torsion', alpha=0.7)
+    plt.title("User Hip and Shoulder Torsion Angles Over Time")
+    plt.ylabel("Angle (degrees)")
+    plt.xlabel("Frame")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("user_hip_shoulder_torsion_overlay.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Throwing arm angular velocity plots (user vs pro)
+    if biomech_results['throwing_arm_user_mean_angle'] is not None:
+        plt.figure(figsize=(10, 4))
+        plt.plot(biomech_results['throwing_arm_user_mean_angle'], label='User Mean Throwing Arm Rotational Speed')
+        plt.plot(biomech_results['throwing_arm_pro_mean_angle'], label='Pro Mean Throwing Arm Rotational Speed', alpha=0.7)
+        plt.title("Throwing Arm (Right) Mean Rotational Speed Over Time")
+        plt.ylabel("Rotational Speed (degrees/second)")
+        plt.xlabel("Frame")
+        plt.legend()
+        plt.grid(True)
+        plt.savefig("throwing_arm_angular_velocity.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+    # Biomechanical features spider chart
+    labels = list(biomech_results['biomech_scores'].keys())
+    values = [v if v is not None else 0 for v in biomech_results['biomech_scores'].values()]
+    values += values[:1]  # close loop
+
+    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
+    angles += angles[:1]
+
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    ax.plot(angles, values, color='blue', linewidth=2)
+    ax.fill(angles, values, color='blue', alpha=0.25)
+    ax.set_ylim(0, 1)
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels)
+    ax.set_title("Biomechanical Similarity Scores")
+    ax.grid(True)
+    plt.savefig("biomechanical_similarity_spider_chart.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Overall similarity score as percentage bar chart
+    plt.figure(figsize=(4, 6))
+    plt.bar(['Overall Similarity'], [biomech_results['overall_score'] * 100], color='green')
+    plt.ylim(0, 100)
+    plt.ylabel('Similarity (%)')
+    plt.title('Overall Biomechanical Similarity Score')
+    plt.grid(axis='y')
+    plt.savefig("overall_similarity_score_bar_chart.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
+
+
+
+def extended_evaluation(user_kps, pro_kps, plot=True):
+    T, J, _ = user_kps.shape
+    assert pro_kps.shape == (T, J, 3), "User and pro keypoints must have same shape"
+
+    joint_metrics = compute_joint_metrics(user_kps, pro_kps)
+    group_metrics = compute_group_metrics(joint_metrics)
+    biomech_results = compute_biomechanical_features(user_kps, pro_kps)
+
     # Print raw MAE values for joints
     print("\nJoint Metrics (Mean Absolute Error):")
     for j, m in joint_metrics.items():
@@ -282,210 +493,25 @@ def extended_evaluation(user_kps, pro_kps, plot=True):
 
     # Print biomechanical feature MAEs and scores
     print("\nBiomechanical Features (MAE and similarity score):")
-    for k in biomech_maes.keys():
-        print(f"  {k:30s} | MAE: {fmt_val(biomech_maes[k])} | Similarity Score: {fmt_val(biomech_scores[k])}")
+    for k in biomech_results['biomech_maes'].keys():
+        print(f"  {k:30s} | MAE: {fmt_val(biomech_results['biomech_maes'][k])} | Similarity Score: {fmt_val(biomech_results['biomech_scores'][k])}")
 
-    print(f"\nOverall Biomechanical Similarity Score: {fmt_val(overall_score * 100)}%")
+    print(f"\nOverall Biomechanical Similarity Score: {fmt_val(biomech_results['overall_score'] * 100)}%")
 
     if plot:
-        # Per-joint plots
-        for j, m in joint_metrics.items():
-            fig, axs = plt.subplots(1, 3, figsize=(18, 4))
-            fig.suptitle(f"Joint: {m['name']}")
-
-            # Distance
-            axs[0].plot(m['dist_t'], label='Distance')
-            axs[0].set_ylabel('Euclidean Distance (meters)')
-            axs[0].set_xlabel('Frame')
-            axs[0].grid(True)
-
-            # Angle
-            if m['user_angles'] is not None and m['pro_angles'] is not None:
-                axs[1].plot(m['user_angles'], label='User Angle (°)')
-                axs[1].plot(m['pro_angles'], label='Pro Angle (°)', alpha=0.7)
-            axs[1].set_ylabel('Angle (degrees)')
-            axs[1].set_xlabel('Frame')
-            axs[1].grid(True)
-
-            # Rotational speed
-            if m['user_ang_vel'] is not None and m['pro_ang_vel'] is not None:
-                axs[2].plot(m['user_ang_vel'], label='User Rotational Speed (°/s)')
-                axs[2].plot(m['pro_ang_vel'], label='Pro Rotational Speed (°/s)', alpha=0.7)
-            axs[2].set_ylabel('Rotational Speed (degrees/second)')
-            axs[2].set_xlabel('Frame')
-            axs[2].grid(True)
-
-            for ax in axs:
-                ax.legend()
-            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-            plt.savefig(f"joint_{j:02d}_{m['name'].replace(' ', '_').lower()}_analysis.png", dpi=300, bbox_inches='tight')
-            plt.close()
-
-        # Group mean curves
-        for group_name, group_data in group_metrics.items():
-            joint_ids = group_data['joint_ids']
-            if not joint_ids:
-                continue
-
-            dist_mat = np.array([joint_metrics[j]['dist_t'] for j in joint_ids if joint_metrics[j]['dist_t'] is not None])
-            dist_mean = dist_mat.mean(axis=0) if dist_mat.size > 0 else None
-
-            angle_user_mat = []
-            angle_pro_mat = []
-            angle_user_mat = []
-            angle_pro_mat = []
-
-            for j in joint_ids:
-                m = joint_metrics[j]
-                if m['user_angles'] is not None and m['pro_angles'] is not None:
-                    angle_user_mat.append(m['user_angles'])
-                    angle_pro_mat.append(m['pro_angles'])
-                if m['user_ang_vel'] is not None and m['pro_ang_vel'] is not None:
-                    angle_user_mat.append(m['user_ang_vel'])
-                    angle_pro_mat.append(m['pro_ang_vel'])
-
-            angle_user_mean = np.mean(angle_user_mat, axis=0) if angle_user_mat else None
-            angle_pro_mean = np.mean(angle_pro_mat, axis=0) if angle_pro_mat else None
-            angle_user_mean = np.mean(angle_user_mat, axis=0) if angle_user_mat else None
-            angle_pro_mean = np.mean(angle_pro_mat, axis=0) if angle_pro_mat else None
-
-            fig, axs = plt.subplots(1, 3, figsize=(18, 4))
-            fig.suptitle(f"Group: {group_name} Mean Curves")
-
-            # Distance
-            if dist_mean is not None:
-                axs[0].plot(dist_mean, label='Mean Distance')
-            axs[0].set_title("Euclidean Distance over Time")
-            axs[0].set_ylabel("Distance (meters)")
-            axs[0].set_xlabel("Frame")
-            axs[0].grid(True)
-
-            # Angle
-            if angle_user_mean is not None and angle_pro_mean is not None:
-                axs[1].plot(angle_user_mean, label='User Mean Angle (°)')
-                axs[1].plot(angle_pro_mean, label='Pro Mean Angle (°)', alpha=0.7)
-            axs[1].set_title("Angle over Time")
-            axs[1].set_ylabel("Angle (degrees)")
-            axs[1].set_xlabel("Frame")
-            axs[1].grid(True)
-
-            # Rotational speed
-            if angle_user_mean is not None and angle_pro_mean is not None:
-                axs[2].plot(angle_user_mean, label='User Mean Rotational Speed (°/s)')
-                axs[2].plot(angle_pro_mean, label='Pro Mean Rotational Speed (°/s)', alpha=0.7)
-            axs[2].set_title("Rotational Speed over Time")
-            axs[2].set_ylabel("Rotational Speed (degrees/second)")
-            axs[2].set_xlabel("Frame")
-            axs[2].grid(True)
-
-            for ax in axs:
-                ax.legend()
-
-            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-            plt.savefig(f"group_{group_name.replace(' ', '_').lower()}_mean_curves.png", dpi=300, bbox_inches='tight')
-            plt.close()
-
-        # Abduction angle plot
-        plt.figure(figsize=(10, 4))
-        plt.plot(user_abduction, label='User')
-        plt.plot(pro_abduction, label='Pro', alpha=0.7)
-        plt.title("Right Shoulder Abduction Angle Over Time")
-        plt.ylabel("Angle (degrees)")
-        plt.xlabel("Frame")
-        plt.legend()
-        plt.grid(True)
-        plt.savefig("right_shoulder_abduction_angle.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # Hip torsion plot
-        plt.figure(figsize=(10, 4))
-        plt.plot(user_hip_torsion, label='User Hip Torsion')
-        plt.plot(pro_hip_torsion, label='Pro Hip Torsion', alpha=0.7)
-        plt.title("Hip Torsion Angle Over Time")
-        plt.ylabel("Angle (degrees)")
-        plt.xlabel("Frame")
-        plt.legend()
-        plt.grid(True)
-        plt.savefig("hip_torsion_angle.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # Shoulder torsion plot
-        plt.figure(figsize=(10, 4))
-        plt.plot(user_shoulder_torsion, label='User Shoulder Torsion')
-        plt.plot(pro_shoulder_torsion, label='Pro Shoulder Torsion', alpha=0.7)
-        plt.title("Shoulder Torsion Angle Over Time")
-        plt.ylabel("Angle (degrees)")
-        plt.xlabel("Frame")
-        plt.legend()
-        plt.grid(True)
-        plt.savefig("shoulder_torsion_angle.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # Overlay plot user hip and shoulder torsion
-        plt.figure(figsize=(10, 4))
-        plt.plot(user_hip_torsion, label='User Hip Torsion')
-        plt.plot(user_shoulder_torsion, label='User Shoulder Torsion', alpha=0.7)
-        plt.title("User Hip and Shoulder Torsion Angles Over Time")
-        plt.ylabel("Angle (degrees)")
-        plt.xlabel("Frame")
-        plt.legend()
-        plt.grid(True)
-        plt.savefig("user_hip_shoulder_torsion_overlay.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # Throwing arm angular velocity plots (user vs pro)
-        if throwing_arm_user_mean_angle is not None:
-            plt.figure(figsize=(10, 4))
-            plt.plot(throwing_arm_user_mean_angle, label='User Mean Throwing Arm Rotational Speed')
-            plt.plot(throwing_arm_pro_mean_angle, label='Pro Mean Throwing Arm Rotational Speed', alpha=0.7)
-            plt.title("Throwing Arm (Right) Mean Rotational Speed Over Time")
-            plt.ylabel("Rotational Speed (degrees/second)")
-            plt.xlabel("Frame")
-            plt.legend()
-            plt.grid(True)
-            plt.savefig("throwing_arm_angular_velocity.png", dpi=300, bbox_inches='tight')
-            plt.close()
-
-        # Biomechanical features spider chart
-        labels = list(biomech_scores.keys())
-        values = [v if v is not None else 0 for v in biomech_scores.values()]
-        values += values[:1]  # close loop
-
-        angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
-        angles += angles[:1]
-
-        fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
-        ax.plot(angles, values, color='blue', linewidth=2)
-        ax.fill(angles, values, color='blue', alpha=0.25)
-        ax.set_ylim(0, 1)
-        ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(labels)
-        ax.set_title("Biomechanical Similarity Scores")
-        ax.grid(True)
-        plt.savefig("biomechanical_similarity_spider_chart.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # Overall similarity score as percentage bar chart
-        plt.figure(figsize=(4, 6))
-        plt.bar(['Overall Similarity'], [overall_score * 100], color='green')
-        plt.ylim(0, 100)
-        plt.ylabel('Similarity (%)')
-        plt.title('Overall Biomechanical Similarity Score')
-        plt.grid(axis='y')
-        plt.savefig("overall_similarity_score_bar_chart.png", dpi=300, bbox_inches='tight')
-        plt.close()
+        generate_plots(joint_metrics, group_metrics, biomech_results)
 
     return {
         'joint_metrics': joint_metrics,
         'group_metrics': group_metrics,
-        'biomech_maes': biomech_maes,
-        'biomech_scores': biomech_scores,
-        'overall_similarity_score': overall_score,
-        'throwing_arm_user_mean_angle': throwing_arm_user_mean_angle,
-        'throwing_arm_pro_mean_angle': throwing_arm_pro_mean_angle,
-        'right_shoulder_abduction': (user_abduction, pro_abduction),
-        'hip_torsion': (user_hip_torsion, pro_hip_torsion),
-        'shoulder_torsion': (user_shoulder_torsion, pro_shoulder_torsion),
+        'biomech_maes': biomech_results['biomech_maes'],
+        'biomech_scores': biomech_results['biomech_scores'],
+        'overall_similarity_score': biomech_results['overall_score'],
+        'throwing_arm_user_mean_angle': biomech_results['throwing_arm_user_mean_angle'],
+        'throwing_arm_pro_mean_angle': biomech_results['throwing_arm_pro_mean_angle'],
+        'right_shoulder_abduction': (biomech_results['user_abduction'], biomech_results['pro_abduction']),
+        'hip_torsion': (biomech_results['user_hip_torsion'], biomech_results['pro_hip_torsion']),
+        'shoulder_torsion': (biomech_results['user_shoulder_torsion'], biomech_results['pro_shoulder_torsion']),
     }
 
 
