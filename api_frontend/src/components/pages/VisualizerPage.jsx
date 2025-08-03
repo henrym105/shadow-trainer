@@ -313,7 +313,7 @@ function VisualizerPage() {
 
               {/* Frame Control */}
               <div className="control-group frame-control">
-                <label className="control-label">Frame: {frame + 1} / {totalFrames}</label>
+                <label className="control-label">Time: {((frame + 1) / 30).toFixed(1)}s / {(totalFrames / 30).toFixed(1)}s</label>
                 <input
                   type="range"
                   min={0}
