@@ -384,17 +384,24 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
         f"User and professional keypoints must have the same shape after cropping & resampling. Got user: {user_keypoints_npy.shape}, pro: {pro_keypoints_npy.shape}"
     num_frames = user_keypoints_npy.shape[0]
 
+    # Get the angle to rotate the body so that the hips are pointing directly at the camera when visualized
+    # To make the front of the hips point directly to the camera
+    DESIRED_HIP_DIRECTION = 270
     # Calculate hip alignment angle adjustment from first frame
     user_angle = get_stance_angle(user_keypoints_npy[0], body_part_to_align)
     pro_angle = get_stance_angle(pro_keypoints_npy[0], body_part_to_align)
-    angle_adjustment = user_angle - pro_angle
+
+    user_angle_adjustment = DESIRED_HIP_DIRECTION - user_angle
+    pro_angle_adjustment = DESIRED_HIP_DIRECTION - pro_angle
+
     if DEBUG:
         logger.info(f"Angle between {body_part_to_align} in first frame of USER VIDEO: {user_angle:.2f} degrees")
         logger.info(f"Angle between {body_part_to_align} in first frame of PROFESSIONAL VIDEO: {pro_angle:.2f} degrees")
-        logger.info(f"Angle adjustment: {int(angle_adjustment)}")
+        logger.info(f"Angle adjustment: {int(pro_angle_adjustment)}")
 
     # Apply hip alignment rotation to all pro keyframes
-    pro_keypoints_aligned = np.array([rotate_around_z(frame, angle_adjustment) for frame in pro_keypoints_npy])
+    user_keypoints_aligned = np.array([rotate_around_z(frame, user_angle_adjustment) for frame in user_keypoints_npy])
+    pro_keypoints_aligned = np.array([rotate_around_z(frame, pro_angle_adjustment) for frame in pro_keypoints_npy])
     
     # Save original pro keypoints for reference (with _original suffix)
     raw_keypoints_dir = os.path.dirname(pro_keypoints_filepath)
@@ -402,7 +409,7 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
     np.save(pro_original_filepath, pro_keypoints_npy)
     
     # Save aligned keypoints (both user and aligned pro)
-    np.save(user_3d_keypoints_filepath, user_keypoints_npy)
+    np.save(user_3d_keypoints_filepath, user_keypoints_aligned)
     np.save(pro_keypoints_filepath, pro_keypoints_aligned)  # This overwrites with aligned version
     if DEBUG: 
         logger.info(f"Original professional 3D keypoints saved to {pro_original_filepath}, with shape {pro_keypoints_npy.shape}")
