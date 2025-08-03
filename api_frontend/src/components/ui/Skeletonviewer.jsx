@@ -71,17 +71,21 @@ function Skeleton({ frames, color = 'red', frame, isLefty = false }) {
     </>
   );
 }
-
 function FixedZOrbitControls() {
   const { camera, gl } = useThree();
   camera.up.set(0, 0, 1); // Z is up
+  // Set initial polar angle to Math.PI / 2 (horizontal)
+  useEffect(() => {
+    camera.position.set(2, 0, 0); // position camera in horizontal plane
+    camera.lookAt(0, 0, 0);
+  }, [camera]);
   return (
     <OrbitControls
       args={[camera, gl.domElement]}
       enableZoom={true}
       enablePan={false}
-      minPolarAngle={Math.PI / 2}
-      maxPolarAngle={Math.PI}
+      minPolarAngle={0}
+      maxPolarAngle={Math.PI / 2}
     />
   );
 }
