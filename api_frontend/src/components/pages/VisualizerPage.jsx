@@ -18,6 +18,7 @@ function VisualizerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showPlots, setShowPlots] = useState(false);
+  const [hasMotionFeedback, setHasMotionFeedback] = useState(false);
   
   // Controls state
   const [playing, setPlaying] = useState(true);
@@ -47,7 +48,16 @@ function VisualizerPage() {
           if (infoRes.ok) {
             const infoData = await infoRes.json();
             setTaskInfo(infoData);
-                      }
+            
+            // Check if motion_feedback already exists
+            if (infoData.motion_feedback) {
+              setJointEvaluation(infoData.motion_feedback);
+              setHasMotionFeedback(true);
+              setShowPlots(true);
+            } else {
+              setHasMotionFeedback(false);
+            }
+          }
         } else {
           setError('Failed to load keypoints data');
         }
@@ -346,7 +356,7 @@ function VisualizerPage() {
         </div>
         
         {/* Generate Analysis Button or Movement Feedback Box */}
-        {!jointEvaluation && !evaluationLoading ? (
+        {!hasMotionFeedback && !evaluationLoading ? (
           <div className="visualization-box analysis-button-container">
             <button 
               onClick={handleGenerateEvaluation}
