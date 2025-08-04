@@ -18,6 +18,7 @@ function VisualizerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showPlots, setShowPlots] = useState(false);
+  const [hasMotionFeedback, setHasMotionFeedback] = useState(false);
   
   // Controls state
   const [playing, setPlaying] = useState(true);
@@ -47,7 +48,16 @@ function VisualizerPage() {
           if (infoRes.ok) {
             const infoData = await infoRes.json();
             setTaskInfo(infoData);
-                      }
+            
+            // Check if motion_feedback already exists
+            if (infoData.motion_feedback) {
+              setJointEvaluation(infoData.motion_feedback);
+              setHasMotionFeedback(true);
+              setShowPlots(true);
+            } else {
+              setHasMotionFeedback(false);
+            }
+          }
         } else {
           setError('Failed to load keypoints data');
         }
@@ -156,8 +166,10 @@ function VisualizerPage() {
                   const infoData = await infoResponse.json();
                   if (infoData.motion_feedback) {
                     setJointEvaluation(infoData.motion_feedback);
+                    setHasMotionFeedback(true);
                   } else if (infoData.joint_evaluation_text) {
                     setJointEvaluation(infoData.joint_evaluation_text);
+                    setHasMotionFeedback(true);
                   } else {
                     setJointEvaluation('No motion feedback available.');
                     console.log('No motion_feedback found, available keys:', Object.keys(infoData));
@@ -201,16 +213,16 @@ function VisualizerPage() {
           <LogoSection />
         </header>
         
-        {/* Main Content Area - Animation + Controls Side by Side */}
+        {/* Main Content: Visualization and Controls */}
         <div className="main-content-container">
-          {/* Visualization Box */}
+          {/* 3D Skeleton Visualization */}
           <div className="visualization-box">
             {userKeypoints && proKeypoints ? (
               <>
-                {/* User Instructions */}
+                {/* Instructions */}
                 <div className="user-instructions">
-                  <div>Click + drag to rotate</div>
-                  <div>Scroll/pinch to zoom</div>
+                  <div>Click and drag to rotate</div>
+                  <div>Scroll or pinch to zoom</div>
                 </div>
                 
                 <SkeletonViewer
@@ -226,7 +238,7 @@ function VisualizerPage() {
                   isLefty={taskInfo?.is_lefty || false}
                 />
                 
-                {/* Skeleton Legend - Bottom Single Row */}
+                {/* Legend */}
                 <div className="skeleton-legend">
                   <div className="legend-item">
                     <div className="legend-color user"></div>
@@ -239,24 +251,17 @@ function VisualizerPage() {
                 </div>
               </>
             ) : (
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center', 
-                height: '100%' 
-              }}>
+              <div className="centered-message">
                 <div>Loading keypoints data...</div>
               </div>
             )}
           </div>
           
-          {/* Visualization Controls Section - Now on the side */}
+          {/* Controls */}
           <div className="controls-container">
-            <h3 className="controls-title">Visualization Controls: </h3>
-            
-            {/* Control Groups */}
+            <h3 className="controls-title">Visualization Controls</h3>
             <div className="controls-content">
-              {/* Auto Rotation Control */}
+              {/* Auto Rotation */}
               <div className="control-group">
                 <label className="control-label">Auto Rotation:</label>
                 <button 
@@ -267,7 +272,7 @@ function VisualizerPage() {
                 </button>
               </div>
 
-              {/* Skeleton Visibility Controls */}
+              {/* Skeleton Visibility */}
               <div className="flex flex-col gap-lg">
                 <div className="control-group text-center">
                   <label className="control-label">User Skeleton:</label>
@@ -302,7 +307,7 @@ function VisualizerPage() {
                 </div>
               </div>
 
-              {/* Playback Speed Control */}
+              {/* Playback Speed */}
               <div className="control-group">
                 <label className="control-label">Playback Speed:</label>
                 <select 
@@ -318,9 +323,11 @@ function VisualizerPage() {
                 </select>
               </div>
 
-              {/* Frame Control */}
+              {/* Frame Slider */}
               <div className="control-group frame-control">
-                <label className="control-label">Time: {((frame + 1) / 30).toFixed(1)}s / {(totalFrames / 30).toFixed(1)}s</label>
+                <label className="control-label">
+                  Time: {((frame + 1) / 30).toFixed(1)}s / {(totalFrames / 30).toFixed(1)}s
+                </label>
                 <input
                   type="range"
                   min={0}
@@ -331,7 +338,7 @@ function VisualizerPage() {
                 />
               </div>
 
-              {/* Playback Control */}
+              {/* Play/Pause */}
               <div className="control-group">
                 <label className="control-label">Playback:</label>
                 <button 
@@ -345,8 +352,8 @@ function VisualizerPage() {
           </div>
         </div>
         
-        {/* Generate Analysis Button or Movement Feedback Box */}
-        {!jointEvaluation && !evaluationLoading ? (
+        {/* Feedback or Generate Analysis */}
+        {!hasMotionFeedback && !evaluationLoading ? (
           <div className="visualization-box analysis-button-container">
             <button 
               onClick={handleGenerateEvaluation}
@@ -358,12 +365,11 @@ function VisualizerPage() {
           </div>
         ) : (
           <div className="visualization-box analysis-button-container">
-            <h3 className="evaluation-title">Movement Feedback</h3>
-            
+            <h3 className="evaluation-title">Motion Analysis Feedback</h3>
             {evaluationLoading ? (
               <div className="evaluation-loading">
-              <div className="spinner spinner-large"></div>
-              <p>Generating personalized movement feedback...</p>
+                <div className="spinner spinner-large"></div>
+                <p>Gathering personalized feedback from your AI baseball coach...</p>
               </div>
             ) : (
               <div className="evaluation-content">
@@ -373,10 +379,12 @@ function VisualizerPage() {
           </div>
         )}
         
-        {/* Movement Analysis Plots */}
+        {/* Motion Analysis Plots */}
         {showPlots && (
           <div className="visualization-box plots-container">
-            <h3 className="plots-title">Movement Analysis Charts</h3>
+            <h3 className="plots-title">
+              Compare your motion with {taskInfo?.pro_name || 'the MLB pro'}
+            </h3>
             <div className="plots-grid">
               <PlotViewer 
                 taskId={taskId} 

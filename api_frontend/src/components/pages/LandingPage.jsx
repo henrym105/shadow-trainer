@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import GitHubFooter from '../ui/GitHubFooter';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -138,16 +139,7 @@ function LandingPage() {
         </section>
 
         {/* Footer */}
-        <footer className="landing-footer">
-          <div className="footer-content">
-            <p>&copy; 2025 Shadow Trainer. Powered by cutting-edge AI technology.</p>
-            <div className="footer-links">
-              <a href="https://github.com/henrym105/shadow-trainer/tree/develop" target="_blank" rel="noopener noreferrer">
-                View Source on GitHub
-              </a>
-            </div>
-          </div>
-        </footer>
+        <GitHubFooter />
       </div>
     </div>
   );

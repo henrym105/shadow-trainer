@@ -22,12 +22,6 @@ Python FastAPI backend service providing video processing, machine learning infe
 ```
 api_backend/
 ├── api_service.py          # FastAPI app initialization and middleware
-├── api_videos.py           # Video processing REST endpoints
-├── tasks.py                # Celery background task definitions
-├── constants.py            # Configuration constants and settings
-├── pydantic_models.py      # API request/response data models
-├── requirements.txt        # Python package dependencies
-├── run_api.py              # Development server entry point
 ├── src/                    # Core processing modules
 │   ├── inference.py        # ML model inference pipeline
 │   ├── yolo2d.py           # 2D pose detection with YOLO11x
@@ -38,10 +32,7 @@ api_backend/
 │   └── model/              # MotionAGFormer implementation
 │       ├── MotionAGFormer.py
 │       └── modules/        # Neural network components
-├── checkpoint/             # Pre-trained model weights
-│   ├── yolo11x-pose.pt
-│   ├── motionagformer-s-h36m.pth.tr
-│   └── example_SnellBlake.npy
+├── checkpoint/             # Pre-trained model weights loaded from s3
 ├── output/                # Processed video results storage
 ├── uploads/               # Temporary video upload storage
 └── sample_videos/         # Test videos and sample outputs
@@ -49,12 +40,16 @@ api_backend/
 
 ## 🔌 API Endpoints
 
+> **Full API Documentation:**  
+> See [api.shadow-trainer.com/docs](https://api.shadow-trainer.com/docs) for complete, interactive API reference and usage details.
+
 ### Video Processing
 ```bash
-POST /videos/upload-and-process/          # Upload video and start processing
+POST /videos/upload/                      # Upload video and start processing
+GET  /videos/{task_id}/info/              # Get task metadata info dict
 GET  /videos/{task_id}/status/            # Check processing status
 GET  /videos/{task_id}/download/          # Download processed video
-GET  /videos/{task_id}/preview/           # Stream video preview
+GET  /videos/{task_id}/preview/           # Stream video preview, original or processed
 POST /videos/{task_id}/terminate/         # Cancel processing job
 ```
 
@@ -69,11 +64,8 @@ POST /videos/{task_id}/generate-evaluation/ # Generate AI coaching feedback
 ### System Management
 ```bash
 GET  /health/                             # System health check
-GET  /pro-keypoints/                      # Available professional athletes
-GET  /models/                             # Available ML model configurations
-GET  /task/{task_id}/status/              # Celery task status
-POST /task/{task_id}/cancel/              # Cancel background task
-GET  /tasks/active/                       # List all active tasks
+GET  /pro-keypoints/list                  # Available professional athletes
+GET  /status/{task_id}
 ```
 
 ## 🔄 Processing Pipeline

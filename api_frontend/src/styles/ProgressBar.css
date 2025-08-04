@@ -3,9 +3,11 @@
   border-radius: 16px;
   box-shadow: 0 2px 12px rgba(33,150,243,0.08);
   padding: 1.5rem 2rem;
-  width: 400px;
+  width: 100%;
+  max-width: 400px;
   margin: 2rem auto;
   text-align: center;
+  box-sizing: border-box;
 }
 .progress-status {
   font-size: 1.2rem;
@@ -47,4 +49,20 @@
   font-size: 0.95rem;
   color: #2196F3;
   margin-top: 0.5rem;
+}
+
+/* Responsive styles for narrow screens */
+@media (max-width: 480px) {
+  .progress-bar-card {
+    padding: 1rem 1.5rem;
+    margin: 1rem auto;
+  }
+  
+  .progress-status {
+    font-size: 1.1rem;
+  }
+  
+  .progress-desc {
+    font-size: 0.9rem;
+  }
 }
