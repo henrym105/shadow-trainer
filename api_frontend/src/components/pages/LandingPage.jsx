@@ -9,17 +9,17 @@ function LandingPage() {
   const features = [
     {
       title: "AI-Powered Analysis",
-      description: "Advanced machine learning algorithms analyze your motion with professional-grade precision",
+      description: "Advanced machine learning algorithms analyze your motion with professional-grade precision, for a fraction of the cost.",
       icon: "🤖"
     },
     {
       title: "3D Motion Tracking",
-      description: "Real-time 3D pose estimation and skeleton tracking for comprehensive movement analysis",
+      description: "Accurate 3D pose estimation and skeleton tracking with any camera. No special equipment needed, just your smartphone or webcam.",
       icon: "🎯"
     },
     {
       title: "Professional Comparison",
-      description: "Compare your technique against professional athletes to identify improvement areas",
+      description: "Compare your technique against your favorite MLB pitchers to identify improvement areas, and get AI generated coaching tips to help you Play Like a Pro.",
       icon: "⚡"
     }
   ];
@@ -140,7 +140,7 @@ function LandingPage() {
         {/* Footer */}
         <footer className="landing-footer">
           <div className="footer-content">
-            <p>&copy; 2024 Shadow Trainer. Powered by cutting-edge AI technology.</p>
+            <p>&copy; 2025 Shadow Trainer. Powered by cutting-edge AI technology.</p>
             <div className="footer-links">
               <a href="https://github.com/henrym105/shadow-trainer/tree/develop" target="_blank" rel="noopener noreferrer">
                 View Source on GitHub

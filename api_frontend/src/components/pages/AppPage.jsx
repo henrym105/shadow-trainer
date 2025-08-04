@@ -147,12 +147,12 @@ function AppPage() {
                       <div className="throwing-style-selection">
                         <label className="option-header">Throwing Style:</label>
                         <div className="toggle-container">
-                          <span className={`toggle-label${!isLefty ? ' active' : ''}`}>Right-Handed</span>
+                          <span className={`toggle-label${isLefty ? ' active' : ''}`}>Left-Handed</span>
                           <label className="toggle-switch">
-                            <input type="checkbox" checked={isLefty} onChange={e => setIsLefty(e.target.checked)} disabled={isUploading} />
+                            <input type="checkbox" checked={!isLefty} onChange={e => setIsLefty(!e.target.checked)} disabled={isUploading} />
                             <span className="slider"></span>
                           </label>
-                          <span className={`toggle-label${isLefty ? ' active' : ''}`}>Left-Handed</span>
+                          <span className={`toggle-label${!isLefty ? ' active' : ''}`}>Right-Handed</span>
                         </div>
                       </div>
                       <ProKeypointsSelector
