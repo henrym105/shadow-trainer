@@ -1,3 +1,5 @@
+
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import openai
@@ -5,7 +7,10 @@ import numpy as np
 import math
 import os
 from dotenv import load_dotenv
+# from constants import API_ROOT_DIR
 
+API_ROOT_DIR = Path(__file__).parent.parent
+print(API_ROOT_DIR)
 
 # Joint names (unchanged)
 JOINT_NAMES = {
@@ -27,6 +32,52 @@ JOINT_NAMES = {
     15: 'Left Wrist',
     16: 'Right Wrist',
 }
+
+
+
+LLM_PROMPT = """
+Summarize this information for someone who wants quick insights.
+This is a comparison between the movement of a user and a professional performing the same motion.
+Respond with just a few bullet points that offer clear, actionable suggestions the user can follow to better match the professional's form.
+Avoid repeating metrics or scores — focus on real-world movement insights.
+Do not include emojis. Keep the language simple and practical.
+Here is the data:
+{}
+Limit your response to 3 bullet points maximum.
+
+--- MOTION FEEDBACK RUBRIC & INTERPRETATION GUIDE ---
+JOINT DISTANCE (Euclidean Distance):
+- Measures how far the user's joint is from the professional's (in meters) per frame.
+- Lower values = better mimicry of joint position.
+Interpretation:
+- < 0.05 m     : Excellent match
+- 0.05 - 0.10 m  : Good
+- 0.10 - 0.20 m  : Fair
+- > 0.20 m     : Poor (needs work)
+JOINT ANGLE DIFFERENCE (degrees):
+- Measures how much the joint's bending/rotation angle differs from pro.
+- Lower values = better mimicry of joint movement.
+Interpretation:
+- < 5°         : Excellent
+- 5° - 10°       : Good
+- 10° - 20°      : Fair
+- > 20°        : Poor (likely off-form)
+HIP TORSION SPEED (deg/s):
+- Measures rotational speed of hip (left vs right) around vertical axis.
+Key Metrics:
+- MAE (Mean Absolute Error): < 10°/s Excellent, > 50°/s Poor
+- Similarity Score (0 - 1): > 0.9 Excellent, < 0.5 Poor
+- Peak Speed Diff: Large mismatch may indicate rotational inefficiency
+- Timing Diff: -ve = user peaks earlier; +ve = later
+- Speed Correlation: > 0.8 Excellent, < 0.3 Poor
+- Std Dev: Low = consistent movement, High = variability
+IMPROVEMENT TIPS:
+- High distance or angle error: slow down and focus on joint positioning
+- Poor hip torsion: work on core/hip flexibility and timing
+- Inconsistent speed: aim for smoother motion with better control
+"""
+
+
 
 def angle_between_points(a, b, c):
     """
@@ -318,28 +369,18 @@ def summarize_joint_results(joint_text) -> str:
     """
     Generates a prompt summarizing joint_text in plain English without metric repetition.
     """
-    prompt = (
-        "Summarize this information for someone who wants quick insights. "
-        "This is a comparison between the movement of a user and a professional performing the same motion.\n\n"
-        "Respond with just a few bullet points that offer clear, actionable suggestions "
-        "the user can follow to better match the professional's form.\n\n"
-        "Avoid repeating metrics or scores — focus on real-world movement insights. "
-        "Do not include emojis. Keep the language simple and practical.\n\n"
-        "Here is the data:\n\n"
-        f"{joint_text}\n"
-        "\nLimit your response to 5 bullet points maximum."
-    )
+    prompt = LLM_PROMPT.format(joint_text)
     return prompt
 
 
 def generate_motion_feedback(joint_text) -> str:
-    prompt = summarize_joint_results(joint_text)
-    # set API key from .env file
-    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+    API_ROOT_DIR = Path(__file__).parent.parent
+    dotenv_path = os.path.join(API_ROOT_DIR, '.env')
     if os.path.exists(dotenv_path):
         load_dotenv(dotenv_path)
     openai.api_key = os.getenv("OPENAI_API_KEY")
 
+    prompt = summarize_joint_results(joint_text)
     response = openai.chat.completions.create(
         model="gpt-4o-mini",  # or "gpt-4-mini" if available
         messages=[
@@ -374,3 +415,10 @@ if __name__ == "__main__":
     print(feedback)
 
 
+
+
+    # """
+    # hip direction angle difference: [0,0,1,1,2,2,2,3,3,4,4,3,2,1,0, -1, -1, -1, -2, -2, -3, -3, -4, -4, -3, -2, -1, 0]
+    # - positive numbers indicate the user has rotating their hips more than the pro at that point of the motion
+    # - negative numbers indicate the user has rotated their hips less than the pro
+    # """

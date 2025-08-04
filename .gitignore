@@ -250,3 +250,4 @@ cython_debug/
 # React.js
 node_modules/
 build/
+systemctl-commands.txt

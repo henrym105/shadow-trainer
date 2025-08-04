@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FileUpload from '../ui/FileUpload';
 import ProKeypointsSelector from '../ui/ProKeypointsSelector';
 import KeypointsUpload from '../ui/KeypointsUpload';
 import LogoSection from '../ui/LogoSection';
+import RecordingTipsPopup from '../ui/RecordingTipsPopup';
+import GitHubFooter from '../ui/GitHubFooter';
 import VideoAPI from '../../services/videoApi';
+import '../../styles/GitHubFooter.css';
 
 const MODEL_SIZES = [
   { value: 'xs', label: 'Small/Fast' },
   { value: 's', label: 'Large/Slow' }
 ];
 
-function HomePage() {
+function AppPage() {
   const navigate = useNavigate();
   
   // State variables
@@ -24,6 +27,7 @@ function HomePage() {
   const [proOptions, setProOptions] = useState([]);
   const [videoFormat, setVideoFormat] = useState('dynamic_3d_animation');
   const [activeTab, setActiveTab] = useState('video-processing');
+  const [showRecordingTips, setShowRecordingTips] = useState(false);
 
   // Load pro keypoints options
   useEffect(() => {
@@ -82,14 +86,12 @@ function HomePage() {
     }
   };
 
-  // Get professional player name from selected file
-  const getProPlayerName = () => {
-    const proOption = proOptions.find(opt => opt.filename === selectedProFile);
-    return proOption?.name || selectedProFile.replace('_median.npy', '').replace(/([A-Z])/g, ' $1').trim();
-  };
-
   return (
     <div className="app">
+      <RecordingTipsPopup 
+        isVisible={showRecordingTips}
+        onClose={() => setShowRecordingTips(false)}
+      />
       <div className="app-container">
         <header className="app-header">
           <LogoSection />
@@ -115,11 +117,21 @@ function HomePage() {
               <button className="sample-video-btn" onClick={handleSampleVideo} disabled={isUploading}>
                 {isUploading ? <span className="btn-spinner" /> : 'Use Sample Video'}
               </button>
-              <div className="sample-video-description" style={{ textAlign: 'center' }}>Try our sample left-handed baseball pitch for a quick demo</div>
+              <div className="sample-video-description" style={{ textAlign: 'center' }}>Try our sample video to see Shadow Trainer in action!</div>
               <div className="divider"><span>or</span></div>
               <div className="section-header">
                 <h2>Upload Your Training Video</h2>
                 <p>Get detailed motion analysis and pose estimation for your athletic performance</p>
+                <div className="recording-tips-container">
+                  <div className="recording-tips-button">
+                    <button 
+                      className="recording-tips-btn" 
+                      onClick={() => setShowRecordingTips(true)}
+                    >
+                      📹 Recording Tips
+                    </button>
+                  </div>
+                </div>
               </div>
               <FileUpload
                 selectedFile={selectedFile}
@@ -135,12 +147,12 @@ function HomePage() {
                       <div className="throwing-style-selection">
                         <label className="option-header">Throwing Style:</label>
                         <div className="toggle-container">
-                          <span className={`toggle-label${!isLefty ? ' active' : ''}`}>Right-Handed</span>
+                          <span className={`toggle-label${isLefty ? ' active' : ''}`}>Left-Handed</span>
                           <label className="toggle-switch">
-                            <input type="checkbox" checked={isLefty} onChange={e => setIsLefty(e.target.checked)} disabled={isUploading} />
+                            <input type="checkbox" checked={!isLefty} onChange={e => setIsLefty(!e.target.checked)} disabled={isUploading} />
                             <span className="slider"></span>
                           </label>
-                          <span className={`toggle-label${isLefty ? ' active' : ''}`}>Left-Handed</span>
+                          <span className={`toggle-label${!isLefty ? ' active' : ''}`}>Right-Handed</span>
                         </div>
                       </div>
                       <ProKeypointsSelector
@@ -179,12 +191,6 @@ function HomePage() {
                   <span className="btn-icon">⬆️</span>
                   {isUploading ? <span className="btn-spinner" /> : 'Create Your Shadow!'}
                 </button>
-                {/* <div className="divider"><span>or</span></div>
-                <button className="sample-video-btn" onClick={handleSampleVideo} disabled={isUploading}>
-                  <span className="btn-icon">🎯</span>
-                  {isUploading ? <span className="btn-spinner" /> : 'Use Sample Video'}
-                </button>
-                <div className="sample-video-description">Try our sample left-handed baseball pitch for a quick demo</div> */}
               </div>
               {uploadError && (
                 <div className="error-message">
@@ -199,34 +205,10 @@ function HomePage() {
             <KeypointsUpload />
           )}
         </main>
-        <footer>
-          <div
-            className="github-footer-link"
-            style={{
-              background: '#fff',
-              borderRadius: '10px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
-              padding: '18px 0',
-              margin: '32px auto 0 auto',
-              textAlign: 'center',
-              maxWidth: '420px',
-              fontSize: '1.08em',
-              fontWeight: 500
-            }}
-          >
-            <a
-              href="https://github.com/henrym105/shadow-trainer/tree/develop"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: '#0366d6', textDecoration: 'underline' }}
-            >
-              View Source on GitHub
-            </a>
-          </div>
-        </footer>
+        <GitHubFooter />
       </div>
     </div>
   );
 }
 
-export default HomePage;
+export default AppPage;

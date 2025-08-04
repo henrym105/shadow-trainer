@@ -8,6 +8,7 @@
   max-width: 800px;
   margin: 0 auto;
   text-align: center;
+  box-sizing: border-box;
 }
 .video-player {
   margin-bottom: 1rem;
@@ -16,6 +17,7 @@
   display: flex;
   gap: 1rem;
   justify-content: center;
+  margin-top: 1rem;
   margin-bottom: 1rem;
 }
 .download-btn, .copy-btn, .reset-btn {
@@ -52,6 +54,10 @@
 @media (max-width: 768px) {
   .video-result-card {
     padding: 1.5rem;
+    margin-left: 0;
+    margin-right: 0;
+    max-width: none;
+    width: calc(100% - 2rem);
   }
   
   .result-actions {
@@ -61,5 +67,12 @@
   
   .download-btn, .copy-btn, .reset-btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .video-result-card {
+    padding: 1rem;
+    width: calc(100% - 1rem);
   }
 }

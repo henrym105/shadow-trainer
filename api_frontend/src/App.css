@@ -6,6 +6,8 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 /* Header Styles */
@@ -47,6 +49,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
 }
 
 /* Section Headers */
@@ -395,6 +398,27 @@ input:disabled + .slider:before {
   padding: 2rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
+  box-sizing: border-box;
+}
+
+/* Video Preview Section in Processing Page */
+.processing-section .video-preview-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin: 2rem 0;
+}
+
+.processing-section .video-preview-section h3 {
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.processing-section .video-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .processing-info {
@@ -455,6 +479,7 @@ input:disabled + .slider:before {
   padding: 2rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
+  box-sizing: border-box;
 }
 
 .error-content {
@@ -613,6 +638,9 @@ input:disabled + .slider:before {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 600px;
 }
 
 .terminated-content {
@@ -649,6 +677,7 @@ input:disabled + .slider:before {
 @media (max-width: 768px) {
   .app-container {
     padding: 1rem;
+    max-width: 100%;
   }
   
   .logo-section {
@@ -665,8 +694,20 @@ input:disabled + .slider:before {
   
   .upload-section,
   .processing-section,
-  .error-section {
+  .error-section,
+  .terminated-section {
     padding: 1.5rem;
+    margin-left: 0;
+    margin-right: 0;
+    max-width: none;
+    width: calc(100% - 2rem);
+  }
+  
+  .github-footer-link {
+    margin-left: 1rem !important;
+    margin-right: 1rem !important;
+    max-width: none !important;
+    width: calc(100% - 2rem) !important;
   }
   
   .options-grid {
@@ -696,7 +737,136 @@ input:disabled + .slider:before {
 }
 
 @media (max-width: 480px) {
+  .app-container {
+    padding: 0.5rem;
+  }
+  
+  .upload-section,
+  .processing-section,
+  .error-section,
+  .terminated-section {
+    padding: 1rem;
+    width: calc(100% - 1rem);
+  }
+  
+  .github-footer-link {
+    margin-left: 0.5rem !important;
+    margin-right: 0.5rem !important;
+    width: calc(100% - 1rem) !important;
+  }
+  
+  .logo-text h1 {
+    font-size: 1.75rem;
+  }
+  
   .processing-steps {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 480px) {
+  .processing-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Recording Tips Container and Popup */
+.recording-tips-container {
+  position: relative;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.recording-tips-button {
+  text-align: center;
+}
+
+.recording-tips-btn {
+  width: 50%;
+  padding: 8px 16px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0 auto;
+}
+
+.recording-tips-btn:hover:not(:disabled) {
+  background: #5a6268;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+}
+
+.recording-tips-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+}
+
+.popup-content {
+  background-color: white;
+  border-radius: 10px;
+  padding: 20px;
+  min-width: 350px;
+  max-width: 500px;
+  position: relative;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+
+.popup-close {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+}
+
+.popup-close:hover {
+  color: #333;
+}
+
+.popup-title {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.popup-description {
+  font-size: 0.9em;
+  font-style: italic;
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.popup-tips-list {
+  font-size: 0.9em;
+  font-style: italic;
+  padding-left: 20px;
+  margin: 0;
+  text-align: left;
 }

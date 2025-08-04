@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import SkeletonViewer from '../Skeletonviewer';
+import ReactMarkdown from 'react-markdown';
+import SkeletonViewer from '../ui/Skeletonviewer';
 import LogoSection from '../ui/LogoSection';
+import PlotViewer from '../ui/PlotViewer';
 import '../../styles/VisualizerPage.css';
 
 function VisualizerPage() {
@@ -15,6 +17,7 @@ function VisualizerPage() {
   const [evaluationTaskId, setEvaluationTaskId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showPlots, setShowPlots] = useState(false);
   
   // Controls state
   const [playing, setPlaying] = useState(true);
@@ -153,10 +156,14 @@ function VisualizerPage() {
                   const infoData = await infoResponse.json();
                   if (infoData.motion_feedback) {
                     setJointEvaluation(infoData.motion_feedback);
+                  } else if (infoData.joint_evaluation_text) {
+                    setJointEvaluation(infoData.joint_evaluation_text);
                   } else {
+                    setJointEvaluation('No motion feedback available.');
                     console.log('No motion_feedback found, available keys:', Object.keys(infoData));
                   }
                 }
+                setShowPlots(true);
                 setEvaluationLoading(false);
                 clearInterval(pollEvaluation);
               } else if (statusData.status === 'FAILURE') {
@@ -216,6 +223,7 @@ function VisualizerPage() {
                   turntable={turntable}
                   playbackSpeed={playbackSpeed}
                   onFrameChange={setFrame}
+                  isLefty={taskInfo?.is_lefty || false}
                 />
                 
                 {/* Skeleton Legend - Bottom Single Row */}
@@ -312,7 +320,7 @@ function VisualizerPage() {
 
               {/* Frame Control */}
               <div className="control-group frame-control">
-                <label className="control-label">Frame: {frame + 1} / {totalFrames}</label>
+                <label className="control-label">Time: {((frame + 1) / 30).toFixed(1)}s / {(totalFrames / 30).toFixed(1)}s</label>
                 <input
                   type="range"
                   min={0}
@@ -354,14 +362,38 @@ function VisualizerPage() {
             
             {evaluationLoading ? (
               <div className="evaluation-loading">
-                <div className="spinner spinner-large"></div>
-                <p>Generating personalized movement feedback...</p>
+              <div className="spinner spinner-large"></div>
+              <p>Generating personalized movement feedback...</p>
               </div>
             ) : (
               <div className="evaluation-content">
-                {jointEvaluation}
+                <ReactMarkdown>{jointEvaluation}</ReactMarkdown>
               </div>
             )}
+          </div>
+        )}
+        
+        {/* Movement Analysis Plots */}
+        {showPlots && (
+          <div className="visualization-box plots-container">
+            <h3 className="plots-title">Movement Analysis Charts</h3>
+            <div className="plots-grid">
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="hip_rotation" 
+                title="Hip Rotation Analysis" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="shoulder_rotation" 
+                title="Shoulder Rotation Analysis" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="hip_shoulder_separation" 
+                title="Hip-Shoulder Separation" 
+              />
+            </div>
           </div>
         )}
       </div>

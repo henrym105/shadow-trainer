@@ -61,7 +61,7 @@ function ProcessingPage() {
   const getProPlayerName = () => {
     if (!proOptions || !selectedProFile) return 'Professional Player';
     const proOption = proOptions.find(opt => opt.filename === selectedProFile);
-    return proOption?.name || selectedProFile.replace('_median.npy', '').replace(/([A-Z])/g, ' $1').trim();
+    return proOption?.name || selectedProFile.replace('_median.npy', '').replace('_mean.npy', '').replace('.npy', '').trim();
   };
 
   return (

@@ -7,12 +7,14 @@ import time
 from typing import Optional
 import uuid
 
+import boto3
 from celery import Celery
 from celery.utils.log import get_task_logger
 import cv2
 from fastapi import HTTPException, UploadFile
 import numpy as np
 
+from src.movement_analysis import format_movement_analysis_for_llm, get_llm_coaching, generate_movement_analysis_plots
 from src.utils import get_pytorch_device
 from src.yolo2d import rotate_video_until_upright
 from src.inference import (
@@ -224,8 +226,8 @@ def process_video_task(
             pro_player_name = pro_info.get("name", player_key)
             logger.info(f"Professional player: {pro_player_name}")
 
-        # Create info.json file with pro_name
-        create_info_file(FILE_INFO_JSON, pro_player_name)
+        # Create info.json file with pro_name and is_lefty
+        create_info_file(FILE_INFO_JSON, pro_player_name, is_lefty)
 
         # step 4.1: crop align the user keypoints to the same n_frames as the pro keypoints: 
         self.update_state(state='PROGRESS', meta={'progress': 60, 'message': "Aligning user keypoints with pro keypoints..."})
@@ -355,13 +357,20 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
     try:
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 10, 'message': "Initializing joint evaluation..."})
-        
+
         # Construct paths based on task_id
         DIR_OUTPUT_BASE = OUTPUT_DIR / f"{task_id}_output"
         DIR_KEYPOINTS = DIR_OUTPUT_BASE / "raw_keypoints"
         FILE_USER_3D = DIR_KEYPOINTS / "user_3D_keypoints.npy"
         FILE_PRO_3D = DIR_KEYPOINTS / "pro_3D_keypoints.npy"
         info_file_path = DIR_OUTPUT_BASE / "info.json"
+
+        # Get is_lefty from info.json if it exists
+        is_lefty = False
+        if info_file_path.exists():
+            with open(info_file_path, 'r') as f:
+                info_data = json.load(f)
+                is_lefty = info_data.get('is_lefty', False)
         
         # Check if required files exist
         if not FILE_USER_3D.exists() or not FILE_PRO_3D.exists():
@@ -378,19 +387,30 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
         self.update_state(state='PROGRESS', meta={'progress': 60, 'message': "Analyzing joint movements..."})
         
         # Run joint evaluation
-        from kpts_analysis import evaluate_all_joints_text, generate_motion_feedback
-        joint_text = evaluate_all_joints_text(user_kps, pro_kps)
-        
+        analysis_text = format_movement_analysis_for_llm(user_kps, pro_kps, is_lefty)
+
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 70, 'message': "Generating AI feedback..."})
         
         # Generate human-readable feedback using OpenAI
         try:
-            motion_feedback = generate_motion_feedback(joint_text)
+            motion_feedback = get_llm_coaching(analysis_text)
+
             logger.info("OpenAI motion feedback generated successfully")
         except Exception as e:
             logger.warning(f"Failed to generate OpenAI feedback: {e}")
             motion_feedback = "Unable to generate personalized feedback at this time."
+        
+        # Update progress
+        self.update_state(state='PROGRESS', meta={'progress': 75, 'message': "Generating analysis plots..."})
+        
+        # Generate movement analysis plots
+        try:
+            plot_paths = generate_movement_analysis_plots(user_kps, pro_kps, str(DIR_OUTPUT_BASE), is_lefty)
+            logger.info(f"Generated movement analysis plots: {list(plot_paths.keys())}")
+        except Exception as e:
+            logger.warning(f"Failed to generate analysis plots: {e}")
+            plot_paths = {}
         
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 80, 'message': "Saving analysis results..."})
@@ -402,7 +422,7 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
         else:
             info_data = {}
         
-        info_data['joint_evaluation_text'] = joint_text
+        info_data['joint_evaluation_text'] = analysis_text
         info_data['motion_feedback'] = motion_feedback
         
         with open(info_file_path, 'w') as f:
@@ -415,7 +435,7 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
         
         return {
             "task_id": task_id,
-            "joint_evaluation_text": joint_text,
+            "joint_evaluation_text": analysis_text,
             "motion_feedback": motion_feedback,
             "status": "completed"
         }
@@ -466,24 +486,25 @@ def save_uploaded_file(file: UploadFile, file_id: str = None) -> str:
 # ----------------------------------------------------
 
 # ==================== UTILITY FUNCTIONS ====================
-def create_info_file(filepath: Path, pro_name: str) -> None:
-    """Create info.json file, initialize with the pro player's name. 
+def create_info_file(filepath: Path, pro_name: str, is_lefty: bool = False) -> None:
+    """Create info.json file, initialize with the pro player's name and handedness. 
     
     Args:
         filepath: full path and name, like './output/123-abc/sinfo.json'
         pro_name: Name of the professional player (if available)
+        is_lefty: Whether the user is left-handed
     """
     info_data = {
-        "pro_name": pro_name
+        "pro_name": pro_name,
+        "is_lefty": is_lefty
     }
     with open(filepath, 'w') as f:
         json.dump(info_data, f, indent=2)
-    logger.info(f"Created info.json with pro_name: {pro_name}")
+    logger.info(f"Created info.json with pro_name: {pro_name}, is_lefty: {is_lefty}")
 
 
 def list_s3_pro_keypoints():
     """List available professional keypoints files in S3."""
-    import boto3
     s3 = boto3.client("s3")
     response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_PRO_PREFIX)
     files = [
@@ -494,19 +515,17 @@ def list_s3_pro_keypoints():
     result = []
     for f in files:
         # Extract player name by removing _median.npy suffix
-        player_key = f.replace("_median.npy", "").replace(".npy", "")
-        info = PRO_TEAMS_MAP.get(player_key, {})
+        player_key = f.replace("_median.npy", "").replace("_mean.npy", "").replace(".npy", "")
         result.append({
             "filename": f,
-            "name": info.get("name", player_key),  # Use player_key as fallback if not in map
-            "team": info.get("team", "Unknown"),
-            "city": info.get("city", "Unknown")
+            "name": PRO_TEAMS_MAP.get(player_key, {}).get("name", player_key),  # Use player_key as fallback if not in map
+            "team": PRO_TEAMS_MAP.get(player_key, {}).get("team", "Unknown"),
+            "city": PRO_TEAMS_MAP.get(player_key, {}).get("city", "Unknown")
         })
-    files = result
-    return files
+    return result
+
 
 def download_pro_keypoints_from_s3(filename, dest_path):
-    import boto3
     s3 = boto3.client("s3")
     logger.info(f"Downloading pro keypoints file {filename} from S3 to {dest_path}")
     logger.info(f"S3 Bucket: {S3_BUCKET}, Prefix: {S3_PRO_PREFIX}, filename: {filename}")

@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Line } from '@react-three/drei';
 
-function Skeleton({ frames, color = 'red', frame }) {
+function Skeleton({ frames, color = 'red', frame, isLefty = false }) {
   // Always use the frame prop to select the current frame
   const currentFrame = frames[frame] || frames[0];
 
@@ -27,18 +27,29 @@ function Skeleton({ frames, color = 'red', frame }) {
     [8, 11], [11, 12], [12, 13], [8, 14], [14, 15], [15, 16]
   ];
 
+  // Define throwing hand wrist joint for highlighting
+  // Joint numbers: 15=LeftWrist, 16=RightWrist
+  const throwingHandWrist = isLefty ? 15 : 16;  // Left wrist for lefties, right wrist for righties
+
   return (
     <>
-      {points.map(([x, y, z], i) => (
-        <mesh key={i} position={[x, y, z]}>
-          <sphereGeometry args={[0.02, 8, 8]} />
-          <meshStandardMaterial
-            color={color}
-            opacity={0.6}
-            transparent={true}
-          />
-        </mesh>
-      ))}
+      {points.map(([x, y, z], i) => {
+        // Check if this is the throwing hand wrist
+        const isThrowingWrist = i === throwingHandWrist;
+        const jointColor = isThrowingWrist ? color : color;
+        
+        return (
+          <mesh key={i} position={[x, y, z]}>
+            {/* <sphereGeometry args={[sphereSize, 8, 8]} /> */}
+            <sphereGeometry args={[0.02, 8, 8]} />
+            <meshStandardMaterial
+              color={jointColor}
+              opacity={0.6}
+              transparent={true}
+            />
+          </mesh>
+        );
+      })}
 
       {bones.map(([start, end], i) => {
         if (!points[start] || !points[end]) return null;
@@ -60,16 +71,20 @@ function Skeleton({ frames, color = 'red', frame }) {
     </>
   );
 }
-
 function FixedZOrbitControls() {
   const { camera, gl } = useThree();
   camera.up.set(0, 0, 1); // Z is up
+  // Set initial polar angle to Math.PI / 2 (horizontal)
+  useEffect(() => {
+    camera.position.set(2, 0, 0); // position camera in horizontal plane
+    camera.lookAt(0, 0, 0);
+  }, [camera]);
   return (
     <OrbitControls
       args={[camera, gl.domElement]}
       enableZoom={true}
       enablePan={false}
-      minPolarAngle={Math.PI / 2}
+      minPolarAngle={0}
       maxPolarAngle={Math.PI / 2}
     />
   );
@@ -125,7 +140,8 @@ export default function SkeletonViewer({
   frame = 0,
   turntable = false,
   playbackSpeed = 1,
-  onFrameChange
+  onFrameChange,
+  isLefty = false
 }) {
   const totalFrames = keypointFrames?.length || 1;
 
@@ -155,10 +171,10 @@ export default function SkeletonViewer({
       <FloorGrid keypointFrames={keypointFrames} />
       {turntable ? <TurntableControls /> : <FixedZOrbitControls />}
       {showUserSkeleton && (
-        <Skeleton frames={keypointFrames} color="red" frame={frame} />
+        <Skeleton frames={keypointFrames} color="red" frame={frame} isLefty={isLefty} />
       )}
       {showProSkeleton && proKeypointFrames && (
-        <Skeleton frames={proKeypointFrames} color="black" frame={frame} />
+        <Skeleton frames={proKeypointFrames} color="black" frame={frame} isLefty={isLefty} />
       )}
     </Canvas>
   );
