@@ -518,44 +518,36 @@ async def get_pro_keypoints(task_id: str, format: str = Query("npy", description
         raise HTTPException(status_code=500, detail=f"Failed to get pro keypoints: {str(e)}")
 
 
-# @sub_app_videos.get("/{task_id}/joint_evaluation")
-# async def get_joint_evaluation(task_id: str):
-#     """Get joint evaluation text from processed video task"""
-#     try:
-#         result = AsyncResult(task_id, app=celery_app)
-#         if not result.ready() or not result.successful():
-#             raise HTTPException(status_code=400, detail="Task not completed successfully")
-
-#         # Get the output directory from task result
-#         task_result = result.result
-#         if isinstance(task_result, dict) and 'output_dir' in task_result:
-#             output_dir = Path(task_result['output_dir'])
-#         elif isinstance(task_result, dict) and 'output_path' in task_result:
-#             # Fallback: infer output directory from output_path for older tasks
-#             output_path = Path(task_result['output_path'])
-#             output_dir = output_path.parent
-#         else:
-#             raise HTTPException(status_code=404, detail="Task output directory not found")
-
-#         # Look for keypoints files
-#         user_keypoints_path = output_dir / 'raw_keypoints' / 'user_3D_keypoints.npy'
-#         pro_keypoints_path = output_dir / 'raw_keypoints' / 'pro_3D_keypoints.npy'
+@sub_app_videos.get("/{task_id}/plots/{plot_type}")
+async def get_movement_analysis_plot(task_id: str, plot_type: str):
+    """
+    Get movement analysis plot PNG file for a processed video task.
+    
+    Args:
+        task_id: The task ID 
+        plot_type: Type of plot (hip_rotation, shoulder_rotation, hip_shoulder_separation)
+    """
+    try:
+        # Valid plot types
+        valid_plot_types = ["hip_rotation", "shoulder_rotation", "hip_shoulder_separation"]
+        if plot_type not in valid_plot_types:
+            raise HTTPException(status_code=400, detail=f"Invalid plot type. Must be one of: {valid_plot_types}")
         
-#         if not user_keypoints_path.exists() or not pro_keypoints_path.exists():
-#             raise HTTPException(status_code=404, detail="Keypoints files not found")
-
-#         # Load keypoints data
-#         user_kps = np.load(user_keypoints_path)
-#         pro_kps = np.load(pro_keypoints_path)
+        # Construct the expected output directory path
+        output_dir = OUTPUT_DIR / f"{task_id}_output"
+        plot_path = output_dir / f"{plot_type}.png"
         
-#         # Run joint evaluation and get text
-#         joint_text = evaluate_all_joints_text(user_kps, pro_kps)
+        if not plot_path.exists():
+            raise HTTPException(status_code=404, detail=f"Plot file not found: {plot_type}.png")
         
-#         return {
-#             "task_id": task_id,
-#             "joint_evaluation_text": joint_text
-#         }
-
-#     except Exception as e:
-#         logger.error(f"Error getting joint evaluation for task {task_id}: {e}")
-#         raise HTTPException(status_code=500, detail=f"Failed to get joint evaluation: {str(e)}")
+        return FileResponse(
+            path=str(plot_path),
+            media_type="image/png",
+            filename=f"{plot_type}_{task_id}.png"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting plot {plot_type} for task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get plot: {str(e)}")

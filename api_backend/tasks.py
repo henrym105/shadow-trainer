@@ -14,8 +14,8 @@ import cv2
 from fastapi import HTTPException, UploadFile
 import numpy as np
 
+from src.movement_analysis import format_movement_analysis_for_llm, get_llm_coaching, generate_movement_analysis_plots
 from src.utils import get_pytorch_device
-from src.kpts_analysis import evaluate_all_joints_text, generate_motion_feedback
 from src.yolo2d import rotate_video_until_upright
 from src.inference import (
     create_2D_images, 
@@ -357,13 +357,20 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
     try:
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 10, 'message': "Initializing joint evaluation..."})
-        
+
         # Construct paths based on task_id
         DIR_OUTPUT_BASE = OUTPUT_DIR / f"{task_id}_output"
         DIR_KEYPOINTS = DIR_OUTPUT_BASE / "raw_keypoints"
         FILE_USER_3D = DIR_KEYPOINTS / "user_3D_keypoints.npy"
         FILE_PRO_3D = DIR_KEYPOINTS / "pro_3D_keypoints.npy"
         info_file_path = DIR_OUTPUT_BASE / "info.json"
+
+        # Get is_lefty from info.json if it exists
+        is_lefty = False
+        if info_file_path.exists():
+            with open(info_file_path, 'r') as f:
+                info_data = json.load(f)
+                is_lefty = info_data.get('is_lefty', False)
         
         # Check if required files exist
         if not FILE_USER_3D.exists() or not FILE_PRO_3D.exists():
@@ -380,18 +387,30 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
         self.update_state(state='PROGRESS', meta={'progress': 60, 'message': "Analyzing joint movements..."})
         
         # Run joint evaluation
-        joint_text = evaluate_all_joints_text(user_kps, pro_kps)
-        
+        analysis_text = format_movement_analysis_for_llm(user_kps, pro_kps, is_lefty)
+
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 70, 'message': "Generating AI feedback..."})
         
         # Generate human-readable feedback using OpenAI
         try:
-            motion_feedback = generate_motion_feedback(joint_text)
+            motion_feedback = get_llm_coaching(analysis_text)
+
             logger.info("OpenAI motion feedback generated successfully")
         except Exception as e:
             logger.warning(f"Failed to generate OpenAI feedback: {e}")
             motion_feedback = "Unable to generate personalized feedback at this time."
+        
+        # Update progress
+        self.update_state(state='PROGRESS', meta={'progress': 75, 'message': "Generating analysis plots..."})
+        
+        # Generate movement analysis plots
+        try:
+            plot_paths = generate_movement_analysis_plots(user_kps, pro_kps, str(DIR_OUTPUT_BASE), is_lefty)
+            logger.info(f"Generated movement analysis plots: {list(plot_paths.keys())}")
+        except Exception as e:
+            logger.warning(f"Failed to generate analysis plots: {e}")
+            plot_paths = {}
         
         # Update progress
         self.update_state(state='PROGRESS', meta={'progress': 80, 'message': "Saving analysis results..."})
@@ -403,7 +422,7 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
         else:
             info_data = {}
         
-        info_data['joint_evaluation_text'] = joint_text
+        info_data['joint_evaluation_text'] = analysis_text
         info_data['motion_feedback'] = motion_feedback
         
         with open(info_file_path, 'w') as f:
@@ -416,7 +435,7 @@ def generate_joint_evaluation_task(self, task_id: str) -> str:
         
         return {
             "task_id": task_id,
-            "joint_evaluation_text": joint_text,
+            "joint_evaluation_text": analysis_text,
             "motion_feedback": motion_feedback,
             "status": "completed"
         }

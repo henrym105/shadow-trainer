@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import SkeletonViewer from '../ui/Skeletonviewer';
 import LogoSection from '../ui/LogoSection';
+import PlotViewer from '../ui/PlotViewer';
 import '../../styles/VisualizerPage.css';
 
 function VisualizerPage() {
@@ -16,6 +17,7 @@ function VisualizerPage() {
   const [evaluationTaskId, setEvaluationTaskId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showPlots, setShowPlots] = useState(false);
   
   // Controls state
   const [playing, setPlaying] = useState(true);
@@ -161,6 +163,7 @@ function VisualizerPage() {
                     console.log('No motion_feedback found, available keys:', Object.keys(infoData));
                   }
                 }
+                setShowPlots(true);
                 setEvaluationLoading(false);
                 clearInterval(pollEvaluation);
               } else if (statusData.status === 'FAILURE') {
@@ -367,6 +370,30 @@ function VisualizerPage() {
                 <ReactMarkdown>{jointEvaluation}</ReactMarkdown>
               </div>
             )}
+          </div>
+        )}
+        
+        {/* Movement Analysis Plots */}
+        {showPlots && (
+          <div className="visualization-box plots-container">
+            <h3 className="plots-title">Movement Analysis Charts</h3>
+            <div className="plots-grid">
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="hip_rotation" 
+                title="Hip Rotation Analysis" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="shoulder_rotation" 
+                title="Shoulder Rotation Analysis" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="hip_shoulder_separation" 
+                title="Hip-Shoulder Separation" 
+              />
+            </div>
           </div>
         )}
       </div>
