@@ -7,7 +7,7 @@ function LogoSection() {
   return (
     <div
       className="logo-section"
-      onClick={() => navigate('/')}
+      onClick={() => navigate('/app')}
       style={{ cursor: 'pointer' }}
     >
       <img 

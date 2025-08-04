@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FileUpload from '../ui/FileUpload';
 import ProKeypointsSelector from '../ui/ProKeypointsSelector';
@@ -14,7 +14,7 @@ const MODEL_SIZES = [
   { value: 's', label: 'Large/Slow' }
 ];
 
-function HomePage() {
+function AppPage() {
   const navigate = useNavigate();
   
   // State variables
@@ -191,12 +191,6 @@ function HomePage() {
                   <span className="btn-icon">⬆️</span>
                   {isUploading ? <span className="btn-spinner" /> : 'Create Your Shadow!'}
                 </button>
-                {/* <div className="divider"><span>or</span></div>
-                <button className="sample-video-btn" onClick={handleSampleVideo} disabled={isUploading}>
-                  <span className="btn-icon">🎯</span>
-                  {isUploading ? <span className="btn-spinner" /> : 'Use Sample Video'}
-                </button>
-                <div className="sample-video-description">Try our sample left-handed baseball pitch for a quick demo</div> */}
               </div>
               {uploadError && (
                 <div className="error-message">
@@ -217,4 +211,4 @@ function HomePage() {
   );
 }
 
-export default HomePage;
+export default AppPage;
