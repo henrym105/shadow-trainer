@@ -20,7 +20,7 @@ function LandingPage() {
     },
     {
       title: "Professional Comparison",
-      description: "Compare your technique against your favorite MLB pitchers to identify improvement areas, and get AI generated coaching tips to help you Play Like a Pro.",
+      description: "Compare against 18 MLB pitchers (more coming soon) using generalized fastball mechanics from 50+ real game broadcasts per player. Get detailed biomechanical analysis and AI coaching tips.",
       icon: "⚡"
     }
   ];
@@ -63,8 +63,8 @@ function LandingPage() {
               <span className="highlight"> AI Precision</span>
             </h2>
             <p className="hero-subtitle">
-              Upload your training videos and get instant professional-grade motion analysis. 
-              Compare your technique against elite athletes and take your performance to the next level.
+              Upload your training videos and get instant professional-grade motion analysis with 3D joint tracking, biomechanical metrics, and velocity measurements. 
+              Compare your fastball against 18 MLB pitchers using Shadow Trainer's pre-compiled aggregated data from 50+ real game broadcasts per pitcher.
             </p>
             
             <div className="cta-section">
@@ -119,8 +119,8 @@ function LandingPage() {
             <div className="step">
               <div className="step-number">3</div>
               <div className="step-content">
-                <h4>Get Insights</h4>
-                <p>Receive detailed feedback and comparisons with professional athletes</p>
+                <h4>Get Detailed Analysis</h4>
+                <p>Receive 3D joint angles, velocity metrics, timing analysis, and side-by-side comparisons with 18 MLB pitchers using pre-compiled data from 50+ real game fastball broadcasts per player</p>
               </div>
             </div>
           </div>

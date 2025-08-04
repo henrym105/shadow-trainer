@@ -10,7 +10,9 @@ function PlotViewer({ taskId, plotType, title }) {
   const plotExplanations = {
     hip_rotation: "NOTE: Relative to the starting position. When the red line is above the black line, you've rotated your hips more than the pro.",
     shoulder_rotation: "NOTE: Relative to the starting position. When the red line is above the black line, you've rotated your shoulders more than the pro.",
-    hip_shoulder_separation: "NOTE: Positive when the hips are rotated ahead of your shoulders (more separation is better). Negative values when the shoulders are ahead of your hips."
+    hip_shoulder_separation: "NOTE: Positive when the hips are rotated ahead of your shoulders (more separation is better). Negative values when the shoulders are ahead of your hips.",
+    hip_rotation_speed: "NOTE: Higher values indicate faster rotation. Note max speed and peak timing for comparison.",
+    shoulder_rotation_speed: "NOTE: Higher values indicate faster rotation. Note max speed and peak timing for comparison."
   };
 
   useEffect(() => {

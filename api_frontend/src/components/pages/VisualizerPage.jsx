@@ -401,6 +401,16 @@ function VisualizerPage() {
                 plotType="hip_shoulder_separation" 
                 title="Hip-Shoulder Separation" 
               />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="hip_rotation_speed" 
+                title="Hip Rotation Speed Analysis" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="shoulder_rotation_speed" 
+                title="Shoulder Rotation Speed Analysis" 
+              />
             </div>
           </div>
         )}

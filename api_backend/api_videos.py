@@ -13,13 +13,12 @@ from fastapi.responses import FileResponse
 from tasks import generate_3d_keypoints_from_video_task
 import numpy as np
 
-from constants import TMP_PRO_KEYPOINTS_FILE_S3, OUTPUT_DIR, SAMPLE_VIDEO_PATH
+from constants import TMP_PRO_KEYPOINTS_FILE_S3, OUTPUT_DIR, SAMPLE_VIDEO_PATH, VALID_PLOT_TYPES
 from tasks import (
     celery_app, 
     process_video_task,
     save_uploaded_file, 
     validate_video_file, 
-    list_s3_pro_keypoints, 
     generate_joint_evaluation_task,
 )
 
@@ -51,6 +50,7 @@ def read_root():
         "message": "Welcome to the Video Processing API. Use /videos/upload/ to upload a video.",
         "num tasks processed in memory": num_tasks
     }
+
 
 @sub_app_videos.post("/upload")
 async def upload_and_process_video(
@@ -503,10 +503,9 @@ async def get_movement_analysis_plot(task_id: str, plot_type: str):
     """
     try:
         # Valid plot types
-        valid_plot_types = ["hip_rotation", "shoulder_rotation", "hip_shoulder_separation"]
-        if plot_type not in valid_plot_types:
-            raise HTTPException(status_code=400, detail=f"Invalid plot type. Must be one of: {valid_plot_types}")
-        
+        if plot_type not in VALID_PLOT_TYPES:
+            raise HTTPException(status_code=400, detail=f"Invalid plot type. Must be one of: {VALID_PLOT_TYPES}")
+
         # Construct the expected output directory path
         output_dir = OUTPUT_DIR / f"{task_id}_output"
         plot_path = output_dir / f"{plot_type}.png"

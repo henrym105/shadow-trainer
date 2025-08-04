@@ -8,7 +8,7 @@
   flex: 1;
   height: 100%;
   position: relative;
-  background: var(--white);
+  background: var(--gray-100);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
   min-width: 60%;

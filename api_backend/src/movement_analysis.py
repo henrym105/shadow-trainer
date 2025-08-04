@@ -87,6 +87,35 @@ def body_part_direction_deltas(user_keypoints: np.ndarray, user_body_part: str, 
     return angle_deltas
 
 
+def get_body_part_rotation_speed(keypoints: np.ndarray, body_part: str = "hips", is_lefty: bool = False, fps: float = 30.0) -> list:
+    """Calculate frame-by-frame rotation speeds for a body part.
+    
+    Args:
+        keypoints: 3D keypoints for a single person
+        body_part: The body part to use for speed calculation, default is "hips"
+        is_lefty: If True, expects counterclockwise rotation; if False, expects clockwise rotation
+        fps: Frames per second to convert degrees/frame to degrees/second (default: 30.0)
+        
+    Returns:
+        list: Rotation speeds in degrees/second for each frame
+    """
+    # Get cumulative rotation angles
+    cum_angles = get_body_part_cum_rotation(keypoints, body_part, is_lefty)
+    
+    if len(cum_angles) <= 1:
+        return [0.0] * len(cum_angles)
+    
+    speeds = [0.0]  # First frame has no speed (no previous frame to compare)
+    
+    # Calculate frame-by-frame speed (difference between consecutive cumulative angles)
+    for i in range(1, len(cum_angles)):
+        degrees_per_frame = cum_angles[i] - cum_angles[i-1]
+        degrees_per_second = degrees_per_frame * fps
+        speeds.append(degrees_per_second)
+    
+    return speeds
+
+
 def get_body_part_cum_rotation(keypoints: np.ndarray, body_part: str = "hips", is_lefty: bool = False) -> list:
     """Calculate cumulative rotation angles for a single person's keypoints.
     
@@ -210,17 +239,19 @@ def format_movement_analysis_for_llm(user_keypoints: np.ndarray, pro_keypoints: 
     analysis_parts.append("Note: These numbers represent how much the user hips have rotated relative to the pro hips at this point in time. Positive values indicate the user has rotated more than the pro at that point (ahead in rotation timing). Negative values indicate the user has rotated less than the pro (behind in rotation timing).")
     for i, delta in enumerate(hip_deltas):
         comp = "ahead of" if delta > 0 else "behind"
-        analysis_parts.append(f"Frame {i}: {abs(int(delta))} degrees {comp} pro")
+        analysis_parts.append(f"Frame {i}: user is {abs(int(delta))} degrees {comp} pro")
     analysis_parts.append("")
     
     # Shoulder rotation analysis
     shoulder_deltas = body_part_direction_deltas(user_keypoints, "shoulders", pro_keypoints, "shoulders", is_lefty)
     analysis_parts.append("SHOULDER ROTATION ANALYSIS:")
     analysis_parts.append("Shoulder Rotation, Cumulative (degrees):")
-    analysis_parts.append("Note: Positive values indicate user has rotated shoulders more than the pro at that point (ahead in timing). Negative values indicate user has rotated shoulders less than the pro (behind in timing).")
+    analysis_parts.append("NOTE: Positive values indicate user has rotated shoulders more than the pro at that point (ahead in timing). Negative values indicate user has rotated shoulders less than the pro (behind in timing).")
+    analysis_parts.append("NOTE: Each line is formatted like `frame i: x` and can be interpreted as 'frame i, the user is x degrees [ahead of if x positive/behind if x negative] the pro':")
     for i, delta in enumerate(shoulder_deltas):
         comp = "ahead of" if delta > 0 else "behind"
-        analysis_parts.append(f"Frame {i}: {abs(int(delta))} degrees {comp} pro")
+        # analysis_parts.append(f"Frame {i}: user is {abs(int(delta))} degrees {comp} pro")
+        analysis_parts.append(f"Frame {i}: {int(delta)}")
     analysis_parts.append("")
     
     # Hip vs shoulder separation (user and pro)
@@ -230,7 +261,7 @@ def format_movement_analysis_for_llm(user_keypoints: np.ndarray, pro_keypoints: 
     analysis_parts.append("Torso Twist (degrees):")
     analysis_parts.append("Note: Positive values indicate hips have rotated more than shoulders (good separation - hips leading). Negative values indicate shoulders have rotated more than hips (poor separation - shoulders leading).")
     for i, (user_delta, pro_delta) in enumerate(zip(user_separation, pro_separation)):
-        comp = "better than" if user_delta > pro_delta else "worse than"
+        comp = "larger than" if user_delta > pro_delta else "less than"
         analysis_parts.append(f"Frame {i}: user={int(user_delta)}, pro={int(pro_delta)} --> User separation is {abs(int(user_delta - pro_delta))} degrees {comp} pro")
     analysis_parts.append("")
 
@@ -383,6 +414,36 @@ def generate_movement_analysis_plots(user_keypoints: np.ndarray, pro_keypoints: 
         ylabel="Separation (degrees)"
     )
     plot_paths["hip_shoulder_separation"] = separation_plot_path
+    
+    # Hip rotation speed comparison plot
+    user_hip_speeds = get_body_part_rotation_speed(user_keypoints, "hips", is_lefty)
+    pro_hip_speeds = get_body_part_rotation_speed(pro_keypoints, "hips", is_lefty)
+    
+    hip_speed_plot_path = create_comparison_plot_and_save(
+        user_hip_speeds,
+        pro_hip_speeds,
+        "Hip Rotation Speed Comparison: User vs Pro",
+        output_folder,
+        "hip_rotation_speed",
+        xlabel="Frame",
+        ylabel="Rotation Speed (degrees/second)"
+    )
+    plot_paths["hip_rotation_speed"] = hip_speed_plot_path
+    
+    # Shoulder rotation speed comparison plot
+    user_shoulder_speeds = get_body_part_rotation_speed(user_keypoints, "shoulders", is_lefty)
+    pro_shoulder_speeds = get_body_part_rotation_speed(pro_keypoints, "shoulders", is_lefty)
+    
+    shoulder_speed_plot_path = create_comparison_plot_and_save(
+        user_shoulder_speeds,
+        pro_shoulder_speeds,
+        "Shoulder Rotation Speed Comparison: User vs Pro",
+        output_folder,
+        "shoulder_rotation_speed",
+        xlabel="Frame",
+        ylabel="Rotation Speed (degrees/second)"
+    )
+    plot_paths["shoulder_rotation_speed"] = shoulder_speed_plot_path
     
     return plot_paths
 

@@ -278,13 +278,13 @@ def process_video_task(
         elif IS_TYPE_3D_ONLY:
             output_video_path = img2video(input_video_path, DIR_POSE3D)
         else:
+            time.sleep(2) # Simulate some final processing time so they see the progress bar move
             # Skip video generation for dynamic_3d_animation
             output_video_path = None
 
         # Complete job
         self.update_state(state='PROGRESS', meta={'progress': 100, 'message': "Video processing completed."})
         logger.info(f"Video processing completed for job {task_id}: {output_video_path}")
-
         # Final garbage collection before completion
         gc.collect()
         
