@@ -216,32 +216,6 @@ async def generate_evaluation(task_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to start joint evaluation: {str(e)}")
 
 
-# @sub_app_videos.get("/{task_id}/3d_keypoints_download")
-# async def download_3d_keypoints(task_id: str):
-#     """
-#     Download the generated 3D keypoints .npy file from Celery task result.
-#     """
-#     result = AsyncResult(task_id, app=celery_app)
-#     if not result.ready() or not result.successful():
-#         raise HTTPException(status_code=400, detail="Job not completed yet")
-
-#     # The celery task returns a dict with the key "output_path"
-#     keypoints_path = None
-#     if isinstance(result.result, dict):
-#         keypoints_path = result.result.get("output_path")
-#     elif isinstance(result.result, str):
-#         keypoints_path = result.result
-
-#     if not keypoints_path or not Path(keypoints_path).exists():
-#         raise HTTPException(status_code=404, detail="3D keypoints file not found")
-#     filename = f"3d_keypoints_{Path(keypoints_path).stem}.npy"
-#     return FileResponse(
-#         path=keypoints_path,
-#         filename=filename,
-#         media_type="application/octet-stream"
-#     )
-
-
 @sub_app_videos.get("/{task_id}/info")
 async def get_task_info(task_id: str):
     """Get task info including pro name from info.json file"""
