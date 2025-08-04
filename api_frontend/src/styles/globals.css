@@ -80,6 +80,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: linear-gradient(135deg, var(--primary-green) 0%, var(--primary-green-light) 100%);
   min-height: 100vh;
+  background-attachment: fixed;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 /* Utility classes */

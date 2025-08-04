@@ -16,8 +16,9 @@ api_backend/tmp_api_output/**
 api_backend/videos/**
 api_backend/**.mp4
 api_backend/*_output/
+api_backend/output/**
 
-**output/
+**/output/
 
 # Ignore temporary and log files
 *.log
@@ -28,8 +29,8 @@ api_backend/*_output/
 .aws/
 *.env
 .env*
-**.venv/
-**.env/
+**/.venv/
+**/.env/
 
 # Ignore test and notebook files
 *.ipynb
@@ -56,7 +57,7 @@ run_docker_container.sh
 
 # Ignore SageMaker config and temp files
 shadow-trainer-taskdef.json
-**tmp_api/
-**tmp_api_output/
+**/tmp_api/
+**/tmp_api_output/
 
 

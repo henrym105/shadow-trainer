@@ -1,0 +1,49 @@
+/* GitHub Footer Styles - matches LandingPage footer */
+.github-footer {
+  padding: 2rem 0 1rem;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 3rem;
+}
+
+.github-footer-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.github-footer-links {
+  display: flex;
+  justify-content: center;
+}
+
+.github-link {
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition: color var(--transition-normal);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  font-weight: 500;
+}
+
+.github-link:hover {
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .github-footer {
+    padding: 1.5rem 1rem 1rem;
+    margin-top: 2rem;
+  }
+  
+  .github-link {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9rem;
+  }
+}

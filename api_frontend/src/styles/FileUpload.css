@@ -115,12 +115,18 @@
 }
 
 .video-preview {
-  margin-top: 0.5rem;
+  margin-top: var(--spacing-lg);
+  width: 100%;
+  max-width: 600px;
 }
 
 .video-preview video {
-  border-radius: 4px;
-  border: 1px solid #ddd;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--primary-green);
+  width: 100%;
+  height: auto;
+  max-height: 400px;
+  box-shadow: var(--shadow-lg);
 }
 
 .upload-error {
@@ -164,7 +170,7 @@
   
   .video-preview video {
     width: 100%;
-    max-width: 200px;
+    max-width: 500px;
     height: auto;
   }
 }

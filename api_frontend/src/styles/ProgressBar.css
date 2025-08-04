@@ -3,7 +3,7 @@
   border-radius: 16px;
   box-shadow: 0 2px 12px rgba(33,150,243,0.08);
   padding: 1.5rem 2rem;
-  max-width: 400px;
+  width: 400px;
   margin: 2rem auto;
   text-align: center;
 }
@@ -30,15 +30,21 @@
 .progress-bar-fill {
   height: 100%;
   border-radius: 8px;
-  transition: width 0.5s;
+  transition: width 2s;
 }
 .progress-percent {
   font-size: 1rem;
   color: #2196F3;
   margin-bottom: 0.5rem;
 }
+
+.progress-message {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: normal;
+}
 .progress-desc {
   font-size: 0.95rem;
-  color: #666;
+  color: #2196F3;
   margin-top: 0.5rem;
 }

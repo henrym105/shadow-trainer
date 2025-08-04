@@ -340,9 +340,11 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
         is_lefty (bool, optional): Whether the user is left-handed. If True, flips the professional's keypoints. Defaults to False.
     
     Returns:
-        tuple: (user_keypoints_npy, pro_keypoints_aligned)
-            - user_keypoints_npy (np.ndarray): Cropped and resampled user 3D keypoints.
-            - pro_keypoints_aligned (np.ndarray): Cropped, resampled, and hip-aligned professional 3D keypoints.
+        tuple: (user_kpts_path, pro_kpts_path, user_start, user_end)
+            - user_kpts_path (str): File path to the cropped and resampled user 3D keypoints.
+            - pro_kpts_path (str): File path to the cropped, resampled, and hip-aligned professional 3D keypoints.
+            - user_start (int): Start frame index for motion detection.
+            - user_end (int): End frame index for motion detection.
     """
     # Load professional keypoints and prepare for alignment
     user_keypoints_npy = load_npy_file(user_3d_keypoints_filepath)
@@ -357,7 +359,7 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
         pro_keypoints_npy = flip_data(pro_keypoints_npy)
 
     # ------------------ Find motion start for both user and pro, then crop ------------------
-    user_start, user_end = get_start_end_info(user_keypoints_npy)
+    user_start, user_end = get_start_end_info(user_keypoints_npy, is_lefty)
     user_keypoints_npy = user_keypoints_npy[user_start : user_end]
 
     if DEBUG: 
@@ -382,17 +384,24 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
         f"User and professional keypoints must have the same shape after cropping & resampling. Got user: {user_keypoints_npy.shape}, pro: {pro_keypoints_npy.shape}"
     num_frames = user_keypoints_npy.shape[0]
 
+    # Get the angle to rotate the body so that the hips are pointing directly at the camera when visualized
+    # To make the front of the hips point directly to the camera
+    DESIRED_HIP_DIRECTION = 270
     # Calculate hip alignment angle adjustment from first frame
     user_angle = get_stance_angle(user_keypoints_npy[0], body_part_to_align)
     pro_angle = get_stance_angle(pro_keypoints_npy[0], body_part_to_align)
-    angle_adjustment = user_angle - pro_angle
+
+    user_angle_adjustment = DESIRED_HIP_DIRECTION - user_angle
+    pro_angle_adjustment = DESIRED_HIP_DIRECTION - pro_angle
+
     if DEBUG:
         logger.info(f"Angle between {body_part_to_align} in first frame of USER VIDEO: {user_angle:.2f} degrees")
         logger.info(f"Angle between {body_part_to_align} in first frame of PROFESSIONAL VIDEO: {pro_angle:.2f} degrees")
-        logger.info(f"Angle adjustment: {int(angle_adjustment)}")
+        logger.info(f"Angle adjustment: {int(pro_angle_adjustment)}")
 
     # Apply hip alignment rotation to all pro keyframes
-    pro_keypoints_aligned = np.array([rotate_along_z(frame, angle_adjustment) for frame in pro_keypoints_npy])
+    user_keypoints_aligned = np.array([rotate_around_z(frame, user_angle_adjustment) for frame in user_keypoints_npy])
+    pro_keypoints_aligned = np.array([rotate_around_z(frame, pro_angle_adjustment) for frame in pro_keypoints_npy])
     
     # Save original pro keypoints for reference (with _original suffix)
     raw_keypoints_dir = os.path.dirname(pro_keypoints_filepath)
@@ -400,13 +409,13 @@ def crop_align_3d_keypoints(user_3d_keypoints_filepath: str, pro_keypoints_filep
     np.save(pro_original_filepath, pro_keypoints_npy)
     
     # Save aligned keypoints (both user and aligned pro)
-    np.save(user_3d_keypoints_filepath, user_keypoints_npy)
+    np.save(user_3d_keypoints_filepath, user_keypoints_aligned)
     np.save(pro_keypoints_filepath, pro_keypoints_aligned)  # This overwrites with aligned version
     if DEBUG: 
         logger.info(f"Original professional 3D keypoints saved to {pro_original_filepath}, with shape {pro_keypoints_npy.shape}")
         logger.info(f"Hip-aligned professional 3D keypoints saved to {pro_keypoints_filepath}, with shape {pro_keypoints_aligned.shape}")
 
-    return user_3d_keypoints_filepath, pro_keypoints_filepath
+    return user_3d_keypoints_filepath, pro_keypoints_filepath, user_start, user_end
 
 
 
@@ -462,139 +471,154 @@ def create_3d_pose_images_from_array(
         plt.close(fig)
 
 
-# def remove_images_before_after_motion(pose_img_dir, delete_before_idx = 0, delete_after_idx = None):
-#     """ Remove pose2D images before and after the specified index in the output directory.
+def remove_images_before_after_motion(pose_img_dir, delete_before_idx = 0, delete_after_idx = None):
+    """ Remove pose2D images before and after the specified index in the output directory.
     
-#     Args:
-#         dir_type (str): Type of directory to remove images from ('2D' or '3D').
-#         delete_before_idx (int): Index before which images should be deleted.
-#         delete_after_idx (int, optional): Index after which images should be deleted. If None, no images will be removed after the specified index.
-#     """
-#     if os.path.exists(pose_img_dir):
-#         print(f"Removing pose2D images before index {delete_before_idx} in directory: {pose_img_dir}")
-#         pose2d_imgs = sorted([f for f in os.listdir(pose_img_dir) if f.endswith('.png')])
+    Args:
+        dir_type (str): Type of directory to remove images from ('2D' or '3D').
+        delete_before_idx (int): Index before which images should be deleted.
+        delete_after_idx (int, optional): Index after which images should be deleted. If None, no images will be removed after the specified index.
+    """
+    logger.info(f"remove_images_before_after_motion called with: pose_img_dir={pose_img_dir}, delete_before_idx={delete_before_idx}, delete_after_idx={delete_after_idx}")
+    
+    if os.path.exists(pose_img_dir):
+        logger.info(f"Removing pose2D images before index {delete_before_idx} and after index {delete_after_idx} in directory: {pose_img_dir}")
+        pose2d_imgs = sorted([f for f in os.listdir(pose_img_dir) if f.endswith('.png')])
+        logger.info(f"Found {len(pose2d_imgs)} pose2D images to process")
 
-#         for i, fname in enumerate(pose2d_imgs):
-#             img_is_before_motion_start = (i < delete_before_idx) 
-#             img_is_after_motion_ends = (i > delete_after_idx) and (delete_after_idx is not None) 
-#             if img_is_before_motion_start or img_is_after_motion_ends:
-#                 os.remove(pjoin(pose_img_dir, fname))
-#                 if DEBUG: logger.info(f"Removed pose2D frame: {fname}")
-#     else:
-#         logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
+        removed_count = 0
+        for i, fname in enumerate(pose2d_imgs):
+            img_is_before_motion_start = (i < delete_before_idx) 
+            img_is_after_motion_ends = (i > delete_after_idx) and (delete_after_idx is not None) 
+            if img_is_before_motion_start or img_is_after_motion_ends:
+                file_path = pjoin(pose_img_dir, fname)
+                try:
+                    os.remove(file_path)
+                    removed_count += 1
+                    logger.info(f"Removed pose2D frame: {fname} (index {i})")
+                except (PermissionError, OSError) as e:
+                    logger.warning(f"Could not remove pose2D frame {fname}: {e}")
+        
+        logger.info(f"Total removed {removed_count} pose2D images")
+    else:
+        logger.error(f"Directory {pose_img_dir} does not exist. No images to remove.")
 
 
-def get_start_end_info(arr) -> tuple:
+def get_start_end_info(arr: np.ndarray, is_lefty: bool) -> tuple:
     """Determine the start and end points of the motion based on the ankle positions in the 3D keypoints array.
 
     Args:
         arr (np.ndarray): Input numpy array.
+        is_lefty (bool): Whether the user is left-handed. If True, uses right ankle as front ankle.
 
     Returns:
-    tuple: A tuple containing (min_value, max_value, average_value).
+    tuple: A tuple containing (start_frame, end_frame).
     """
+    
+    # Define front and back ankles based on handedness
+    # For lefty throwers: front ankle is Right Ankle, back ankle is Left Ankle  
+    # For righty throwers: front ankle is Left Ankle, back ankle is Right Ankle
+    front_ankle_name = "Right Ankle" if is_lefty else "Left Ankle"
+    back_ankle_name = "Left Ankle" if is_lefty else "Right Ankle"
 
-    left_ankle_arr = []
-    right_ankle_arr = []
-    higher_ankle_arr = []
-    max_left = 0
-    max_left_index = 0
+    front_ankle_arr = []
+    back_ankle_arr = []
+    max_front_index = 0
     low_point = 0
-    is_valid = True
 
     for i in range(len(arr)):
         joints = get_frame_info(arr[i])
-        left_ankle_z = joints["Left Ankle"][2]
-        right_ankle_z = joints["Right Ankle"][2]
+        front_ankle_z = joints[front_ankle_name][2]
+        back_ankle_z = joints[back_ankle_name][2]
 
-        left_ankle_arr.append(left_ankle_z)
-        right_ankle_arr.append(right_ankle_z)
+        front_ankle_arr.append(front_ankle_z)
+        back_ankle_arr.append(back_ankle_z)
 
     # Smooth the arrays
-    left_ankle_arr = np.array(left_ankle_arr)
-    right_ankle_arr = np.array(right_ankle_arr)
-    left_ankle_arr = np.convolve(left_ankle_arr, np.ones(10)/10, mode='valid')
-    right_ankle_arr = np.convolve(right_ankle_arr, np.ones(10)/10, mode='valid')
+    front_ankle_arr = np.array(front_ankle_arr)
+    back_ankle_arr = np.array(back_ankle_arr)
+    front_ankle_arr = np.convolve(front_ankle_arr, np.ones(10)/10, mode='valid')
+    back_ankle_arr = np.convolve(back_ankle_arr, np.ones(10)/10, mode='valid')
 
-    #go through the left and right ankle arrays and find the local maximums of all and the global maximum of the right ankle
+    # Find local maximums and minimums using sliding window
     window_size = 10  # Number of frames before and after
 
-    left_maxs = []
-    left_mins = [0]
-    right_maxs = []
-    right_mins = []
+    front_maxs = []
+    front_mins = [0]
+    back_maxs = []
+    back_mins = []
 
-    right_max = float('-inf')
-    right_max_index = -1
+    back_max = float('-inf')
+    back_max_index = -1
 
-    for i in range(window_size, len(left_ankle_arr) - window_size):
-        # LEFT ANKLE CHECKS
-        current_val_left = left_ankle_arr[i]
-        window_left = left_ankle_arr[i - window_size:i + window_size + 1]
+    for i in range(window_size, len(front_ankle_arr) - window_size):
+        # FRONT ANKLE CHECKS
+        current_val_front = front_ankle_arr[i]
+        window_front = front_ankle_arr[i - window_size:i + window_size + 1]
 
-        if current_val_left == np.max(window_left) and np.count_nonzero(window_left == current_val_left) == 1:
-            left_maxs.append(i)
+        if current_val_front == np.max(window_front) and np.count_nonzero(window_front == current_val_front) == 1:
+            front_maxs.append(i)
 
-        if current_val_left == np.min(window_left):
-            left_mins.append(i)
+        if current_val_front == np.min(window_front):
+            front_mins.append(i)
 
-        # RIGHT ANKLE CHECKS
-        current_val_right = right_ankle_arr[i]
-        window_right = right_ankle_arr[i - window_size:i + window_size + 1]
+        # BACK ANKLE CHECKS
+        current_val_back = back_ankle_arr[i]
+        window_back = back_ankle_arr[i - window_size:i + window_size + 1]
 
-        if current_val_right == np.max(window_right) and np.count_nonzero(window_right == current_val_right) == 1:
-            if current_val_right > right_max:
-                right_max = current_val_right
-                right_max_index = i
-            right_maxs.append(i)
+        if current_val_back == np.max(window_back) and np.count_nonzero(window_back == current_val_back) == 1:
+            if current_val_back > back_max:
+                back_max = current_val_back
+                back_max_index = i
+            back_maxs.append(i)
 
-        if current_val_right == np.min(window_right):
-            right_mins.append(i)
+        if current_val_back == np.min(window_back):
+            back_mins.append(i)
 
-    print(f"Left Mins: {left_mins}")
-    print(f"Left Maxs: {left_maxs}")
-    print(f"Right Mins: {right_mins}")
-    print(f"Right Maxs: {right_maxs}")
-    print(f"Right Max Index: {right_max_index}")
-    #get the maximum value in left_maxs that is less than right_max_index
-    for i in left_maxs:
-        if i < right_max_index and i > max_left_index:
-            max_left_index = i
-    #get the maximum value in left_mins that is less than max_left_index
+    print(f"Front Ankle ({front_ankle_name}) Mins: {front_mins}")
+    print(f"Front Ankle ({front_ankle_name}) Maxs: {front_maxs}")
+    print(f"Back Ankle ({back_ankle_name}) Mins: {back_mins}")
+    print(f"Back Ankle ({back_ankle_name}) Maxs: {back_maxs}")
+    print(f"Back Ankle ({back_ankle_name}) Max Index: {back_max_index}")
+    
+    # Get the maximum value in front_maxs that is less than back_max_index
+    for i in front_maxs:
+        if i < back_max_index and i > max_front_index:
+            max_front_index = i
+    
+    # Get the maximum value in front_mins that is less than max_front_index
     low_point = 0
-    for i in left_mins:
-        if i < max_left_index and i > low_point:
+    for i in front_mins:
+        if i < max_front_index and i > low_point:
             low_point = i
-    #get the minimum value in right_mins that is greater than right_max_index
-    end_point = len(right_ankle_arr) - 1
-    for i in right_mins:
-        if i > right_max_index:
+    
+    # Get the minimum value in back_mins that is greater than back_max_index
+    end_point = len(back_ankle_arr) - 1
+    for i in back_mins:
+        if i > back_max_index:
             end_point = i
             break
-    print(f"start point: {low_point}, end point: {end_point}")
-
-    #plot the joints
-    plt.plot(left_ankle_arr, label="Left Ankle")
-    plt.plot(right_ankle_arr, label="Right Ankle")
-    plt.legend()
-    plt.show()
+            
+    logger.info(f"Motion detection results: start point: {low_point}, end point: {end_point}")
+    logger.info(f"Using front ankle: {front_ankle_name}, back ankle: {back_ankle_name}")
 
     return (low_point, end_point)
 
+
 def get_frame_info(frame):
-  joint_names = [
-    "Hip", "Right Hip", "Right Knee", "Right Ankle",
-    "Left Hip", "Left Knee", "Left Ankle", "Spine",
-    "Thorax", "Neck", "Head", "Left Shoulder",
-    "Left Elbow", "Left Wrist", "Right Shoulder",
-    "Right Elbow", "Right Wrist"
-    ]
-  #frame is of shape 17, 3 for each joint print the x, y and z coordinates
-  joints = {}
-  for i in range(len(frame)):
-    #print(f"{joint_names[i]}: {frame[i]}")
-    joints[joint_names[i]] = frame[i]
-  return joints
+    joint_names = [
+        "Hip", "Right Hip", "Right Knee", "Right Ankle",
+        "Left Hip", "Left Knee", "Left Ankle", "Spine",
+        "Thorax", "Neck", "Head", "Left Shoulder",
+        "Left Elbow", "Left Wrist", "Right Shoulder",
+        "Right Elbow", "Right Wrist"
+        ]
+    #frame is of shape 17, 3 for each joint print the x, y and z coordinates
+    joints = {}
+    for i in range(len(frame)):
+        #print(f"{joint_names[i]}: {frame[i]}")
+        joints[joint_names[i]] = frame[i]
+    return joints
 
 
 
@@ -618,8 +642,6 @@ def get_frame_size(cap: cv2.VideoCapture) -> tuple:
 
 
 def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir_2D: str) -> str:
-    # output_dir_2D = pjoin(output_dir, 'pose2D')
-    # os.makedirs(output_dir_2D, exist_ok=True)
     """Create 2D pose images from keypoints and save them to the specified directory.
     Returns:
         str: Path to the output directory containing the 2D pose images.    
@@ -670,7 +692,7 @@ def get_stance_angle(data: np.ndarray, use_body_part: str = "feet") -> float:
 def create_pose_overlay_image(
     data1: np.ndarray, data2: np.ndarray, ax: matplotlib.axis,
     angle_adjustment: float = 0.0, use_body_part: str = "hips",
-    show_hip_reference_line: bool = False, pro_player_name: str = None
+    show_hip_reference_line: bool = False, pro_player_name: str = "Pro"
 ) -> str:
     """Create a single image with 3D pose keypoints from data1 and data2 overlaid on the same axis.
     Both data1 and data2 are standardized before plotting.
@@ -691,7 +713,7 @@ def create_pose_overlay_image(
     # Rotate the pro pose to align with the user pose based on the angle adjustment from the first frame
     # Only apply rotation if angle_adjustment is non-zero (for backward compatibility)
     if angle_adjustment != 0.0:
-        data2 = rotate_along_z(data2, angle_adjustment)
+        data2 = rotate_around_z(data2, angle_adjustment)
 
     # Recenter both poses on their left ankles
     # 6 is left ankle, 0 is sacrum (middle of hips)
@@ -705,23 +727,22 @@ def create_pose_overlay_image(
         draw_reference_angle_line(ax, d1_angle, color='blue', linewidth=2)
         draw_reference_angle_line(ax, d2_angle, color='green', linewidth=2)
 
-    # Visualize the aligned poses
     # Plot the user on top of the pro pose
     show3Dpose(data2, ax, color='blk')
     show3Dpose(data1, ax, color='R')
 
-    # Add title with professional player name
-    if pro_player_name:
-        ax.set_title(f"Shadow comparison with {pro_player_name}", fontsize=14, pad=20)
-    else:
-        ax.set_title("Shadow comparison with professional pitcher", fontsize=14, pad=20)
-
     # Add legend
     legend_elements = [
-        Line2D([0], [0], color='gray', lw=3, label='Professional'),
+        Line2D([0], [0], color='gray', lw=3, label=pro_player_name),
         Line2D([0], [0], color='red', lw=3, label='User')
     ]
-    ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.0, 1.0))
+    ax.legend(
+        handles=legend_elements,
+        loc='upper center',
+        bbox_to_anchor=(0.5, 1.05),
+        ncol=2,           # Put legend entries side by side
+        columnspacing=1.5
+    )
 
     return None
 
@@ -798,15 +819,17 @@ def standardize_3d_keypoints(keypoints: np.ndarray, apply_rotation: bool = True)
     return keypoints
 
 
-def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir_combined: str, pro_player_name: str = None) -> None:
-    """Generate a demo video showing 2D input and 3D reconstruction side by side."""
-    logger.info('\n\nGenerating demo video frames...')
+def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, output_dir_combined: str, pro_player_name: str = "Professional") -> None:
+    """Generate a demo video showing 2D input and 3D reconstruction side by side.
     
-    # Efficient batch processing for demo video generation
-    # Accept both *_2D.png and *.png for 2D images (for compatibility)
-    image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*_2D.png')))
-    if not image_2d_paths:
-        image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*.png')))
+    Args:
+        output_dir_2D (str): Directory containing 2D pose images.
+        output_dir_3D (str): Directory containing 3D pose images.
+        output_dir_combined (str): Directory to save the combined output images.
+        pro_player_name (str, optional): Name of the professional player for the title in the
+    """
+    logger.info('\n\nGenerating demo video frames...')
+    image_2d_paths = sorted(glob.glob(pjoin(output_dir_2D, '*.png')))
     image_3d_paths = sorted(glob.glob(pjoin(output_dir_3D, '*.png')))
 
     n_frames = min(len(image_2d_paths), len(image_3d_paths))
@@ -815,8 +838,6 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         return
 
     logger.info('\n\nGenerating demo...')
-    # output_dir_pose = pjoin(output_dir, 'pose')
-    # os.makedirs(output_dir_pose, exist_ok=True)
 
     FONT_SIZE = 12
     for i in tqdm(range(n_frames), desc="Generating output video frames", unit="frame"):
@@ -829,34 +850,33 @@ def generate_output_combined_frames(output_dir_2D: str, output_dir_3D: str, outp
         # Defensive: if after crop, shape is invalid, skip crop
         if img2d.shape[0] == 0 or img2d.shape[1] == 0:
             img2d = plt.imread(image_2d_paths[i])
-        # Crop 3D as before
-        edge3d = 130
-        if img3d.shape[0] > 2 * edge3d and img3d.shape[1] > 2 * edge3d:
-            img3d = img3d[edge3d:img3d.shape[0] - edge3d, edge3d:img3d.shape[1] - edge3d]
 
-        fig, axs = plt.subplots(1, 2, figsize=(15.0, 5.4))
+        fig, axs = plt.subplots(1, 2, figsize=(15.0, 8.0))
         # Remove axes for both
         for ax in axs:
             ax.set_xticks([])
             ax.set_yticks([])
             ax.axis('off')
+
         axs[0].imshow(img2d)
-        axs[0].set_title("Input", fontsize=FONT_SIZE)
+        axs[0].set_title("Input Video", fontsize=FONT_SIZE)
         axs[1].imshow(img3d)
-        axs[1].set_title("Reconstruction", fontsize=FONT_SIZE)
-        plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
+        axs[1].set_title(f"3D motion with {pro_player_name}", fontsize=FONT_SIZE)
+
+        plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0.01)  # Reduce wspace to make subplots closer
         plt.margins(0, 0)
+        
         output_path_pose_thisimg = pjoin(output_dir_combined, f"{i:04d}_pose.png")
         fig.savefig(output_path_pose_thisimg, dpi=200, bbox_inches='tight')
         plt.close(fig)
 
 
 
-def img2video(video_path: str, input_frames_dir: str) -> str:
+def img2video(user_upload_video_path: str, input_frames_dir: str) -> str:
     """Converts a sequence of pose images into a video.
 
     Args:
-        video_path (str): Path to the original input video (used for FPS and naming).
+        input_video_path (str): Path to the original input video (used for FPS and naming).
         input_frames_dir (str): Directory containing the 'pose' subdirectory with PNG frames.
 
     Raises:
@@ -867,10 +887,12 @@ def img2video(video_path: str, input_frames_dir: str) -> str:
     Returns:
         str: Path to the generated output video file (a .mp4 file).
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    video_name = video_path.split('/')[-1].split('.')[0]
-    cap = cv2.VideoCapture(video_path)
+    # NOTE: the output video file still doesn't display properly in Chrome. 
+    # Safari and DuckDuckGo work fine, but Chrome has issues with the video codec 
+    # i think? might need to figure this out eventually, for now just use Safari for demos
+    video_name = user_upload_video_path.split('/')[-1].split('.')[0]
+    cap = cv2.VideoCapture(user_upload_video_path)
+    input_fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
     fps = cap.get(cv2.CAP_PROP_FPS)
     if not fps or np.isnan(fps):
         fps = 25  # fallback default
@@ -890,9 +912,10 @@ def img2video(video_path: str, input_frames_dir: str) -> str:
 
     output_video_name = video_name.replace("input", "output")
     output_path = pjoin(input_frames_dir, output_video_name + '.mp4')
-    logger.info(f"Writing output video to: {output_path}")
-
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    logger.info(f"Writing output video to: {output_path}")
+    logger.info(f"Video FPS: {fps}, Size: {size}, FourCC: {input_fourcc}")
+
     videoWrite = cv2.VideoWriter(output_path, fourcc, fps, size)
 
     for name in pose_filenames:
@@ -981,9 +1004,8 @@ def flip_data(data, left_joints=[1, 2, 3, 14, 15, 16], right_joints=[4, 5, 6, 11
     return flipped_data
     
 
-def rotate_along_z(kpts: np.ndarray, degrees: float) -> np.ndarray:
-    """
-    Rotates a set of 3D keypoints around the Z-axis.
+def rotate_around_z(kpts: np.ndarray, degrees: float) -> np.ndarray:
+    """Rotates a set of 3D keypoints around the Z-axis.
 
     Parameters:
         kpts (np.ndarray): Array of shape (17, 3) containing [x, y, z] keypoints.

@@ -2,6 +2,8 @@ import React from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import VideoResult from '../ui/VideoResult';
 import LogoSection from '../ui/LogoSection';
+import GitHubFooter from '../ui/GitHubFooter';
+import '../../styles/GitHubFooter.css';
 
 function ResultsPage() {
   const { taskId } = useParams();
@@ -11,14 +13,14 @@ function ResultsPage() {
   // Get data passed from processing page
   const { jobStatus, videoFormat } = location.state || {};
 
-  // Handle reset - go back to home page
+  // Handle reset - go back to app page
   const handleReset = () => {
-    navigate('/');
+    navigate('/app');
   };
 
-  // If no job status data, redirect to home
+  // If no job status data, redirect to app
   if (!jobStatus) {
-    navigate('/');
+    navigate('/app');
     return null;
   }
 
@@ -35,31 +37,7 @@ function ResultsPage() {
             onReset={handleReset}
           />
         </main>
-        <footer>
-          <div
-            className="github-footer-link"
-            style={{
-              background: '#fff',
-              borderRadius: '10px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
-              padding: '18px 0',
-              margin: '32px auto 0 auto',
-              textAlign: 'center',
-              maxWidth: '420px',
-              fontSize: '1.08em',
-              fontWeight: 500
-            }}
-          >
-            <a
-              href="https://github.com/henrym105/shadow-trainer/tree/develop"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: '#0366d6', textDecoration: 'underline' }}
-            >
-              View Source on GitHub
-            </a>
-          </div>
-        </footer>
+        <GitHubFooter />
       </div>
     </div>
   );
