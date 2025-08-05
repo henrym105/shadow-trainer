@@ -410,7 +410,8 @@
   }
 
   .steps-container {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto auto;
     gap: 1.5rem;
   }
 
