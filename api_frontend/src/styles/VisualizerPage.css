@@ -1,3 +1,8 @@
+.visualization-main-container {
+  min-height: 500px;
+  margin-bottom: var(--spacing-xl);
+}
+
 .main-content-container {
   display: flex;
   gap: var(--spacing-lg);
@@ -6,12 +11,13 @@
 
 .visualization-box {
   flex: 1;
-  height: 100%;
   position: relative;
   background: var(--gray-100);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
   min-width: 60%;
+  min-height: 500px;
+  max-height: 650px;
 }
 
 .controls-container {
@@ -22,7 +28,6 @@
   box-shadow: var(--shadow-xl);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 1, 0.2);
-  height: 100%;
   min-height: 500px;
   display: flex;
   flex-direction: column;
@@ -292,6 +297,10 @@ input:disabled + .slider {
 }
 
 @media (max-width: 650px) {
+  .visualization-main-container {
+    min-height: auto;
+  }
+  
   .main-content-container {
     flex-direction: column;
     height: auto;

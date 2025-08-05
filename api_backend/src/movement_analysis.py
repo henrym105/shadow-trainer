@@ -43,15 +43,13 @@ Use the raw data and draw inference about how the user is deviating from the mot
 the pro. Be concise and blunt and professional, keep it to a few sentences. \
 You may use baseball specific lingo when appropriate, you are speaking directly to the athlete. \
 
-Use words "leading" when a user's motion is ahead of the pro, and "lagging" when the user is trailing behind the pro, or the \
-motion is slower or later in sequence than the pro.
-
 Avoid saying generic things like "Work on your hip rotation mechanics to align more closely with the professional's" or "Overall, strive for better timing", \
 instead, be specific about the differences and how the user can change to be more like the pro. 
 
 Explain what the pro does, then explain what the user does and how that is different. 
 
 Be very diligent and attentive to which numbers correspond to the user and which correspond to the pro. These results are worthless if you get those confused.
+Watch your hyperbole when describing how much the user is ahead of or behind the pro in each part. Be specific and concise.
 
 The data is as follows:
 {raw_data}
@@ -217,6 +215,43 @@ def find_angle(coord1: tuple, coord2: tuple) -> float:
     return angle
 
 
+def get_summary_stats_text(user_data, pro_data, is_lefty: bool = False) -> str:
+    """
+    Generate summary statistics text comparing user and pro keypoints.
+    
+    Args:
+        user_data: 3D keypoints for the user
+        pro_data: 3D keypoints for the professional
+        is_lefty: If True, the left side is the throwing side
+
+    Returns:
+        str: Formatted summary statistics text
+    """
+    # Calculate hip rotation deltas
+    hip_deltas = body_part_direction_deltas(user_data, "hips", pro_data, "hips", is_lefty)
+    max_hip = max(hip_deltas)
+    min_hip = min(hip_deltas)
+    max_hip_idx = hip_deltas.index(max_hip)
+    min_hip_idx = hip_deltas.index(min_hip)
+    percent_hip_ahead = 100 * sum(u > p for u, p in zip(get_body_part_cum_rotation(user_data, "hips", is_lefty), get_body_part_cum_rotation(pro_data, "hips", is_lefty))) / len(hip_deltas)
+
+    # Calculate shoulder rotation deltas
+    shoulder_deltas = body_part_direction_deltas(user_data, "shoulders", pro_data, "shoulders", is_lefty)
+    max_shoulder = max(shoulder_deltas)
+    min_shoulder = min(shoulder_deltas)
+    max_shoulder_idx = shoulder_deltas.index(max_shoulder)
+    min_shoulder_idx = shoulder_deltas.index(min_shoulder)
+    percent_shoulder_ahead = 100 * sum(u > p for u, p in zip(get_body_part_cum_rotation(user_data, "shoulders", is_lefty), get_body_part_cum_rotation(pro_data, "shoulders", is_lefty))) / len(shoulder_deltas)
+
+    # Format summary text
+    summary = []
+    summary.append(f"HIP ROTATION DELTAS: max={max_hip:.2f} (frame {max_hip_idx}), min={min_hip:.2f} (frame {min_hip_idx})")
+    summary.append(f"User ahead of pro in hip rotation {percent_hip_ahead:.1f}% of frames.")
+    summary.append(f"SHOULDER ROTATION DELTAS: max={max_shoulder:.2f} (frame {max_shoulder_idx}), min={min_shoulder:.2f} (frame {min_shoulder_idx})")
+    summary.append(f"User ahead of pro in shoulder rotation {percent_shoulder_ahead:.1f}% of frames.")
+    return "\n".join(summary)
+
+
 def format_movement_analysis_for_llm(user_keypoints: np.ndarray, pro_keypoints: np.ndarray, is_lefty: bool = False) -> str:
     """
     Format body part direction deltas analysis into a single text string for LLM coaching.
@@ -245,7 +280,20 @@ def format_movement_analysis_for_llm(user_keypoints: np.ndarray, pro_keypoints: 
         comp = "ahead of" if delta > 0 else "behind"
         analysis_parts.append(f"Frame {i}: user is {abs(int(delta))} degrees {comp} pro")
     analysis_parts.append("")
-    
+
+    hip_stats = get_summary_stats_text(user_keypoints, pro_keypoints, is_lefty)
+    analysis_parts.append(hip_stats)
+
+    # Hip rotation speed (user and pro)
+    user_hip_speeds = get_body_part_rotation_speed(user_keypoints, "hips", is_lefty)
+    pro_hip_speeds = get_body_part_rotation_speed(pro_keypoints, "hips", is_lefty)
+    analysis_parts.append("HIP ROTATION SPEED ANALYSIS:")
+    analysis_parts.append("Hip Rotation Speed (degrees/second):")
+    for i, (user_speed, pro_speed) in enumerate(zip(user_hip_speeds, pro_hip_speeds)):
+        comp = "faster than" if user_speed > pro_speed else "slower than"
+        analysis_parts.append(f"Frame {i}: user={int(user_speed)}, pro={int(pro_speed)}")
+    analysis_parts.append("")
+
     # Shoulder rotation analysis
     shoulder_deltas = body_part_direction_deltas(user_keypoints, "shoulders", pro_keypoints, "shoulders", is_lefty)
     analysis_parts.append("SHOULDER ROTATION ANALYSIS:")
@@ -257,7 +305,17 @@ def format_movement_analysis_for_llm(user_keypoints: np.ndarray, pro_keypoints: 
         # analysis_parts.append(f"Frame {i}: user is {abs(int(delta))} degrees {comp} pro")
         analysis_parts.append(f"Frame {i}: {int(delta)}")
     analysis_parts.append("")
-    
+
+    # Shoulder rotation speed (user and pro)
+    user_shoulder_speeds = get_body_part_rotation_speed(user_keypoints, "shoulders", is_lefty)
+    pro_shoulder_speeds = get_body_part_rotation_speed(pro_keypoints, "shoulders", is_lefty)
+    analysis_parts.append("SHOULDER ROTATION SPEED ANALYSIS:")
+    analysis_parts.append("Shoulder Rotation Speed (degrees/second):")
+    for i, (user_speed, pro_speed) in enumerate(zip(user_shoulder_speeds, pro_shoulder_speeds)):
+        comp = "faster than" if user_speed > pro_speed else "slower than"
+        analysis_parts.append(f"Frame {i}: user={int(user_speed)}, pro={int(pro_speed)}")
+    analysis_parts.append("")
+
     # Hip vs shoulder separation (user and pro)
     user_separation = body_part_direction_deltas(user_keypoints, "shoulders", user_keypoints, "hips", is_lefty)
     pro_separation = body_part_direction_deltas(pro_keypoints, "shoulders", pro_keypoints, "hips", is_lefty)
@@ -449,9 +507,105 @@ def generate_movement_analysis_plots(user_keypoints: np.ndarray, pro_keypoints: 
     )
     plot_paths["shoulder_rotation_speed"] = shoulder_speed_plot_path
     
+    spider_plot_filename = create_spider_plot_all_joints(user_keypoints, pro_keypoints, output_folder, is_lefty)
+    spider_plot_path = Path(output_folder) / spider_plot_filename
+    plot_paths["joint_distance_spider_plot"] = str(spider_plot_path)
+    
     return plot_paths
 
 
+def create_spider_plot_all_joints(user_keypoints: np.ndarray, pro_keypoints: np.ndarray, output_folder: str, is_lefty: bool = False) -> str:
+    """
+    Create a spider plot comparing all joints between user and pro keypoints.
+    
+    Args:
+        user_keypoints: 3D keypoints for the user
+        pro_keypoints: 3D keypoints for the professional
+        output_folder: Directory where the PNG file will be saved
+        is_lefty: If True, the left side is the throwing side
+
+    Returns:
+        Path to the saved spider plot image
+    """
+    num_keypoints = 17
+
+    # Calculate the overall difference in distance for each keypoint
+    joint_overall_difference = []
+    for i in range(num_keypoints):
+        user_distance = np.linalg.norm(user_keypoints[:, i, :], axis=1)
+        pro_distance = np.linalg.norm(pro_keypoints[:, i, :], axis=1)
+        distance_difference = np.abs(user_distance - pro_distance)
+        joint_overall_difference.append(np.mean(distance_difference))
+
+    # Normalize the differences to create scores (lower difference = higher score)
+    # Assuming a maximum possible difference for normalization (adjust if needed)
+    max_difference = np.max(joint_overall_difference) if joint_overall_difference else 1.0
+    # Add a small epsilon to max_difference to avoid division by zero if all differences are zero
+    max_difference += 1e-8
+    # Scale scores to a 0-5 range
+    joint_scores = [max(0, 1 - (diff / max_difference)) * 5 for diff in joint_overall_difference] # Ensure scores are not negative and scale to 0-5
+
+    # Get the joint names for the labels
+    joint_labels = [name for name, idx in sorted(JOINT_NAMES.items(), key=lambda x: x[1])]
+
+    # Prepare data for the spider chart
+    labels = np.array(joint_labels)
+    scores = np.array(joint_scores)
+
+    # Add the first score and label to the end to close the circle for plotting
+    labels = [l.replace("Left", "L.") for l in labels]
+    labels = [l.replace("Right", "R.") for l in labels]
+
+    start_angle_rad = np.pi / 2
+    end_angle_rad = start_angle_rad + np.radians(360)
+    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False)
+    # angles = np.linspace(start_angle_rad, end_angle_rad, len(labels), endpoint=False)
+
+    # Create the spider chart
+    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
+    ax.fill(angles, scores, alpha=0.25, color='DarkGreen')
+
+    # Keep angle gridlines but remove degree labels
+    ax.set_xticks(angles)                # keep the lines
+    ax.set_xticklabels([])               # remove default degree labels
+
+    # Custom joint labels at padded distance, aligned with circle spots
+    label_padding = 6
+    for angle, label in zip(angles, labels):
+        # Convert angle to degrees and adjust for text alignment
+        rotation_angle = np.degrees(angle)
+        # Adjust rotation so text aligns with the radial line
+        if angle > np.pi / 2 and angle < 3 * np.pi / 2:
+            # For angles in the left half, rotate 180 degrees more to keep text readable
+            rotation_angle += 180
+            ha = 'center'
+        else:
+            ha = 'center'
+        
+        ax.text(angle, label_padding, label,
+                ha=ha, va='center', fontsize=10, rotation=rotation_angle)
+
+    # Set chart title and limits
+    ax.set_title("Overall Similarity Scores by Joint", va='bottom', fontsize=12, y=1.3)
+    # ax.set_title("Overall Similarity Scores by Joint", va='top', fontsize=12)
+    ax.set_ylim(0, 5)
+    ax.grid(True)
+
+    # Save the plot
+    output_path = Path(output_folder)
+    output_path.mkdir(parents=True, exist_ok=True)
+    plot_filename = "joint_distance_spider_plot.png"
+    plot_path = output_path / plot_filename
+    plt.savefig(plot_path, dpi=200, bbox_inches='tight')
+
+    plt.close()
+
+
+    print("Spider Plot Joint Labels and Scores:")
+    for label, score in zip(labels, scores):
+        print(f"{label}: {score:.2f}")
+
+    return plot_filename
 
 
 if __name__ == "__main__":

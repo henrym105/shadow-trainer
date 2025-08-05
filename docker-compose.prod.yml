@@ -54,7 +54,7 @@ services:
       context: ./api_backend
       dockerfile: Dockerfile.prod
     user: "1000:1000"
-    command: celery -A tasks worker --loglevel=warning --concurrency=1 --max-tasks-per-child=1
+    command: celery -A tasks worker --loglevel=warning --concurrency=2 --max-tasks-per-child=1
     environment:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0

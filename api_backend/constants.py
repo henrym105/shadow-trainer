@@ -137,4 +137,4 @@ RESULT_EXPIRES = 5 * 60 * 60
 # ------------------------------------------------------
 # Visualizations
 # ------------------------------------------------------
-VALID_PLOT_TYPES = ["hip_rotation", "shoulder_rotation", "hip_shoulder_separation", "hip_rotation_speed", "shoulder_rotation_speed"]
+VALID_PLOT_TYPES = ["hip_rotation", "shoulder_rotation", "hip_shoulder_separation", "hip_rotation_speed", "shoulder_rotation_speed", "joint_distance_spider_plot"]
