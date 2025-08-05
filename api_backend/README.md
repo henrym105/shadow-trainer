@@ -70,51 +70,13 @@ GET  /status/{task_id}
 
 ## 🔄 Processing Pipeline
 
-```
-1. Video Upload → FastAPI endpoint validates and stores file
-2. Task Queued → Celery worker picks up processing job
-3. Video Preprocessing → OpenCV handles rotation, cropping, alignment
-4. 2D Pose Detection → YOLO11x extracts joint coordinates per frame
-5. 3D Pose Estimation → MotionAGFormer lifts 2D points to 3D space
-6. Motion Alignment → Align user and pro athlete hip orientations
-7. Biomechanical Analysis → Calculate joint angles, velocities, timing
-8. Visualization → Generate 3D animations and analysis charts
-9. AI Feedback → OpenAI API creates personalized coaching insights
-10. Results Storage → Save outputs to filesystem with metadata
-```
-
-## 🧠 Key Components
-
-### FastAPI Service (`api_service.py`)
-- CORS-enabled REST API with automatic OpenAPI documentation
-- File upload handling with size and format validation
-- Health check endpoints for system monitoring
-- Integration with Celery distributed task queue
-
-### Celery Workers (`tasks.py`)
-- Background video processing pipeline execution
-- Redis-backed task queue with retry logic
-- Progress tracking and real-time status updates
-- Error handling and graceful failure recovery
-
-### ML Inference Pipeline (`src/inference.py`)
-- YOLO11x 2D pose detection with confidence filtering
-- MotionAGFormer 3D pose estimation from 2D keypoints
-- Video preprocessing including rotation and cropping
-- Frame-by-frame keypoint extraction and temporal smoothing
-
-### Motion Analysis (`src/movement_analysis.py`)
-- Baseball-specific biomechanical calculations
-- Joint angle analysis (hip, shoulder, elbow, wrist mechanics)
-- Timing analysis compared to professional athlete data
-- Hip-shoulder separation and rotational velocity calculations
-- OpenAI integration for generating personalized coaching feedback
-
-### Visualization Engine (`src/visualizations.py`)
-- 3D skeleton animation generation using matplotlib
-- Interactive analysis chart creation (joint angles, velocities)
-- Comparative visualization between user and professional motions
-- Export capabilities for PNG charts and analysis plots
+1. **Video Upload** → FastAPI validates and stores file
+2. **Task Queue** → Celery worker picks up processing job  
+3. **2D Pose Detection** → YOLO11x extracts joint coordinates
+4. **3D Pose Estimation** → MotionAGFormer converts to 3D keypoints
+5. **Biomechanical Analysis** → Calculate joint angles and velocities
+6. **AI Feedback** → OpenAI generates coaching insights
+7. **Results Storage** → Save outputs with metadata
 
 ## 🛠️ Development
 
@@ -136,25 +98,10 @@ redis-server
 
 ### Adding New Features
 
-**New API Endpoints:**
-- Add route handlers in `api_videos.py`
-- Define request/response models in `pydantic_models.py`
-- Update OpenAPI documentation automatically
-
-**Background Processing Tasks:**
-- Implement new tasks in `tasks.py` with `@celery_app.task` decorator
-- Add error handling and progress reporting
-- Update task status tracking in frontend
-
-**ML Model Integration:**
-- Extend `src/inference.py` with new model loading and inference
-- Add model configurations to `model_config_map.json`
-- Update checkpoint management in `checkpoint/` directory
-
-**Biomechanical Analysis:**
-- Add new calculations to `src/movement_analysis.py`
-- Create visualization functions in `src/visualizations.py`
-- Update OpenAI prompts for enhanced feedback
+- **API Endpoints**: Add handlers in `api_videos.py` and models in `pydantic_models.py`
+- **Background Tasks**: Implement in `tasks.py` with `@celery_app.task` decorator
+- **ML Models**: Extend `src/inference.py` and update `model_config_map.json`
+- **Analysis**: Add calculations to `src/movement_analysis.py` and visualizations to `src/visualizations.py`
 
 ### Environment Variables
 ```bash
