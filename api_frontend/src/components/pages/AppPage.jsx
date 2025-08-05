@@ -23,7 +23,7 @@ function AppPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [modelSize, setModelSize] = useState('xs');
   const [isLefty, setIsLefty] = useState(false);
-  const [selectedProFile, setSelectedProFile] = useState('DeanKremer_median.npy');
+  const [selectedProFile, setSelectedProFile] = useState('DeanKremer.npy');
   const [proOptions, setProOptions] = useState([]);
   const [videoFormat, setVideoFormat] = useState('dynamic_3d_animation');
   const [activeTab, setActiveTab] = useState('video-processing');
