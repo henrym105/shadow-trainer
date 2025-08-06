@@ -18,6 +18,7 @@ function VisualizerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showPlots, setShowPlots] = useState(false);
+  const [hasMotionFeedback, setHasMotionFeedback] = useState(false);
   
   // Controls state
   const [playing, setPlaying] = useState(true);
@@ -47,7 +48,16 @@ function VisualizerPage() {
           if (infoRes.ok) {
             const infoData = await infoRes.json();
             setTaskInfo(infoData);
-                      }
+            
+            // Check if motion_feedback already exists
+            if (infoData.motion_feedback) {
+              setJointEvaluation(infoData.motion_feedback);
+              setHasMotionFeedback(true);
+              setShowPlots(true);
+            } else {
+              setHasMotionFeedback(false);
+            }
+          }
         } else {
           setError('Failed to load keypoints data');
         }
@@ -156,8 +166,10 @@ function VisualizerPage() {
                   const infoData = await infoResponse.json();
                   if (infoData.motion_feedback) {
                     setJointEvaluation(infoData.motion_feedback);
+                    setHasMotionFeedback(true);
                   } else if (infoData.joint_evaluation_text) {
                     setJointEvaluation(infoData.joint_evaluation_text);
+                    setHasMotionFeedback(true);
                   } else {
                     setJointEvaluation('No motion feedback available.');
                     console.log('No motion_feedback found, available keys:', Object.keys(infoData));
@@ -201,152 +213,149 @@ function VisualizerPage() {
           <LogoSection />
         </header>
         
-        {/* Main Content Area - Animation + Controls Side by Side */}
-        <div className="main-content-container">
-          {/* Visualization Box */}
-          <div className="visualization-box">
-            {userKeypoints && proKeypoints ? (
-              <>
-                {/* User Instructions */}
-                <div className="user-instructions">
-                  <div>Click + drag to rotate</div>
-                  <div>Scroll/pinch to zoom</div>
-                </div>
-                
-                <SkeletonViewer
-                  keypointFrames={userKeypoints}
-                  proKeypointFrames={proKeypoints}
-                  playing={playing}
-                  showUserSkeleton={showUserSkeleton}
-                  showProSkeleton={showProSkeleton}
-                  frame={frame}
-                  turntable={turntable}
-                  playbackSpeed={playbackSpeed}
-                  onFrameChange={setFrame}
-                  isLefty={taskInfo?.is_lefty || false}
-                />
-                
-                {/* Skeleton Legend - Bottom Single Row */}
-                <div className="skeleton-legend">
-                  <div className="legend-item">
-                    <div className="legend-color user"></div>
-                    <span>You</span>
+        {/* Main Content: Visualization and Controls */}
+        <div className="visualization-main-container">
+          <div className="main-content-container">
+            {/* 3D Skeleton Visualization */}
+            <div className="visualization-box">
+              {userKeypoints && proKeypoints ? (
+                <>
+                  {/* Instructions */}
+                  <div className="user-instructions">
+                    <div>Click and drag to rotate</div>
+                    <div>Scroll or pinch to zoom</div>
                   </div>
-                  <div className="legend-item">
-                    <div className="legend-color pro"></div>
-                    <span>{taskInfo?.pro_name || 'Professional Reference'}</span>
+                  
+                  <SkeletonViewer
+                    keypointFrames={userKeypoints}
+                    proKeypointFrames={proKeypoints}
+                    playing={playing}
+                    showUserSkeleton={showUserSkeleton}
+                    showProSkeleton={showProSkeleton}
+                    frame={frame}
+                    turntable={turntable}
+                    playbackSpeed={playbackSpeed}
+                    onFrameChange={setFrame}
+                    isLefty={taskInfo?.is_lefty || false}
+                  />
+                  
+                  {/* Legend */}
+                  <div className="skeleton-legend">
+                    <div className="legend-item">
+                      <div className="legend-color user"></div>
+                      <span>You</span>
+                    </div>
+                    <div className="legend-item">
+                      <div className="legend-color pro"></div>
+                      <span>{taskInfo?.pro_name || 'Professional Reference'}</span>
+                    </div>
                   </div>
+                </>
+              ) : (
+                <div className="centered-message">
+                  <div>Loading keypoints data...</div>
                 </div>
-              </>
-            ) : (
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center', 
-                height: '100%' 
-              }}>
-                <div>Loading keypoints data...</div>
-              </div>
-            )}
-          </div>
-          
-          {/* Visualization Controls Section - Now on the side */}
-          <div className="controls-container">
-            <h3 className="controls-title">Visualization Controls: </h3>
+              )}
+            </div>
             
-            {/* Control Groups */}
-            <div className="controls-content">
-              {/* Auto Rotation Control */}
-              <div className="control-group">
-                <label className="control-label">Auto Rotation:</label>
-                <button 
-                  onClick={handleTurntableToggle}
-                  className={`btn ${turntable ? 'btn-danger' : 'btn-secondary'}`}
-                >
-                  {turntable ? 'Stop Rotation' : 'Start Rotation'}
-                </button>
-              </div>
+            {/* Controls */}
+            <div className="controls-container">
+              <h3 className="controls-title">Visualization Controls</h3>
+              <div className="controls-content">
+                {/* Auto Rotation */}
+                <div className="control-group">
+                  <label className="control-label">Auto Rotation:</label>
+                  <button 
+                    onClick={handleTurntableToggle}
+                    className={`btn ${turntable ? 'btn-danger' : 'btn-secondary'}`}
+                  >
+                    {turntable ? 'Stop Rotation' : 'Start Rotation'}
+                  </button>
+                </div>
 
-              {/* Skeleton Visibility Controls */}
-              <div className="flex flex-col gap-lg">
-                <div className="control-group text-center">
-                  <label className="control-label">User Skeleton:</label>
-                  <div className="toggle-container">
-                    <span className={`toggle-label ${!showUserSkeleton ? 'active' : ''}`}>Hidden</span>
-                    <label className="toggle-switch">
-                      <input 
-                        type="checkbox" 
-                        checked={showUserSkeleton} 
-                        onChange={handleUserSkeletonToggle}
-                      />
-                      <span className="toggle-slider"></span>
-                    </label>
-                    <span className={`toggle-label ${showUserSkeleton ? 'active' : ''}`}>Visible</span>
+                {/* Skeleton Visibility */}
+                <div className="flex flex-col gap-lg">
+                  <div className="control-group text-center">
+                    <label className="control-label">User Skeleton:</label>
+                    <div className="toggle-container">
+                      <span className={`toggle-label ${!showUserSkeleton ? 'active' : ''}`}>Hidden</span>
+                      <label className="toggle-switch">
+                        <input 
+                          type="checkbox" 
+                          checked={showUserSkeleton} 
+                          onChange={handleUserSkeletonToggle}
+                        />
+                        <span className="toggle-slider"></span>
+                      </label>
+                      <span className={`toggle-label ${showUserSkeleton ? 'active' : ''}`}>Visible</span>
+                    </div>
+                  </div>
+                  
+                  <div className="control-group text-center">
+                    <label className="control-label">Pro Skeleton:</label>
+                    <div className="toggle-container">
+                      <span className={`toggle-label ${!showProSkeleton ? 'active' : ''}`}>Hidden</span>
+                      <label className="toggle-switch">
+                        <input 
+                          type="checkbox" 
+                          checked={showProSkeleton} 
+                          onChange={handleProSkeletonToggle}
+                        />
+                        <span className="toggle-slider"></span>
+                      </label>
+                      <span className={`toggle-label ${showProSkeleton ? 'active' : ''}`}>Visible</span>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="control-group text-center">
-                  <label className="control-label">Pro Skeleton:</label>
-                  <div className="toggle-container">
-                    <span className={`toggle-label ${!showProSkeleton ? 'active' : ''}`}>Hidden</span>
-                    <label className="toggle-switch">
-                      <input 
-                        type="checkbox" 
-                        checked={showProSkeleton} 
-                        onChange={handleProSkeletonToggle}
-                      />
-                      <span className="toggle-slider"></span>
-                    </label>
-                    <span className={`toggle-label ${showProSkeleton ? 'active' : ''}`}>Visible</span>
-                  </div>
+
+                {/* Playback Speed */}
+                <div className="control-group">
+                  <label className="control-label">Playback Speed:</label>
+                  <select 
+                    value={playbackSpeed} 
+                    onChange={handleSpeedChange}
+                    className="form-select"
+                  >
+                    <option value={0.25}>0.25x</option>
+                    <option value={0.5}>0.5x</option>
+                    <option value={1}>1x (Normal)</option>
+                    <option value={1.5}>1.5x</option>
+                    <option value={2}>2x</option>
+                  </select>
                 </div>
-              </div>
 
-              {/* Playback Speed Control */}
-              <div className="control-group">
-                <label className="control-label">Playback Speed:</label>
-                <select 
-                  value={playbackSpeed} 
-                  onChange={handleSpeedChange}
-                  className="form-select"
-                >
-                  <option value={0.25}>0.25x</option>
-                  <option value={0.5}>0.5x</option>
-                  <option value={1}>1x (Normal)</option>
-                  <option value={1.5}>1.5x</option>
-                  <option value={2}>2x</option>
-                </select>
-              </div>
+                {/* Frame Slider */}
+                <div className="control-group frame-control">
+                  <label className="control-label">
+                    Time: {((frame + 1) / 30).toFixed(1)}s / {(totalFrames / 30).toFixed(1)}s
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={totalFrames - 1}
+                    value={frame}
+                    onChange={handleFrameChange}
+                    className="frame-slider"
+                  />
+                </div>
 
-              {/* Frame Control */}
-              <div className="control-group frame-control">
-                <label className="control-label">Time: {((frame + 1) / 30).toFixed(1)}s / {(totalFrames / 30).toFixed(1)}s</label>
-                <input
-                  type="range"
-                  min={0}
-                  max={totalFrames - 1}
-                  value={frame}
-                  onChange={handleFrameChange}
-                  className="frame-slider"
-                />
-              </div>
-
-              {/* Playback Control */}
-              <div className="control-group">
-                <label className="control-label">Playback:</label>
-                <button 
-                  onClick={handlePlayPause}
-                  className={`btn ${playing ? 'btn-danger' : 'btn-primary'}`}
-                >
-                  {playing ? 'Pause' : 'Play'}
-                </button>
+                {/* Play/Pause */}
+                <div className="control-group">
+                  <label className="control-label">Playback:</label>
+                  <button 
+                    onClick={handlePlayPause}
+                    className={`btn ${playing ? 'btn-danger' : 'btn-primary'}`}
+                  >
+                    {playing ? 'Pause' : 'Play'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
         
-        {/* Generate Analysis Button or Movement Feedback Box */}
-        {!jointEvaluation && !evaluationLoading ? (
+        {/* Feedback or Generate Analysis */}
+        {!hasMotionFeedback && !evaluationLoading ? (
           <div className="visualization-box analysis-button-container">
             <button 
               onClick={handleGenerateEvaluation}
@@ -358,12 +367,11 @@ function VisualizerPage() {
           </div>
         ) : (
           <div className="visualization-box analysis-button-container">
-            <h3 className="evaluation-title">Movement Feedback</h3>
-            
+            <h3 className="evaluation-title">Motion Analysis Feedback</h3>
             {evaluationLoading ? (
               <div className="evaluation-loading">
-              <div className="spinner spinner-large"></div>
-              <p>Generating personalized movement feedback...</p>
+                <div className="spinner spinner-large"></div>
+                <p>Gathering personalized feedback from your AI baseball coach...</p>
               </div>
             ) : (
               <div className="evaluation-content">
@@ -373,10 +381,12 @@ function VisualizerPage() {
           </div>
         )}
         
-        {/* Movement Analysis Plots */}
+        {/* Motion Analysis Plots */}
         {showPlots && (
           <div className="visualization-box plots-container">
-            <h3 className="plots-title">Movement Analysis Charts</h3>
+            <h3 className="plots-title">
+              Compare your motion with {taskInfo?.pro_name || 'the MLB pro'}
+            </h3>
             <div className="plots-grid">
               <PlotViewer 
                 taskId={taskId} 
@@ -392,6 +402,21 @@ function VisualizerPage() {
                 taskId={taskId} 
                 plotType="hip_shoulder_separation" 
                 title="Hip-Shoulder Separation" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="hip_rotation_speed" 
+                title="Hip Rotation Speed Analysis" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="shoulder_rotation_speed" 
+                title="Shoulder Rotation Speed Analysis" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="joint_distance_spider_plot" 
+                title="Joint Distance Comparison" 
               />
             </div>
           </div>
