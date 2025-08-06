@@ -1,7 +1,7 @@
 # Shadow Trainer - AI-Powered Motion Analysis
 
 <div align="center">
-    <img src="api_frontend/public/Shadow%20Trainer%20Logo.png" alt="Shadow Trainer Logo" width="300"><br>
+    <img src="api_frontend/assets/Shadow%20Trainer%20Logo.png" alt="Shadow Trainer Logo" width="300"><br>
     <a href="https://www.shadow-trainer.com">www.shadow-trainer.com</a>
 </div>
 
