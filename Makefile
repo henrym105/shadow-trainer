@@ -14,7 +14,7 @@ prod:
 	docker-compose -f docker-compose.prod.yml --env-file .env.prod up
 
 prod-build:
-	docker-compose -f docker-compose.prod.yml --env-file .env.prod up --build --scale worker=3
+	docker-compose -f docker-compose.prod.yml --env-file .env.prod up --build --scale worker=2
 
 prod-logs:
 	docker-compose -f docker-compose.prod.yml logs -f

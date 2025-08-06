@@ -164,7 +164,8 @@ export default function SkeletonViewer({
       style={{ 
         width: '100%', 
         height: '100%',
-        maxHeight: 'min(75vh, 650px)'
+        maxHeight: '650px',
+        minHeight: '500px'
       }}
     >
       <ambientLight />

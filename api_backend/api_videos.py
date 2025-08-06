@@ -13,13 +13,12 @@ from fastapi.responses import FileResponse
 from tasks import generate_3d_keypoints_from_video_task
 import numpy as np
 
-from constants import TMP_PRO_KEYPOINTS_FILE_S3, OUTPUT_DIR, SAMPLE_VIDEO_PATH
+from constants import TMP_PRO_KEYPOINTS_FILE_S3, OUTPUT_DIR, SAMPLE_VIDEO_PATH, VALID_PLOT_TYPES
 from tasks import (
     celery_app, 
     process_video_task,
     save_uploaded_file, 
     validate_video_file, 
-    list_s3_pro_keypoints, 
     generate_joint_evaluation_task,
 )
 
@@ -51,6 +50,7 @@ def read_root():
         "message": "Welcome to the Video Processing API. Use /videos/upload/ to upload a video.",
         "num tasks processed in memory": num_tasks
     }
+
 
 @sub_app_videos.post("/upload")
 async def upload_and_process_video(
@@ -214,32 +214,6 @@ async def generate_evaluation(task_id: str):
     except Exception as e:
         logger.error(f"Error starting joint evaluation for task {task_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start joint evaluation: {str(e)}")
-
-
-# @sub_app_videos.get("/{task_id}/3d_keypoints_download")
-# async def download_3d_keypoints(task_id: str):
-#     """
-#     Download the generated 3D keypoints .npy file from Celery task result.
-#     """
-#     result = AsyncResult(task_id, app=celery_app)
-#     if not result.ready() or not result.successful():
-#         raise HTTPException(status_code=400, detail="Job not completed yet")
-
-#     # The celery task returns a dict with the key "output_path"
-#     keypoints_path = None
-#     if isinstance(result.result, dict):
-#         keypoints_path = result.result.get("output_path")
-#     elif isinstance(result.result, str):
-#         keypoints_path = result.result
-
-#     if not keypoints_path or not Path(keypoints_path).exists():
-#         raise HTTPException(status_code=404, detail="3D keypoints file not found")
-#     filename = f"3d_keypoints_{Path(keypoints_path).stem}.npy"
-#     return FileResponse(
-#         path=keypoints_path,
-#         filename=filename,
-#         media_type="application/octet-stream"
-#     )
 
 
 @sub_app_videos.get("/{task_id}/info")
@@ -529,10 +503,9 @@ async def get_movement_analysis_plot(task_id: str, plot_type: str):
     """
     try:
         # Valid plot types
-        valid_plot_types = ["hip_rotation", "shoulder_rotation", "hip_shoulder_separation"]
-        if plot_type not in valid_plot_types:
-            raise HTTPException(status_code=400, detail=f"Invalid plot type. Must be one of: {valid_plot_types}")
-        
+        if plot_type not in VALID_PLOT_TYPES:
+            raise HTTPException(status_code=400, detail=f"Invalid plot type. Must be one of: {VALID_PLOT_TYPES}")
+
         # Construct the expected output directory path
         output_dir = OUTPUT_DIR / f"{task_id}_output"
         plot_path = output_dir / f"{plot_type}.png"

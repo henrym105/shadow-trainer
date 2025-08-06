@@ -136,23 +136,9 @@ npm test                   # Run test suite
 
 ### Adding New Components
 
-**Page Components:**
-1. Create new component in `src/components/pages/`
-2. Add corresponding CSS file in `src/styles/`
-3. Update router configuration in `App.js`
-4. Add navigation links where appropriate
-
-**UI Components:**
-1. Create reusable component in `src/components/ui/`
-2. Add scoped styles in `src/styles/`
-3. Export component for use in pages
-4. Document props and usage examples
-
-### State Management
-- **React Hooks** - useState and useEffect for component state
-- **Props Drilling** - Data passed down through component hierarchy
-- **Context API** - For shared state across multiple components
-- **API State** - Managed through service layer and component state
+- **Pages**: Create in `src/components/pages/` with CSS in `src/styles/`
+- **UI Components**: Add to `src/components/ui/` and export for reuse
+- **Routing**: Update `App.js` and add navigation links
 
 ## 🚀 Production Build
 
@@ -165,17 +151,9 @@ docker build -t shadow-trainer-frontend .
 docker run -p 3000:3000 shadow-trainer-frontend
 ```
 
-### Build Optimization
-- **Code Splitting** - Automatic bundle splitting for optimal loading
-- **Tree Shaking** - Remove unused code from final bundle
-- **Asset Optimization** - Image compression and static asset optimization
-- **Caching Strategy** - Long-term caching for static assets
-
 ### Environment Configuration
 ```javascript
-// Environment variables (available in React)
 REACT_APP_API_URL=http://localhost:8002  // Backend API endpoint
-REACT_APP_VERSION=1.0.0                  // Application version
 ```
 
 ## 🧪 Testing
@@ -183,21 +161,10 @@ REACT_APP_VERSION=1.0.0                  // Application version
 ```bash
 npm test                    # Run test suite
 npm test -- --coverage     # Generate coverage report
-npm test -- --watchAll     # Run tests in watch mode
 ```
-
-## 📱 Browser Support
-
-- **Chrome 90+** - Full feature support
-- **Firefox 88+** - Full feature support  
-- **Safari 14+** - Full feature support
-- **Edge 90+** - Full feature support
-- **Mobile Browsers** - Responsive design with touch support
 
 ## 🔧 Troubleshooting
 
-**Common Issues:**
 - **CORS Errors** - Ensure backend allows frontend origin
 - **3D Rendering Issues** - Check WebGL support and GPU drivers
 - **Upload Failures** - Verify file size limits and network connectivity
-- **Slow Performance** - Check for memory leaks in 3D components

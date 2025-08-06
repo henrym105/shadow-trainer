@@ -214,139 +214,141 @@ function VisualizerPage() {
         </header>
         
         {/* Main Content: Visualization and Controls */}
-        <div className="main-content-container">
-          {/* 3D Skeleton Visualization */}
-          <div className="visualization-box">
-            {userKeypoints && proKeypoints ? (
-              <>
-                {/* Instructions */}
-                <div className="user-instructions">
-                  <div>Click and drag to rotate</div>
-                  <div>Scroll or pinch to zoom</div>
-                </div>
-                
-                <SkeletonViewer
-                  keypointFrames={userKeypoints}
-                  proKeypointFrames={proKeypoints}
-                  playing={playing}
-                  showUserSkeleton={showUserSkeleton}
-                  showProSkeleton={showProSkeleton}
-                  frame={frame}
-                  turntable={turntable}
-                  playbackSpeed={playbackSpeed}
-                  onFrameChange={setFrame}
-                  isLefty={taskInfo?.is_lefty || false}
-                />
-                
-                {/* Legend */}
-                <div className="skeleton-legend">
-                  <div className="legend-item">
-                    <div className="legend-color user"></div>
-                    <span>You</span>
+        <div className="visualization-main-container">
+          <div className="main-content-container">
+            {/* 3D Skeleton Visualization */}
+            <div className="visualization-box">
+              {userKeypoints && proKeypoints ? (
+                <>
+                  {/* Instructions */}
+                  <div className="user-instructions">
+                    <div>Click and drag to rotate</div>
+                    <div>Scroll or pinch to zoom</div>
                   </div>
-                  <div className="legend-item">
-                    <div className="legend-color pro"></div>
-                    <span>{taskInfo?.pro_name || 'Professional Reference'}</span>
+                  
+                  <SkeletonViewer
+                    keypointFrames={userKeypoints}
+                    proKeypointFrames={proKeypoints}
+                    playing={playing}
+                    showUserSkeleton={showUserSkeleton}
+                    showProSkeleton={showProSkeleton}
+                    frame={frame}
+                    turntable={turntable}
+                    playbackSpeed={playbackSpeed}
+                    onFrameChange={setFrame}
+                    isLefty={taskInfo?.is_lefty || false}
+                  />
+                  
+                  {/* Legend */}
+                  <div className="skeleton-legend">
+                    <div className="legend-item">
+                      <div className="legend-color user"></div>
+                      <span>You</span>
+                    </div>
+                    <div className="legend-item">
+                      <div className="legend-color pro"></div>
+                      <span>{taskInfo?.pro_name || 'Professional Reference'}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="centered-message">
+                  <div>Loading keypoints data...</div>
+                </div>
+              )}
+            </div>
+            
+            {/* Controls */}
+            <div className="controls-container">
+              <h3 className="controls-title">Visualization Controls</h3>
+              <div className="controls-content">
+                {/* Auto Rotation */}
+                <div className="control-group">
+                  <label className="control-label">Auto Rotation:</label>
+                  <button 
+                    onClick={handleTurntableToggle}
+                    className={`btn ${turntable ? 'btn-danger' : 'btn-secondary'}`}
+                  >
+                    {turntable ? 'Stop Rotation' : 'Start Rotation'}
+                  </button>
+                </div>
+
+                {/* Skeleton Visibility */}
+                <div className="flex flex-col gap-lg">
+                  <div className="control-group text-center">
+                    <label className="control-label">User Skeleton:</label>
+                    <div className="toggle-container">
+                      <span className={`toggle-label ${!showUserSkeleton ? 'active' : ''}`}>Hidden</span>
+                      <label className="toggle-switch">
+                        <input 
+                          type="checkbox" 
+                          checked={showUserSkeleton} 
+                          onChange={handleUserSkeletonToggle}
+                        />
+                        <span className="toggle-slider"></span>
+                      </label>
+                      <span className={`toggle-label ${showUserSkeleton ? 'active' : ''}`}>Visible</span>
+                    </div>
+                  </div>
+                  
+                  <div className="control-group text-center">
+                    <label className="control-label">Pro Skeleton:</label>
+                    <div className="toggle-container">
+                      <span className={`toggle-label ${!showProSkeleton ? 'active' : ''}`}>Hidden</span>
+                      <label className="toggle-switch">
+                        <input 
+                          type="checkbox" 
+                          checked={showProSkeleton} 
+                          onChange={handleProSkeletonToggle}
+                        />
+                        <span className="toggle-slider"></span>
+                      </label>
+                      <span className={`toggle-label ${showProSkeleton ? 'active' : ''}`}>Visible</span>
+                    </div>
                   </div>
                 </div>
-              </>
-            ) : (
-              <div className="centered-message">
-                <div>Loading keypoints data...</div>
-              </div>
-            )}
-          </div>
-          
-          {/* Controls */}
-          <div className="controls-container">
-            <h3 className="controls-title">Visualization Controls</h3>
-            <div className="controls-content">
-              {/* Auto Rotation */}
-              <div className="control-group">
-                <label className="control-label">Auto Rotation:</label>
-                <button 
-                  onClick={handleTurntableToggle}
-                  className={`btn ${turntable ? 'btn-danger' : 'btn-secondary'}`}
-                >
-                  {turntable ? 'Stop Rotation' : 'Start Rotation'}
-                </button>
-              </div>
 
-              {/* Skeleton Visibility */}
-              <div className="flex flex-col gap-lg">
-                <div className="control-group text-center">
-                  <label className="control-label">User Skeleton:</label>
-                  <div className="toggle-container">
-                    <span className={`toggle-label ${!showUserSkeleton ? 'active' : ''}`}>Hidden</span>
-                    <label className="toggle-switch">
-                      <input 
-                        type="checkbox" 
-                        checked={showUserSkeleton} 
-                        onChange={handleUserSkeletonToggle}
-                      />
-                      <span className="toggle-slider"></span>
-                    </label>
-                    <span className={`toggle-label ${showUserSkeleton ? 'active' : ''}`}>Visible</span>
-                  </div>
+                {/* Playback Speed */}
+                <div className="control-group">
+                  <label className="control-label">Playback Speed:</label>
+                  <select 
+                    value={playbackSpeed} 
+                    onChange={handleSpeedChange}
+                    className="form-select"
+                  >
+                    <option value={0.25}>0.25x</option>
+                    <option value={0.5}>0.5x</option>
+                    <option value={1}>1x (Normal)</option>
+                    <option value={1.5}>1.5x</option>
+                    <option value={2}>2x</option>
+                  </select>
                 </div>
-                
-                <div className="control-group text-center">
-                  <label className="control-label">Pro Skeleton:</label>
-                  <div className="toggle-container">
-                    <span className={`toggle-label ${!showProSkeleton ? 'active' : ''}`}>Hidden</span>
-                    <label className="toggle-switch">
-                      <input 
-                        type="checkbox" 
-                        checked={showProSkeleton} 
-                        onChange={handleProSkeletonToggle}
-                      />
-                      <span className="toggle-slider"></span>
-                    </label>
-                    <span className={`toggle-label ${showProSkeleton ? 'active' : ''}`}>Visible</span>
-                  </div>
+
+                {/* Frame Slider */}
+                <div className="control-group frame-control">
+                  <label className="control-label">
+                    Time: {((frame + 1) / 30).toFixed(1)}s / {(totalFrames / 30).toFixed(1)}s
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={totalFrames - 1}
+                    value={frame}
+                    onChange={handleFrameChange}
+                    className="frame-slider"
+                  />
                 </div>
-              </div>
 
-              {/* Playback Speed */}
-              <div className="control-group">
-                <label className="control-label">Playback Speed:</label>
-                <select 
-                  value={playbackSpeed} 
-                  onChange={handleSpeedChange}
-                  className="form-select"
-                >
-                  <option value={0.25}>0.25x</option>
-                  <option value={0.5}>0.5x</option>
-                  <option value={1}>1x (Normal)</option>
-                  <option value={1.5}>1.5x</option>
-                  <option value={2}>2x</option>
-                </select>
-              </div>
-
-              {/* Frame Slider */}
-              <div className="control-group frame-control">
-                <label className="control-label">
-                  Time: {((frame + 1) / 30).toFixed(1)}s / {(totalFrames / 30).toFixed(1)}s
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={totalFrames - 1}
-                  value={frame}
-                  onChange={handleFrameChange}
-                  className="frame-slider"
-                />
-              </div>
-
-              {/* Play/Pause */}
-              <div className="control-group">
-                <label className="control-label">Playback:</label>
-                <button 
-                  onClick={handlePlayPause}
-                  className={`btn ${playing ? 'btn-danger' : 'btn-primary'}`}
-                >
-                  {playing ? 'Pause' : 'Play'}
-                </button>
+                {/* Play/Pause */}
+                <div className="control-group">
+                  <label className="control-label">Playback:</label>
+                  <button 
+                    onClick={handlePlayPause}
+                    className={`btn ${playing ? 'btn-danger' : 'btn-primary'}`}
+                  >
+                    {playing ? 'Pause' : 'Play'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -400,6 +402,21 @@ function VisualizerPage() {
                 taskId={taskId} 
                 plotType="hip_shoulder_separation" 
                 title="Hip-Shoulder Separation" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="hip_rotation_speed" 
+                title="Hip Rotation Speed Analysis" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="shoulder_rotation_speed" 
+                title="Shoulder Rotation Speed Analysis" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
+                plotType="joint_distance_spider_plot" 
+                title="Joint Distance Comparison" 
               />
             </div>
           </div>
