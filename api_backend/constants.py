@@ -6,11 +6,9 @@ from pathlib import Path
 # File Paths in Docker Container
 # ------------------------------------------------------
 API_ROOT_DIR = Path(__file__).parent
-UPLOAD_DIR = API_ROOT_DIR / "uploads"
 OUTPUT_DIR = API_ROOT_DIR / "output"
 CHECKPOINT_DIR = API_ROOT_DIR / "checkpoint"
 
-UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 TMP_PRO_KEYPOINTS_FILE = API_ROOT_DIR / "checkpoint" / "example_SnellBlake.npy"
