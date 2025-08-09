@@ -128,11 +128,18 @@ PRO_TEAMS_MAP = {
 # ------------------------------------------------------
 # Celery Config
 # ------------------------------------------------------
-# Set 5 hour redis cache timeout
-RESULT_EXPIRES = 5 * 60 * 60
+# Set 24 hour redis cache timeout
+RESULT_EXPIRES = 24 * 60 * 60
 
 
 # ------------------------------------------------------
 # Visualizations
 # ------------------------------------------------------
-VALID_PLOT_TYPES = ["hip_rotation", "shoulder_rotation", "hip_shoulder_separation", "hip_rotation_speed", "shoulder_rotation_speed", "joint_distance_spider_plot"]
+VALID_PLOT_TYPES = [
+    "hip_rotation", 
+    "shoulder_rotation", 
+    "hip_shoulder_separation", 
+    "hip_rotation_speed", 
+    "shoulder_rotation_speed", 
+    "joint_distance_comparison_plot"
+]

@@ -13,7 +13,7 @@ function PlotViewer({ taskId, plotType, title }) {
     hip_shoulder_separation: "NOTE: Positive when the hips are rotated ahead of your shoulders (more separation is better). Negative values when the shoulders are ahead of your hips.",
     hip_rotation_speed: "NOTE: Higher values indicate faster rotation. Note max speed and peak timing for comparison.",
     shoulder_rotation_speed: "NOTE: Higher values indicate faster rotation. Note max speed and peak timing for comparison.",
-    joint_distance_spider_plot: "Higher Score = More Similarity",
+    joint_distance_comparison_plot: "Higher Score = More Similarity",
   };
 
   useEffect(() => {

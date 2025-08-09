@@ -415,7 +415,7 @@ function VisualizerPage() {
               />
               <PlotViewer 
                 taskId={taskId} 
-                plotType="joint_distance_spider_plot" 
+                plotType="joint_distance_comparison_plot" 
                 title="Joint Distance Comparison" 
               />
             </div>
