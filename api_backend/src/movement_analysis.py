@@ -254,7 +254,7 @@ def get_summary_stats_text(user_data, pro_data, is_lefty: bool = False) -> str:
 
 def format_movement_analysis_for_llm(user_keypoints: np.ndarray, pro_keypoints: np.ndarray, is_lefty: bool = False) -> str:
     """
-    Format body part direction deltas analysis into a single text string for LLM coaching.
+    Format body part direction deltas analysis into a JSON object text string for LLM coaching.
     
     Args:
         user_keypoints: 3D keypoints for the user
@@ -262,72 +262,79 @@ def format_movement_analysis_for_llm(user_keypoints: np.ndarray, pro_keypoints: 
         is_lefty: If True, the left side is the throwing side
         
     Returns:
-        Formatted text string containing all analysis data
+        JSON formatted text string containing all analysis data
     """
-    analysis_parts = []
+    import json
     
-    # Add handedness context for the LLM
-    handedness = "left-handed" if is_lefty else "right-handed"
-    analysis_parts.append(f"ATHLETE HANDEDNESS: {handedness.upper()}")
-    analysis_parts.append("")
-    
-    # Hip rotation analysis
+    # Calculate all the analysis data
     hip_deltas = body_part_direction_deltas(user_keypoints, "hips", pro_keypoints, "hips", is_lefty)
-    analysis_parts.append("HIP ROTATION ANALYSIS:")
-    analysis_parts.append("Hip Rotation, Cumulative (degrees):")
-    analysis_parts.append("Note: These numbers represent how much the user hips have rotated relative to the pro hips at this point in time. Positive values indicate the user has rotated more than the pro at that point (ahead in rotation timing). Negative values indicate the user has rotated less than the pro (behind in rotation timing).")
-    for i, delta in enumerate(hip_deltas):
-        comp = "ahead of" if delta > 0 else "behind"
-        analysis_parts.append(f"Frame {i}: user is {abs(int(delta))} degrees {comp} pro")
-    analysis_parts.append("")
-
-    hip_stats = get_summary_stats_text(user_keypoints, pro_keypoints, is_lefty)
-    analysis_parts.append(hip_stats)
-
-    # Hip rotation speed (user and pro)
+    shoulder_deltas = body_part_direction_deltas(user_keypoints, "shoulders", pro_keypoints, "shoulders", is_lefty)
     user_hip_speeds = get_body_part_rotation_speed(user_keypoints, "hips", is_lefty)
     pro_hip_speeds = get_body_part_rotation_speed(pro_keypoints, "hips", is_lefty)
-    analysis_parts.append("HIP ROTATION SPEED ANALYSIS:")
-    analysis_parts.append("Hip Rotation Speed (degrees/second):")
-    for i, (user_speed, pro_speed) in enumerate(zip(user_hip_speeds, pro_hip_speeds)):
-        comp = "faster than" if user_speed > pro_speed else "slower than"
-        analysis_parts.append(f"Frame {i}: user={int(user_speed)}, pro={int(pro_speed)}")
-    analysis_parts.append("")
-
-    # Shoulder rotation analysis
-    shoulder_deltas = body_part_direction_deltas(user_keypoints, "shoulders", pro_keypoints, "shoulders", is_lefty)
-    analysis_parts.append("SHOULDER ROTATION ANALYSIS:")
-    analysis_parts.append("Shoulder Rotation, Cumulative (degrees):")
-    analysis_parts.append("NOTE: Positive values indicate user has rotated shoulders more than the pro at that point (ahead in timing). Negative values indicate user has rotated shoulders less than the pro (behind in timing).")
-    analysis_parts.append("NOTE: Each line is formatted like `frame i: x` and can be interpreted as 'frame i, the user is x degrees [ahead of if x positive/behind if x negative] the pro':")
-    for i, delta in enumerate(shoulder_deltas):
-        comp = "ahead of" if delta > 0 else "behind"
-        # analysis_parts.append(f"Frame {i}: user is {abs(int(delta))} degrees {comp} pro")
-        analysis_parts.append(f"Frame {i}: {int(delta)}")
-    analysis_parts.append("")
-
-    # Shoulder rotation speed (user and pro)
     user_shoulder_speeds = get_body_part_rotation_speed(user_keypoints, "shoulders", is_lefty)
     pro_shoulder_speeds = get_body_part_rotation_speed(pro_keypoints, "shoulders", is_lefty)
-    analysis_parts.append("SHOULDER ROTATION SPEED ANALYSIS:")
-    analysis_parts.append("Shoulder Rotation Speed (degrees/second):")
-    for i, (user_speed, pro_speed) in enumerate(zip(user_shoulder_speeds, pro_shoulder_speeds)):
-        comp = "faster than" if user_speed > pro_speed else "slower than"
-        analysis_parts.append(f"Frame {i}: user={int(user_speed)}, pro={int(pro_speed)}")
-    analysis_parts.append("")
-
-    # Hip vs shoulder separation (user and pro)
     user_separation = body_part_direction_deltas(user_keypoints, "shoulders", user_keypoints, "hips", is_lefty)
     pro_separation = body_part_direction_deltas(pro_keypoints, "shoulders", pro_keypoints, "hips", is_lefty)
-    analysis_parts.append("HIP-SHOULDER SEPARATION COMPARISON:")
-    analysis_parts.append("Torso Twist (degrees):")
-    analysis_parts.append("Note: Positive values indicate hips have rotated more than shoulders (good separation - hips leading). Negative values indicate shoulders have rotated more than hips (poor separation - shoulders leading).")
-    for i, (user_delta, pro_delta) in enumerate(zip(user_separation, pro_separation)):
-        comp = "larger than" if user_delta > pro_delta else "less than"
-        analysis_parts.append(f"Frame {i}: user={int(user_delta)}, pro={int(pro_delta)} --> User separation is {abs(int(user_delta - pro_delta))} degrees {comp} pro")
-    analysis_parts.append("")
-
-    return "\n".join(analysis_parts)
+    
+    # Build the JSON structure
+    data = {
+        "athlete_handedness": "left" if is_lefty else "right",
+        "hip_rotation": {
+            "definition": "Comparison of how far the user has rotated their hips compared to the pro at that frame of the video, relative to their starting hip position. Positive = user's hips are currently rotated more than the pro, Negative = behind pro",
+            "cumulative_degrees_rotated": [
+                {"frame": i, "delta_deg": round(delta, 2)} for i, delta in enumerate(hip_deltas)
+            ],
+            "summary": {
+                "max_delta_deg": round(max(hip_deltas), 2),
+                "max_frame": hip_deltas.index(max(hip_deltas)),
+                "min_delta_deg": round(min(hip_deltas), 2),
+                "min_frame": hip_deltas.index(min(hip_deltas)),
+                "percent_ahead": round(100 * sum(1 for delta in hip_deltas if delta > 0) / len(hip_deltas), 1)
+            }
+        },
+        "shoulder_rotation": {
+            "definition": "Comparison of how far the user has rotated their shoulders compared to the pro at that frame of the video, relative to their starting shoulder position. Positive = user's shoulders are currently rotated more than the pro, Negative = behind pro",
+            "cumulative_degrees_rotated": [
+                {"frame": i, "delta_deg": round(delta, 2)} for i, delta in enumerate(shoulder_deltas)
+            ],
+            "summary": {
+                "max_delta_deg": round(max(shoulder_deltas), 2),
+                "max_frame": shoulder_deltas.index(max(shoulder_deltas)),
+                "min_delta_deg": round(min(shoulder_deltas), 2),
+                "min_frame": shoulder_deltas.index(min(shoulder_deltas)),
+                "percent_ahead": round(100 * sum(1 for delta in shoulder_deltas if delta > 0) / len(shoulder_deltas), 1)
+            }
+        },
+        "hip_rotation_speed": {
+            "definition": "Frame-by-frame rotation speeds for hip rotation in degrees per second",
+            "user_speeds_deg_per_sec": [round(speed, 2) for speed in user_hip_speeds],
+            "pro_speeds_deg_per_sec": [round(speed, 2) for speed in pro_hip_speeds],
+            "speed_differences": [
+                {"frame": i, "user_speed": round(user_speed, 2), "pro_speed": round(pro_speed, 2), "difference": round(user_speed - pro_speed, 2)}
+                for i, (user_speed, pro_speed) in enumerate(zip(user_hip_speeds, pro_hip_speeds))
+            ]
+        },
+        "shoulder_rotation_speed": {
+            "definition": "Frame-by-frame rotation speeds for shoulder rotation in degrees per second",
+            "user_speeds_deg_per_sec": [round(speed, 2) for speed in user_shoulder_speeds],
+            "pro_speeds_deg_per_sec": [round(speed, 2) for speed in pro_shoulder_speeds],
+            "speed_differences": [
+                {"frame": i, "user_speed": round(user_speed, 2), "pro_speed": round(pro_speed, 2), "difference": round(user_speed - pro_speed, 2)}
+                for i, (user_speed, pro_speed) in enumerate(zip(user_shoulder_speeds, pro_shoulder_speeds))
+            ]
+        },
+        "hip_shoulder_separation": {
+            "definition": "Hip-shoulder separation comparison. Positive values indicate hips have rotated more than shoulders (good separation - hips leading). Negative values indicate shoulders have rotated more than hips (poor separation - shoulders leading).",
+            "user_separation_deg": [round(sep, 2) for sep in user_separation],
+            "pro_separation_deg": [round(sep, 2) for sep in pro_separation],
+            "separation_comparison": [
+                {"frame": i, "user_separation": round(user_sep, 2), "pro_separation": round(pro_sep, 2), "difference": round(user_sep - pro_sep, 2)}
+                for i, (user_sep, pro_sep) in enumerate(zip(user_separation, pro_separation))
+            ]
+        }
+    }
+    
+    return json.dumps(data, indent=2)
 
 
 def get_llm_coaching(raw_data_text: str) -> str:
@@ -587,7 +594,6 @@ def create_spider_plot_all_joints(user_keypoints: np.ndarray, pro_keypoints: np.
 
     # Set chart title and limits
     ax.set_title("Overall Similarity Scores by Joint", va='bottom', fontsize=12, y=1.3)
-    # ax.set_title("Overall Similarity Scores by Joint", va='top', fontsize=12)
     ax.set_ylim(0, 5)
     ax.grid(True)
 
@@ -600,10 +606,9 @@ def create_spider_plot_all_joints(user_keypoints: np.ndarray, pro_keypoints: np.
 
     plt.close()
 
-
-    print("Spider Plot Joint Labels and Scores:")
-    for label, score in zip(labels, scores):
-        print(f"{label}: {score:.2f}")
+    # print("Spider Plot Joint Labels and Scores:")
+    # for label, score in zip(labels, scores):
+    #     print(f"{label}: {score:.2f}")
 
     return plot_filename
 
@@ -613,13 +618,21 @@ if __name__ == "__main__":
     pro_npy = np.load("/home/ec2-user/shadow-trainer/api_backend/sample_videos/sample_output/raw_keypoints/pro_3D_keypoints.npy")
 
     # Generate formatted analysis text
-    analysis_text = format_movement_analysis_for_llm(user_npy, pro_npy, is_lefty=False)
+    analysis_text = format_movement_analysis_for_llm(user_npy, pro_npy, is_lefty=True)
     
-    print("FORMATTED ANALYSIS TEXT:")
-    print("=" * 80)
-    print(analysis_text)
-    print("=" * 80)
-    print()
+    # Save analysis text as info.json
+    output_folder = "/home/ec2-user/shadow-trainer/api_backend/sample_videos/sample_output"
+    info_json_path = Path(output_folder) / "info.json"
+    with open(info_json_path, 'w') as f:
+        f.write(analysis_text)
+    print(f"Analysis saved to: {info_json_path}")
+
+
+    # print("FORMATTED ANALYSIS TEXT:")
+    # print("=" * 80)
+    # print(analysis_text)
+    # print("=" * 80)
+    # print()
     
     # Get LLM coaching feedback
     print("LLM COACHING FEEDBACK:")
