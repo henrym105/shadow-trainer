@@ -360,3 +360,12 @@ input:disabled + .slider {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Plots Box - extends visualization-box but with dynamic height for charts */
+.plots-container {
+  min-height: auto !important;
+  max-height: none !important;
+  height: auto !important;
+  margin-top: 2rem;
+  padding: 1rem;
+}
