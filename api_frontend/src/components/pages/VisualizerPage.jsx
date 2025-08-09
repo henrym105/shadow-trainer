@@ -390,6 +390,11 @@ function VisualizerPage() {
             <div className="plots-grid">
               <PlotViewer 
                 taskId={taskId} 
+                plotType="joint_distance_comparison_plot" 
+                title="Joint Distance Comparison" 
+              />
+              <PlotViewer 
+                taskId={taskId} 
                 plotType="hip_rotation" 
                 title="Hip Rotation Analysis" 
               />
@@ -412,11 +417,6 @@ function VisualizerPage() {
                 taskId={taskId} 
                 plotType="shoulder_rotation_speed" 
                 title="Shoulder Rotation Speed Analysis" 
-              />
-              <PlotViewer 
-                taskId={taskId} 
-                plotType="joint_distance_comparison_plot" 
-                title="Joint Distance Comparison" 
               />
             </div>
           </div>
