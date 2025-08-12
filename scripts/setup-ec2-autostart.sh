@@ -31,10 +31,6 @@ if [[ ! -f "$PROJECT_DIR/Makefile" ]]; then
     exit 1
 fi
 
-if [[ ! -f "$PROJECT_DIR/.env.prod" ]]; then
-    echo "Warning: .env.prod not found. Make sure to create it before running the service."
-fi
-
 echo "✓ Required files found"
 
 # Install Docker and Docker Compose if not present
