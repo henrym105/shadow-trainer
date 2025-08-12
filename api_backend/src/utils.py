@@ -1,3 +1,4 @@
+import cv2 
 import json
 import logging
 import os
@@ -188,6 +189,20 @@ def get_frame_info(frame: np.ndarray) -> dict:
         ]
     joints = {joint_names[i]: frame[i] for i in range(len(frame))}
     return joints
+
+
+def get_frame_size(cap: cv2.VideoCapture) -> tuple:
+    """Get the size of the first frame in the video capture.
+    
+    Args:
+        cap (cv2.VideoCapture): OpenCV video capture object.
+
+    Returns:
+        tuple: Size of the first frame as (height, width).
+    """
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    return (height, width, 3)  # Assuming 3 channels (RGB)
 
 
 

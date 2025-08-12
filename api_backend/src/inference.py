@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
-from src.utils import download_file_if_not_exists, get_frame_info, normalize_screen_coordinates, camera_to_world, get_config, get_pytorch_device
+from src.utils import download_file_if_not_exists, get_frame_info, get_frame_size, normalize_screen_coordinates, camera_to_world, get_config, get_pytorch_device
 from src.model.MotionAGFormer import MotionAGFormer
 from src.visualizations import resample_pose_sequence, time_warp_pro_video
 from src.yolo2d import YOLOPoseEstimator, rotate_video_until_upright
@@ -627,18 +627,18 @@ def get_frame_info(frame):
 # -----------------------------------------------------------------------------------------------------------------------------
 
 
-def get_frame_size(cap: cv2.VideoCapture) -> tuple:
-    """Get the size of the first frame in the video capture.
+# def get_frame_size(cap: cv2.VideoCapture) -> tuple:
+#     """Get the size of the first frame in the video capture.
     
-    Args:
-        cap (cv2.VideoCapture): OpenCV video capture object.
+#     Args:
+#         cap (cv2.VideoCapture): OpenCV video capture object.
 
-    Returns:
-        tuple: Size of the first frame as (height, width).
-    """
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    return (height, width, 3)  # Assuming 3 channels (RGB)
+#     Returns:
+#         tuple: Size of the first frame as (height, width).
+#     """
+#     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+#     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#     return (height, width, 3)  # Assuming 3 channels (RGB)
 
 
 def create_2D_images(cap: cv2.VideoCapture, keypoints: np.ndarray, output_dir_2D: str) -> str:
