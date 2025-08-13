@@ -28,12 +28,13 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - PYTHONPATH=/app
+      - MPLCONFIGDIR=/tmp/matplotlib
+      - YOLO_CONFIG_DIR=/tmp/ultralytics
     depends_on:
       redis:
         condition: service_healthy
     volumes:
       - ./api_backend/uploads:/app/uploads
-      - ./api_backend/tmp_api_output:/app/tmp_api_output
       - ./api_backend/output:/app/output
     restart: unless-stopped
     networks:
@@ -60,6 +61,8 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - PYTHONPATH=/app
+      - MPLCONFIGDIR=/tmp/matplotlib
+      - YOLO_CONFIG_DIR=/tmp/ultralytics
     depends_on:
       redis:
         condition: service_healthy

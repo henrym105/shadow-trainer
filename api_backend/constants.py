@@ -6,15 +6,13 @@ from pathlib import Path
 # File Paths in Docker Container
 # ------------------------------------------------------
 API_ROOT_DIR = Path(__file__).parent
-UPLOAD_DIR = API_ROOT_DIR / "uploads"
 OUTPUT_DIR = API_ROOT_DIR / "output"
 CHECKPOINT_DIR = API_ROOT_DIR / "checkpoint"
 
-UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 TMP_PRO_KEYPOINTS_FILE = API_ROOT_DIR / "checkpoint" / "example_SnellBlake.npy"
-TMP_PRO_KEYPOINTS_FILE_S3 = "DeanKremer_median.npy"
+TMP_PRO_KEYPOINTS_FILE_S3 = "DeanKremer.npy"
 # SAMPLE_VIDEO_PATH = API_ROOT_DIR / "sample_videos" / "sample.mov"
 SAMPLE_VIDEO_PATH = API_ROOT_DIR / "sample_videos" / "Left_Hand_Friend_Side.MOV"
 
@@ -130,11 +128,18 @@ PRO_TEAMS_MAP = {
 # ------------------------------------------------------
 # Celery Config
 # ------------------------------------------------------
-# Set 5 hour redis cache timeout
-RESULT_EXPIRES = 5 * 60 * 60
+# Set 24 hour redis cache timeout
+RESULT_EXPIRES = 24 * 60 * 60
 
 
 # ------------------------------------------------------
 # Visualizations
 # ------------------------------------------------------
-VALID_PLOT_TYPES = ["hip_rotation", "shoulder_rotation", "hip_shoulder_separation", "hip_rotation_speed", "shoulder_rotation_speed", "joint_distance_spider_plot"]
+VALID_PLOT_TYPES = [
+    "hip_rotation", 
+    "shoulder_rotation", 
+    "hip_shoulder_separation", 
+    "hip_rotation_speed", 
+    "shoulder_rotation_speed", 
+    "joint_distance_comparison_plot"
+]

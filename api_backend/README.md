@@ -34,7 +34,6 @@ api_backend/
 │       └── modules/        # Neural network components
 ├── checkpoint/             # Pre-trained model weights loaded from s3
 ├── output/                # Processed video results storage
-├── uploads/               # Temporary video upload storage
 └── sample_videos/         # Test videos and sample outputs
 ```
 

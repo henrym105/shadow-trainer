@@ -254,7 +254,7 @@ def get_summary_stats_text(user_data, pro_data, is_lefty: bool = False) -> str:
 
 def format_movement_analysis_for_llm(user_keypoints: np.ndarray, pro_keypoints: np.ndarray, is_lefty: bool = False) -> str:
     """
-    Format body part direction deltas analysis into a single text string for LLM coaching.
+    Format body part direction deltas analysis into a JSON object text string for LLM coaching.
     
     Args:
         user_keypoints: 3D keypoints for the user
@@ -262,72 +262,79 @@ def format_movement_analysis_for_llm(user_keypoints: np.ndarray, pro_keypoints: 
         is_lefty: If True, the left side is the throwing side
         
     Returns:
-        Formatted text string containing all analysis data
+        JSON formatted text string containing all analysis data
     """
-    analysis_parts = []
+    import json
     
-    # Add handedness context for the LLM
-    handedness = "left-handed" if is_lefty else "right-handed"
-    analysis_parts.append(f"ATHLETE HANDEDNESS: {handedness.upper()}")
-    analysis_parts.append("")
-    
-    # Hip rotation analysis
+    # Calculate all the analysis data
     hip_deltas = body_part_direction_deltas(user_keypoints, "hips", pro_keypoints, "hips", is_lefty)
-    analysis_parts.append("HIP ROTATION ANALYSIS:")
-    analysis_parts.append("Hip Rotation, Cumulative (degrees):")
-    analysis_parts.append("Note: These numbers represent how much the user hips have rotated relative to the pro hips at this point in time. Positive values indicate the user has rotated more than the pro at that point (ahead in rotation timing). Negative values indicate the user has rotated less than the pro (behind in rotation timing).")
-    for i, delta in enumerate(hip_deltas):
-        comp = "ahead of" if delta > 0 else "behind"
-        analysis_parts.append(f"Frame {i}: user is {abs(int(delta))} degrees {comp} pro")
-    analysis_parts.append("")
-
-    hip_stats = get_summary_stats_text(user_keypoints, pro_keypoints, is_lefty)
-    analysis_parts.append(hip_stats)
-
-    # Hip rotation speed (user and pro)
+    shoulder_deltas = body_part_direction_deltas(user_keypoints, "shoulders", pro_keypoints, "shoulders", is_lefty)
     user_hip_speeds = get_body_part_rotation_speed(user_keypoints, "hips", is_lefty)
     pro_hip_speeds = get_body_part_rotation_speed(pro_keypoints, "hips", is_lefty)
-    analysis_parts.append("HIP ROTATION SPEED ANALYSIS:")
-    analysis_parts.append("Hip Rotation Speed (degrees/second):")
-    for i, (user_speed, pro_speed) in enumerate(zip(user_hip_speeds, pro_hip_speeds)):
-        comp = "faster than" if user_speed > pro_speed else "slower than"
-        analysis_parts.append(f"Frame {i}: user={int(user_speed)}, pro={int(pro_speed)}")
-    analysis_parts.append("")
-
-    # Shoulder rotation analysis
-    shoulder_deltas = body_part_direction_deltas(user_keypoints, "shoulders", pro_keypoints, "shoulders", is_lefty)
-    analysis_parts.append("SHOULDER ROTATION ANALYSIS:")
-    analysis_parts.append("Shoulder Rotation, Cumulative (degrees):")
-    analysis_parts.append("NOTE: Positive values indicate user has rotated shoulders more than the pro at that point (ahead in timing). Negative values indicate user has rotated shoulders less than the pro (behind in timing).")
-    analysis_parts.append("NOTE: Each line is formatted like `frame i: x` and can be interpreted as 'frame i, the user is x degrees [ahead of if x positive/behind if x negative] the pro':")
-    for i, delta in enumerate(shoulder_deltas):
-        comp = "ahead of" if delta > 0 else "behind"
-        # analysis_parts.append(f"Frame {i}: user is {abs(int(delta))} degrees {comp} pro")
-        analysis_parts.append(f"Frame {i}: {int(delta)}")
-    analysis_parts.append("")
-
-    # Shoulder rotation speed (user and pro)
     user_shoulder_speeds = get_body_part_rotation_speed(user_keypoints, "shoulders", is_lefty)
     pro_shoulder_speeds = get_body_part_rotation_speed(pro_keypoints, "shoulders", is_lefty)
-    analysis_parts.append("SHOULDER ROTATION SPEED ANALYSIS:")
-    analysis_parts.append("Shoulder Rotation Speed (degrees/second):")
-    for i, (user_speed, pro_speed) in enumerate(zip(user_shoulder_speeds, pro_shoulder_speeds)):
-        comp = "faster than" if user_speed > pro_speed else "slower than"
-        analysis_parts.append(f"Frame {i}: user={int(user_speed)}, pro={int(pro_speed)}")
-    analysis_parts.append("")
-
-    # Hip vs shoulder separation (user and pro)
     user_separation = body_part_direction_deltas(user_keypoints, "shoulders", user_keypoints, "hips", is_lefty)
     pro_separation = body_part_direction_deltas(pro_keypoints, "shoulders", pro_keypoints, "hips", is_lefty)
-    analysis_parts.append("HIP-SHOULDER SEPARATION COMPARISON:")
-    analysis_parts.append("Torso Twist (degrees):")
-    analysis_parts.append("Note: Positive values indicate hips have rotated more than shoulders (good separation - hips leading). Negative values indicate shoulders have rotated more than hips (poor separation - shoulders leading).")
-    for i, (user_delta, pro_delta) in enumerate(zip(user_separation, pro_separation)):
-        comp = "larger than" if user_delta > pro_delta else "less than"
-        analysis_parts.append(f"Frame {i}: user={int(user_delta)}, pro={int(pro_delta)} --> User separation is {abs(int(user_delta - pro_delta))} degrees {comp} pro")
-    analysis_parts.append("")
-
-    return "\n".join(analysis_parts)
+    
+    # Build the JSON structure
+    data = {
+        "athlete_handedness": "left" if is_lefty else "right",
+        "hip_rotation": {
+            "definition": "Comparison of how far the user has rotated their hips compared to the pro at that frame of the video, relative to their starting hip position. Positive = user's hips are currently rotated more than the pro, Negative = behind pro",
+            "cumulative_degrees_rotated": [
+                {"frame": i, "delta_deg": round(delta, 2)} for i, delta in enumerate(hip_deltas)
+            ],
+            "summary": {
+                "max_delta_deg": round(max(hip_deltas), 2),
+                "max_frame": hip_deltas.index(max(hip_deltas)),
+                "min_delta_deg": round(min(hip_deltas), 2),
+                "min_frame": hip_deltas.index(min(hip_deltas)),
+                "percent_ahead": round(100 * sum(1 for delta in hip_deltas if delta > 0) / len(hip_deltas), 1)
+            }
+        },
+        "shoulder_rotation": {
+            "definition": "Comparison of how far the user has rotated their shoulders compared to the pro at that frame of the video, relative to their starting shoulder position. Positive = user's shoulders are currently rotated more than the pro, Negative = behind pro",
+            "cumulative_degrees_rotated": [
+                {"frame": i, "delta_deg": round(delta, 2)} for i, delta in enumerate(shoulder_deltas)
+            ],
+            "summary": {
+                "max_delta_deg": round(max(shoulder_deltas), 2),
+                "max_frame": shoulder_deltas.index(max(shoulder_deltas)),
+                "min_delta_deg": round(min(shoulder_deltas), 2),
+                "min_frame": shoulder_deltas.index(min(shoulder_deltas)),
+                "percent_ahead": round(100 * sum(1 for delta in shoulder_deltas if delta > 0) / len(shoulder_deltas), 1)
+            }
+        },
+        "hip_rotation_speed": {
+            "definition": "Frame-by-frame rotation speeds for hip rotation in degrees per second",
+            "user_speeds_deg_per_sec": [round(speed, 2) for speed in user_hip_speeds],
+            "pro_speeds_deg_per_sec": [round(speed, 2) for speed in pro_hip_speeds],
+            "speed_differences": [
+                {"frame": i, "user_speed": round(user_speed, 2), "pro_speed": round(pro_speed, 2), "difference": round(user_speed - pro_speed, 2)}
+                for i, (user_speed, pro_speed) in enumerate(zip(user_hip_speeds, pro_hip_speeds))
+            ]
+        },
+        "shoulder_rotation_speed": {
+            "definition": "Frame-by-frame rotation speeds for shoulder rotation in degrees per second",
+            "user_speeds_deg_per_sec": [round(speed, 2) for speed in user_shoulder_speeds],
+            "pro_speeds_deg_per_sec": [round(speed, 2) for speed in pro_shoulder_speeds],
+            "speed_differences": [
+                {"frame": i, "user_speed": round(user_speed, 2), "pro_speed": round(pro_speed, 2), "difference": round(user_speed - pro_speed, 2)}
+                for i, (user_speed, pro_speed) in enumerate(zip(user_shoulder_speeds, pro_shoulder_speeds))
+            ]
+        },
+        "hip_shoulder_separation": {
+            "definition": "Hip-shoulder separation comparison. Positive values indicate hips have rotated more than shoulders (good separation - hips leading). Negative values indicate shoulders have rotated more than hips (poor separation - shoulders leading).",
+            "user_separation_deg": [round(sep, 2) for sep in user_separation],
+            "pro_separation_deg": [round(sep, 2) for sep in pro_separation],
+            "separation_comparison": [
+                {"frame": i, "user_separation": round(user_sep, 2), "pro_separation": round(pro_sep, 2), "difference": round(user_sep - pro_sep, 2)}
+                for i, (user_sep, pro_sep) in enumerate(zip(user_separation, pro_separation))
+            ]
+        }
+    }
+    
+    return json.dumps(data, indent=2)
 
 
 def get_llm_coaching(raw_data_text: str) -> str:
@@ -414,6 +421,127 @@ def create_comparison_plot_and_save(user_values: list, pro_values: list, title: 
     plt.close()
     
     return str(png_path)
+
+
+
+def create_human_body_joint_plot(user_keypoints: np.ndarray, pro_keypoints: np.ndarray, output_folder: str, is_lefty: bool = False) -> str:
+    """
+    Create a human body visualization showing joint similarity scores arranged anatomically.
+    
+    Args:
+        user_keypoints: 3D keypoints for the user
+        pro_keypoints: 3D keypoints for the professional
+        output_folder: Directory where the PNG file will be saved
+        is_lefty: If True, the left side is the throwing side
+        
+    Returns:
+        Path to the saved visualization image
+    """
+    # Calculate joint similarity scores
+    joint_scores = calculate_joint_similarity_scores(user_keypoints, pro_keypoints)
+    
+    # Create figure with appropriate size
+    _, ax = plt.subplots(figsize=(5, 7))
+    # ax.set_xlim(-3, 3)
+    # ax.set_ylim(-4, 4)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    
+    # Define anatomical positions for each joint (x, y coordinates)
+    # Negative x = left side, positive x = right side from viewer's perspective
+    joint_positions = {
+        'Head': (0, 3.7),
+        'Neck': (0, 3.0),
+        'Thorax': (0, 2.0),
+        'Spine': (0, 1.0),
+        'Pelvis': (0, 0),
+        'Left Shoulder': (-1.2, 2.0),
+        'Right Shoulder': (1.2, 2.0),
+        'Left Elbow': (-1.8, 1.0),
+        'Right Elbow': (1.8, 1.0),
+        'Left Wrist': (-2.2, 0.0),
+        'Right Wrist': (2.2, 0.0),
+        'Left Hip': (-0.6, 0),
+        'Right Hip': (0.6, 0),
+        'Left Knee': (-0.8, -1.5),
+        'Right Knee': (0.8, -1.5),
+        'Left Ankle': (-0.8, -3.0),
+        'Right Ankle': (0.8, -3.0)
+    }
+    
+    # Color mapping for scores (0-10 scale)
+    def score_to_color(score):
+        # Red (poor) to yellow (okay) to green (excellent)
+        if score <= 5.0:
+            # Red to yellow transition
+            ratio = score / 5.0
+            return (1.0, ratio, 0.0)
+        else:
+            # Yellow to green transition
+            ratio = (score - 5.0) / 5.0
+            return (1.0 - ratio, 1.0, 0.0)
+    
+    # Draw joints as circles with color-coded scores
+    joint_names_ordered = [name for name, _ in sorted(JOINT_NAMES.items(), key=lambda x: x[1])]
+    
+    for i, joint_name in enumerate(joint_names_ordered):
+        if joint_name in joint_positions:
+            x, y = joint_positions[joint_name]
+            score = joint_scores[i]
+            color = score_to_color(score)
+            
+            # Draw joint circle
+            circle = plt.Circle((x, y), 0.2, color=color, alpha=0.8, zorder=2)
+            ax.add_patch(circle)
+            
+            # Add score text
+            # ax.text(x, y, f'{score:.1f}', ha='center', va='center', 
+            ax.text(x, y, f'{int(score)}', ha='center', va='center', 
+                   fontsize=8, fontweight='bold', color='black', zorder=3)
+            
+            # Add joint label
+            label_offset = 0.35
+            if 'Left' in joint_name or joint_name in ['Head', 'Neck', 'Thorax', 'Spine', 'Pelvis']:
+                label_y = y - label_offset
+            else:
+                label_y = y - label_offset
+                
+            ax.text(x, label_y, joint_name.replace('Left ', 'L ').replace('Right ', 'R '), 
+                   ha='center', va='top', fontsize=7, color='black', zorder=3)
+    
+    # Draw body outline/skeleton for reference
+    # Spine line
+    ax.plot([0, 0], [0, 3.5], 'k-', alpha=0.3, linewidth=2, zorder=1)
+    
+    # Shoulder line
+    ax.plot([-1.2, 1.2], [2.0, 2.0], 'k-', alpha=0.3, linewidth=2, zorder=1)
+    
+    # Hip line
+    ax.plot([-0.6, 0.6], [0, 0], 'k-', alpha=0.3, linewidth=2, zorder=1)
+    
+    # Arms
+    ax.plot([-1.2, -1.8, -2.2], [2.0, 1.0, 0.0], 'k-', alpha=0.3, linewidth=2, zorder=1)  # Left arm
+    ax.plot([1.2, 1.8, 2.2], [2.0, 1.0, 0.0], 'k-', alpha=0.3, linewidth=2, zorder=1)   # Right arm
+    
+    # Legs
+    ax.plot([-0.6, -0.8, -0.8], [0, -1.5, -3.0], 'k-', alpha=0.3, linewidth=2, zorder=1)  # Left leg
+    ax.plot([0.6, 0.8, 0.8], [0, -1.5, -3.0], 'k-', alpha=0.3, linewidth=2, zorder=1)    # Right leg
+    
+    # Add title and legend
+    ax.text(0, 4.2, 'Joint Similarity Scores', 
+           ha='center', va='center', fontsize=14, fontweight='bold')
+    
+    # Save the plot
+    output_path = Path(output_folder)
+    output_path.mkdir(parents=True, exist_ok=True)
+    plot_filename = "joint_distance_comparison_plot.png"
+    plot_path = output_path / plot_filename
+    
+    plt.savefig(plot_path, dpi=200, bbox_inches='tight', facecolor='white')
+    plt.close()
+    
+    return str(plot_path)
+
 
 
 def generate_movement_analysis_plots(user_keypoints: np.ndarray, pro_keypoints: np.ndarray, output_folder: str, is_lefty: bool = False) -> dict:
@@ -507,11 +635,44 @@ def generate_movement_analysis_plots(user_keypoints: np.ndarray, pro_keypoints: 
     )
     plot_paths["shoulder_rotation_speed"] = shoulder_speed_plot_path
     
-    spider_plot_filename = create_spider_plot_all_joints(user_keypoints, pro_keypoints, output_folder, is_lefty)
-    spider_plot_path = Path(output_folder) / spider_plot_filename
-    plot_paths["joint_distance_spider_plot"] = str(spider_plot_path)
-    
+    joint_comparison_plot_filename = create_human_body_joint_plot(user_keypoints, pro_keypoints, output_folder, is_lefty)
+    joint_comparison_plot_path = Path(output_folder) / joint_comparison_plot_filename
+    plot_paths["joint_distance_comparison_plot"] = str(joint_comparison_plot_path)
+
     return plot_paths
+
+
+def calculate_joint_similarity_scores(user_keypoints: np.ndarray, pro_keypoints: np.ndarray) -> list:
+    """
+    Calculate similarity scores for each joint between user and pro keypoints.
+    Higher scores indicate more similarity between user and pro.
+    
+    Args:
+        user_keypoints: 3D keypoints for the user
+        pro_keypoints: 3D keypoints for the professional
+        
+    Returns:
+        List of similarity scores (0-10 scale) for each joint
+    """
+    num_keypoints = user_keypoints.shape[1]
+    assert num_keypoints == 17
+    
+    # Calculate the overall difference between user and pro keypoints for each joint
+    joint_overall_difference = []
+    for i in range(num_keypoints):
+        # Calculate the direct 3D distance between user and pro keypoints for this joint across all frames
+        joint_differences = np.linalg.norm(user_keypoints[:, i, :] - pro_keypoints[:, i, :], axis=1)
+        # Use mean difference across all frames for this joint
+        joint_overall_difference.append(np.mean(joint_differences))
+
+    # Normalize the differences to create scores (lower difference = higher score)
+    max_difference = np.max(joint_overall_difference) if joint_overall_difference else 1.0
+    # Add a small epsilon to max_difference to avoid division by zero if all differences are zero
+    max_difference += 1e-8
+    # Scale scores to a 0-10 range (inverted so lower difference = higher score)
+    joint_scores = [max(0, 1 - (diff / max_difference)) * 10 for diff in joint_overall_difference]
+    
+    return joint_scores
 
 
 def create_spider_plot_all_joints(user_keypoints: np.ndarray, pro_keypoints: np.ndarray, output_folder: str, is_lefty: bool = False) -> str:
@@ -527,42 +688,23 @@ def create_spider_plot_all_joints(user_keypoints: np.ndarray, pro_keypoints: np.
     Returns:
         Path to the saved spider plot image
     """
-    num_keypoints = 17
-
-    # Calculate the overall difference in distance for each keypoint
-    joint_overall_difference = []
-    for i in range(num_keypoints):
-        user_distance = np.linalg.norm(user_keypoints[:, i, :], axis=1)
-        pro_distance = np.linalg.norm(pro_keypoints[:, i, :], axis=1)
-        distance_difference = np.abs(user_distance - pro_distance)
-        joint_overall_difference.append(np.mean(distance_difference))
-
-    # Normalize the differences to create scores (lower difference = higher score)
-    # Assuming a maximum possible difference for normalization (adjust if needed)
-    max_difference = np.max(joint_overall_difference) if joint_overall_difference else 1.0
-    # Add a small epsilon to max_difference to avoid division by zero if all differences are zero
-    max_difference += 1e-8
-    # Scale scores to a 0-5 range
-    joint_scores = [max(0, 1 - (diff / max_difference)) * 5 for diff in joint_overall_difference] # Ensure scores are not negative and scale to 0-5
+    # Calculate joint similarity scores using the new function
+    joint_scores = calculate_joint_similarity_scores(user_keypoints, pro_keypoints)
 
     # Get the joint names for the labels
-    joint_labels = [name for name, idx in sorted(JOINT_NAMES.items(), key=lambda x: x[1])]
+    joint_labels = [name for name, _ in sorted(JOINT_NAMES.items(), key=lambda x: x[1])]
 
     # Prepare data for the spider chart
-    labels = np.array(joint_labels)
     scores = np.array(joint_scores)
 
-    # Add the first score and label to the end to close the circle for plotting
-    labels = [l.replace("Left", "L.") for l in labels]
+    # Shorten labels for better display
+    labels = [l.replace("Left", "L.") for l in joint_labels]
     labels = [l.replace("Right", "R.") for l in labels]
 
-    start_angle_rad = np.pi / 2
-    end_angle_rad = start_angle_rad + np.radians(360)
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False)
-    # angles = np.linspace(start_angle_rad, end_angle_rad, len(labels), endpoint=False)
 
     # Create the spider chart
-    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
+    _, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
     ax.fill(angles, scores, alpha=0.25, color='DarkGreen')
 
     # Keep angle gridlines but remove degree labels
@@ -587,19 +729,17 @@ def create_spider_plot_all_joints(user_keypoints: np.ndarray, pro_keypoints: np.
 
     # Set chart title and limits
     ax.set_title("Overall Similarity Scores by Joint", va='bottom', fontsize=12, y=1.3)
-    # ax.set_title("Overall Similarity Scores by Joint", va='top', fontsize=12)
-    ax.set_ylim(0, 5)
+    ax.set_ylim(0, 10)
     ax.grid(True)
 
     # Save the plot
     output_path = Path(output_folder)
     output_path.mkdir(parents=True, exist_ok=True)
-    plot_filename = "joint_distance_spider_plot.png"
+    plot_filename = "joint_distance_comparison_plot.png"
     plot_path = output_path / plot_filename
     plt.savefig(plot_path, dpi=200, bbox_inches='tight')
 
     plt.close()
-
 
     print("Spider Plot Joint Labels and Scores:")
     for label, score in zip(labels, scores):
@@ -613,24 +753,36 @@ if __name__ == "__main__":
     pro_npy = np.load("/home/ec2-user/shadow-trainer/api_backend/sample_videos/sample_output/raw_keypoints/pro_3D_keypoints.npy")
 
     # Generate formatted analysis text
-    analysis_text = format_movement_analysis_for_llm(user_npy, pro_npy, is_lefty=False)
+    analysis_text = format_movement_analysis_for_llm(user_npy, pro_npy, is_lefty=True)
     
-    print("FORMATTED ANALYSIS TEXT:")
-    print("=" * 80)
-    print(analysis_text)
-    print("=" * 80)
-    print()
+    # Save analysis text as info.json
+    output_folder = "/home/ec2-user/shadow-trainer/api_backend/sample_videos/sample_output"
+    info_json_path = Path(output_folder) / "info.json"
+    with open(info_json_path, 'w') as f:
+        f.write(analysis_text)
+    print(f"Analysis saved to: {info_json_path}")
+
+
+    # print("FORMATTED ANALYSIS TEXT:")
+    # print("=" * 80)
+    # print(analysis_text)
+    # print("=" * 80)
+    # print()
     
     # Get LLM coaching feedback
-    print("LLM COACHING FEEDBACK:")
-    print("-" * 40)
-    coaching_feedback = get_llm_coaching(analysis_text)
-    print(coaching_feedback)
-    print("-" * 40)
+    # print("LLM COACHING FEEDBACK:")
+    # print("-" * 40)
+    # coaching_feedback = get_llm_coaching(analysis_text)
+    # print(coaching_feedback)
+    # print("-" * 40)
 
+    output_folder = "/home/ec2-user/shadow-trainer/api_backend/sample_videos/sample_output/plots"
 
-    plot_paths = generate_movement_analysis_plots(user_npy, pro_npy, "/home/ec2-user/shadow-trainer/api_backend/sample_videos/sample_output/plots", is_lefty=False)
+    plot_paths = generate_movement_analysis_plots(user_npy, pro_npy, output_folder, is_lefty=False)
     print("Generated plots:")
     for plot_type, path in plot_paths.items():
         print(f"{plot_type}: {path}")
+
+
+    create_human_body_joint_plot(user_npy, pro_npy, output_folder, is_lefty=True)
 
