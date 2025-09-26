@@ -3,8 +3,9 @@
 <div align="center">
     <img src="api_frontend/assets/Shadow%20Trainer%20Logo.png" alt="Shadow Trainer Logo" width="300"><br>
     <a href="https://www.shadow-trainer.com">www.shadow-trainer.com</a>
-    <a href="https://youtu.be/VFyjWKRGb20">Site has been taken down, watch a Demo Video of Youtube Here</a>
-    
+    <p></p>
+    <a href="https://youtu.be/VFyjWKRGb20">Watch a Demo Video of the Web app on (Youtube)</a>
+    <p></p>
 </div>
 
 **Shadow Trainer** is an athletic motion analysis platform that uses advanced computer vision and AI to analyze baseball pitching mechanics. 
